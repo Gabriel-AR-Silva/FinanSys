@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bento — Qualidade"
+  short_description: "Planeja testes, QA e evidências reproduzíveis"
+  default_prompt: "Use $bento para definir e executar a estratégia de qualidade desta mudança."

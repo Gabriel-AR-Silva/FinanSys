@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nilo — Implementação"
+  short_description: "Converte contratos aprovados em código"
+  default_prompt: "Use $nilo para implementar este contrato aprovado de forma simples e testável."

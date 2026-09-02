@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fluxo — Performance"
+  short_description: "Mede consultas, latência, capacidade e custos"
+  default_prompt: "Use $fluxo para medir e investigar este possível gargalo."

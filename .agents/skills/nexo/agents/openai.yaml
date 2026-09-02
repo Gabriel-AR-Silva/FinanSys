@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nexo — Confiabilidade"
+  short_description: "Cuida de consistência, recuperação e falhas"
+  default_prompt: "Use $nexo para revisar consistência e recuperação desta operação."

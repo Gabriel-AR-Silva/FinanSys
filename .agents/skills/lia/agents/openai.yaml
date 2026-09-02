@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lia — Produto"
+  short_description: "Define requisitos, escopo e aceitação"
+  default_prompt: "Use $lia para esclarecer os requisitos e critérios de aceitação desta funcionalidade."

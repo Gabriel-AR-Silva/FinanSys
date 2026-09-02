@@ -1,0 +1,4 @@
+interface:
+  display_name: "Atlas — Arquitetura"
+  short_description: "Modela contratos, dados e decisões estruturais"
+  default_prompt: "Use $atlas para avaliar a arquitetura e os contratos desta mudança."

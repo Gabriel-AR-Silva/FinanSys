@@ -1,0 +1,4 @@
+interface:
+  display_name: "Íris — Segurança"
+  short_description: "Protege acesso, isolamento e privacidade"
+  default_prompt: "Use $iris para revisar os riscos e evidências de segurança desta mudança."

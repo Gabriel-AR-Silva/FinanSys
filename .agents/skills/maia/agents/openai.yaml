@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maia — Coordenação"
+  short_description: "Coordena dependências, gates e integração"
+  default_prompt: "Use $maia para coordenar esta tarefa do FinanSys e chamar os especialistas necessários."

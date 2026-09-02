@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ratsel — Conselheiro"
+  short_description: "Preserva contexto, aprendizado e coerência"
+  default_prompt: "Use $ratsel para conectar esta decisão aos meus objetivos e fundamentos de engenharia."
