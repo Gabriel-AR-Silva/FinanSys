@@ -215,3 +215,10 @@ Trate o usuário sempre como **Chefe**. A equipe é um conjunto de perspectivas 
 - Ratsel sabe apenas o contexto profissional não sensível registrado em sua skill; informações sensíveis não entram na base permanente.
 - A materialização da equipe ocupa somente `AGENTS.md` e `.agents/skills/{maia,lia,atlas,iris,nilo,bento,nexo,fluxo,ratsel}`. Ela não altera nem bloqueia o Sprint 0 técnico.
 </finansys-team>
+
+<local-browser-workflow>
+# Navegador padrão de desenvolvimento
+
+- Use o Microsoft Edge externo como navegador padrão para executar e validar manualmente o FinanSys local.
+- Use o navegador interno apenas como alternativa quando o Edge não estiver disponível.
+</local-browser-workflow>
