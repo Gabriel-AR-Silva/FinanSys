@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Contracts\MailtrapSandboxSender;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\LedgerEntry;
 use App\Models\Pocket;
+use App\Services\MailtrapApiSandboxSender;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\DevCommands;
@@ -22,7 +24,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(MailtrapSandboxSender::class, MailtrapApiSandboxSender::class);
     }
 
     /**
