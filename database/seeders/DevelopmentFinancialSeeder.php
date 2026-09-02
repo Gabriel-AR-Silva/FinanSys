@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
+use App\Models\Category;
 use App\Models\LedgerEntry;
 use App\Models\Pocket;
 use App\Models\User;
@@ -25,6 +26,7 @@ class DevelopmentFinancialSeeder extends Seeder
 
         $user = User::query()->where('email', config('development.user.email'))->firstOrFail();
         if ($user->accounts()->withTrashed()->where('operation_id', self::DEMO_MARKER)->exists()) {
+            $this->categorizeEntries($user);
             $this->command?->info('Cenário financeiro demonstrativo já existe.');
 
             return;
@@ -83,6 +85,7 @@ class DevelopmentFinancialSeeder extends Seeder
 
         return $factory->create([
             'user_id' => $user->id,
+            'category_id' => $this->categoryId($user, $description),
             'reference_type' => $reference->getMorphClass(),
             'reference_id' => $reference->id,
             'amount' => $amount,
@@ -90,6 +93,36 @@ class DevelopmentFinancialSeeder extends Seeder
             'occurred_at' => $date,
             'description' => $description,
         ]);
+    }
+
+    private function categorizeEntries(User $user): void
+    {
+        $user->ledgerEntries()->whereNull('category_id')->each(function (LedgerEntry $entry) use ($user): void {
+            $categoryId = $this->categoryId($user, $entry->description);
+
+            if ($categoryId !== null) {
+                $entry->update(['category_id' => $categoryId]);
+            }
+        });
+    }
+
+    private function categoryId(User $user, ?string $description): ?int
+    {
+        $categoryName = match ($description) {
+            'Salário' => 'Salário',
+            'Moradia' => 'Moradia',
+            'Mercado e alimentação' => 'Alimentação',
+            'Serviços e assinaturas' => 'Assinaturas',
+            'Lazer' => 'Lazer',
+            'Projeto freelance' => 'Freelance',
+            'Entrada extra' => 'Outras receitas',
+            'Despesa cotidiana' => 'Outras despesas',
+            default => null,
+        };
+
+        return $categoryName === null
+            ? null
+            : Category::query()->whereBelongsTo($user)->where('name', $categoryName)->value('id');
     }
 
     private function transfer(User $user, Account $source, Pocket $destination, string $amount, CarbonImmutable $date): void

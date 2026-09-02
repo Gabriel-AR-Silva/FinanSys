@@ -37,12 +37,21 @@ class DashboardControllerTest extends TestCase
 
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Dashboard')
+            ->where('filters.period', 30)
+            ->where('filters.category_id', null)
             ->where('overview.general_balance', '1175')
             ->where('overview.accounts_balance', '975')
             ->where('overview.pockets_balance', '200')
             ->where('overview.monthly_income', 300)
             ->where('overview.monthly_expense', 125)
-            ->has('overview.recent_entries', 5)
+            ->where('overview.period_summary.income', '300')
+            ->where('overview.period_summary.expense', '125')
+            ->where('overview.period_summary.net', '175')
+            ->where('overview.period_summary.savings_rate', '58.33')
+            ->where('overview.period_summary.transaction_count', 2)
+            ->where('overview.period_summary.largest_expense', '125')
+            ->has('overview.cash_flow.points', 30)
+            ->has('overview.recent_entries', 4)
             ->where('overview.recent_entries.0.reference_name', 'Reserva'));
     }
 
@@ -92,6 +101,42 @@ class DashboardControllerTest extends TestCase
                 ->where('overview.category_breakdown.0.total', '500')
                 ->where('overview.category_breakdown.1.name', 'Moradia')
                 ->where('overview.category_breakdown.1.total', '-125'));
+    }
+
+    public function test_dashboard_filters_period_analytics_by_an_owned_category_without_changing_general_balance(): void
+    {
+        $this->travelTo('2026-09-02 12:00:00');
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $salary = Category::factory()->for($user)->create(['name' => 'Salário', 'type' => 'income']);
+        $housing = Category::factory()->for($user)->create(['name' => 'Moradia', 'type' => 'expense']);
+        $this->entry($user, $account, LedgerEntryType::Income, '500.00', '2026-09-01 10:00:00', $salary);
+        $this->entry($user, $account, LedgerEntryType::Expense, '125.00', '2026-09-02 10:00:00', $housing);
+
+        $this->actingAs($user)->get(route('dashboard', ['period' => 7, 'category_id' => $housing->id]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.period', 7)
+                ->where('filters.category_id', $housing->id)
+                ->where('overview.general_balance', '375')
+                ->where('overview.period_summary.income', '0')
+                ->where('overview.period_summary.expense', '125')
+                ->where('overview.period_summary.net', '-125')
+                ->where('overview.period_summary.savings_rate', '0')
+                ->where('overview.period_summary.transaction_count', 1)
+                ->has('overview.category_breakdown', 1)
+                ->where('overview.category_breakdown.0.name', 'Moradia')
+                ->has('overview.recent_entries', 1));
+    }
+
+    public function test_dashboard_rejects_a_category_owned_by_another_user(): void
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $foreignCategory = Category::factory()->for($otherUser)->create();
+
+        $this->actingAs($user)->get(route('dashboard', ['category_id' => $foreignCategory->id]))
+            ->assertRedirect()
+            ->assertSessionHasErrors('category_id');
     }
 
     public static function periods(): array

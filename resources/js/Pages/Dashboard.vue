@@ -1,54 +1,84 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import CashFlowChart from '@/Components/CashFlowChart.vue';
+import CategoryBreakdownChart from '@/Components/CategoryBreakdownChart.vue';
 import GeneralBalanceChart from '@/Components/GeneralBalanceChart.vue';
-import { Head, Link } from '@inertiajs/vue3';
-import { ArrowDownLeft, ArrowRight, ArrowUpRight, Landmark, PiggyBank, ReceiptText, Sparkles, Tags, WalletCards } from '@lucide/vue';
-import { computed } from 'vue';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { ArrowDownLeft, ArrowRight, ArrowUpRight, CalendarDays, Filter, Landmark, ReceiptText, Tags, WalletCards } from '@lucide/vue';
+import { computed, ref } from 'vue';
 
-const props = defineProps({ overview: { type: Object, required: true } });
+const props = defineProps({
+    overview: { type: Object, required: true },
+    categories: { type: Array, required: true },
+    filters: { type: Object, required: true },
+});
+
+const selectedPeriod = ref(String(props.filters.period));
+const selectedCategory = ref(props.filters.category_id ? String(props.filters.category_id) : 'all');
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const formatMoney = (value) => currency.format(Number(value));
 const formatDate = (value) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(value));
-const summaries = computed(() => [
-    { label: 'Em contas', value: props.overview.accounts_balance, icon: WalletCards, color: 'bg-blue-50 text-blue-700' },
-    { label: 'Em caixinhas', value: props.overview.pockets_balance, icon: PiggyBank, color: 'bg-violet-50 text-violet-700' },
-    { label: 'Receitas no mês', value: props.overview.monthly_income, icon: ArrowDownLeft, color: 'bg-emerald-50 text-emerald-700' },
-    { label: 'Despesas no mês', value: props.overview.monthly_expense, icon: ArrowUpRight, color: 'bg-rose-50 text-rose-700' },
+const formatPercent = (value) => `${Number(value).toFixed(1)}%`;
+
+const selectedCategoryName = computed(() => {
+    if (selectedCategory.value === 'all') {
+        return 'Todas as categorias';
+    }
+
+    return props.categories.find((category) => String(category.id) === selectedCategory.value)?.name ?? 'Categoria';
+});
+
+const applyFilters = () => {
+    router.get(route('dashboard'), {
+        period: selectedPeriod.value,
+        category_id: selectedCategory.value === 'all' ? undefined : selectedCategory.value,
+    }, { preserveState: true, preserveScroll: true, replace: true });
+};
+
+const periodCards = computed(() => [
+    { label: 'Receitas', value: props.overview.period_summary.income, icon: ArrowDownLeft, tone: 'text-emerald-700 bg-emerald-50' },
+    { label: 'Despesas', value: props.overview.period_summary.expense, icon: ArrowUpRight, tone: 'text-rose-700 bg-rose-50' },
+    { label: 'Resultado', value: props.overview.period_summary.net, icon: Landmark, tone: Number(props.overview.period_summary.net) >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50' },
+    { label: 'Média diária de despesas', value: props.overview.period_summary.average_daily_expense, icon: CalendarDays, tone: 'text-amber-700 bg-amber-50' },
 ]);
-const categoryTotal = computed(() => props.overview.category_breakdown.reduce((total, category) => total + Math.abs(Number(category.total)), 0));
-const categoryBreakdown = computed(() => props.overview.category_breakdown.map((category) => ({
-    ...category,
-    percentage: categoryTotal.value === 0 ? 0 : (Math.abs(Number(category.total)) / categoryTotal.value) * 100,
-})));
 </script>
 
 <template>
     <Head title="Visão geral" />
     <AuthenticatedLayout>
-        <section class="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-            <div><p class="text-sm font-medium text-emerald-700">Olá, {{ $page.props.auth.user.name }}</p><h1 class="mt-1 text-3xl font-semibold tracking-tight text-slate-950">Visão geral</h1><p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Acompanhe sua vida financeira sem perder a origem de cada valor.</p></div>
-            <p class="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500">Dados atualizados agora</p>
+        <section class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div><p class="text-sm font-medium text-emerald-700">Olá, {{ $page.props.auth.user.name }}</p><h1 class="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Painel financeiro</h1><p class="mt-1 text-sm text-slate-500">Uma leitura rápida do seu saldo, fluxo e categorias.</p></div>
+            <Link :href="route('ledger-entries.index')" class="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800">Ver lançamentos <ArrowRight :size="16" /></Link>
         </section>
-        <section class="mt-8 overflow-hidden rounded-3xl bg-slate-950 p-6 text-white shadow-xl shadow-slate-200 sm:p-8">
-            <div class="flex flex-col justify-between gap-8 sm:flex-row sm:items-end"><div><div class="flex items-center gap-2 text-sm text-slate-400"><Landmark :size="17" />Saldo geral</div><p class="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">{{ formatMoney(overview.general_balance) }}</p><p class="mt-3 text-sm text-slate-400">Soma do saldo disponível nas contas e nas caixinhas.</p></div><div class="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-sm text-slate-300"><Sparkles :size="18" class="text-emerald-300" />Atualizado pelos lançamentos</div></div>
-        </section>
-        <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <article v-for="summary in summaries" :key="summary.label" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div class="flex items-center justify-between gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-xl" :class="summary.color"><component :is="summary.icon" :size="19" /></span><span class="text-xs font-medium text-slate-400">Atual</span></div><p class="mt-5 text-sm text-slate-500">{{ summary.label }}</p><p class="mt-1 text-xl font-semibold tracking-tight text-slate-950">{{ formatMoney(summary.value) }}</p></article>
-        </section>
-        <GeneralBalanceChart :chart="overview.chart" />
-        <section class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><Tags :size="19" /></span><div><h2 class="font-semibold text-slate-950">Movimentação por categoria</h2><p class="text-sm text-slate-500">Receitas e despesas no período selecionado do gráfico.</p></div></div>
-            <div v-if="categoryBreakdown.length" class="mt-6 grid gap-4 sm:grid-cols-2">
-                <article v-for="category in categoryBreakdown" :key="`${category.id ?? 'none'}-${category.type}`" class="rounded-2xl border border-slate-100 p-4">
-                    <div class="flex items-center justify-between gap-4"><div><p class="text-sm font-semibold text-slate-800">{{ category.name }}</p><p class="text-xs text-slate-500">{{ category.type === 'income' ? 'Receita' : 'Despesa' }} · {{ category.percentage.toFixed(1) }}%</p></div><p class="text-sm font-semibold" :class="Number(category.total) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ Number(category.total) >= 0 ? '+' : '−' }} {{ formatMoney(Math.abs(Number(category.total))) }}</p></div>
-                    <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full" :class="Number(category.total) >= 0 ? 'bg-emerald-500' : 'bg-rose-500'" :style="{ width: `${Math.max(category.percentage, 2)}%` }" /></div>
-                </article>
+
+        <section class="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-row lg:items-center">
+            <div class="flex items-center gap-2 px-2 text-sm font-semibold text-slate-700"><Filter :size="16" class="text-emerald-600" />Analisar período</div>
+            <div class="grid flex-1 gap-2 sm:grid-cols-[10rem_minmax(13rem,1fr)]">
+                <select v-model="selectedPeriod" class="rounded-xl border-slate-200 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500" @change="applyFilters"><option value="7">Últimos 7 dias</option><option value="15">Últimos 15 dias</option><option value="30">Últimos 30 dias</option><option value="60">Últimos 60 dias</option><option value="365">Último ano</option></select>
+                <select v-model="selectedCategory" class="rounded-xl border-slate-200 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500" @change="applyFilters"><option value="all">Todas as categorias</option><optgroup label="Receitas"><option v-for="category in categories.filter((item) => item.type === 'income')" :key="category.id" :value="String(category.id)">{{ category.name }}</option></optgroup><optgroup label="Despesas"><option v-for="category in categories.filter((item) => item.type === 'expense')" :key="category.id" :value="String(category.id)">{{ category.name }}</option></optgroup></select>
             </div>
-            <p v-else class="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">Ainda não há receitas ou despesas neste período.</p>
+            <p class="hidden px-2 text-xs text-slate-500 2xl:block">O saldo geral permanece atual; os demais dados respeitam os filtros.</p>
         </section>
-        <section class="mt-6 grid gap-6 xl:grid-cols-[1.45fr_1fr]">
-            <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div class="flex items-center justify-between gap-4"><div><h2 class="font-semibold text-slate-950">Atividade recente</h2><p class="mt-1 text-sm text-slate-500">Seus últimos lançamentos.</p></div><Link :href="route('ledger-entries.index')" class="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-800">Ver todos<ArrowRight :size="16" /></Link></div><div v-if="overview.recent_entries.length" class="mt-6 grid gap-2"><div v-for="entry in overview.recent_entries" :key="entry.id" class="flex items-center gap-3 rounded-2xl px-3 py-3 hover:bg-slate-50"><span class="flex h-10 w-10 items-center justify-center rounded-xl" :class="entry.is_positive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'"><ArrowDownLeft v-if="entry.is_positive" :size="18" /><ArrowUpRight v-else :size="18" /></span><div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold text-slate-800">{{ entry.description || entry.type_label }}</p><p class="truncate text-xs text-slate-500">{{ entry.reference_name }} · {{ formatDate(entry.occurred_at) }}</p></div><p class="text-sm font-semibold" :class="entry.is_positive ? 'text-emerald-700' : 'text-rose-700'">{{ entry.is_positive ? '+' : '-' }} {{ formatMoney(entry.amount) }}</p></div></div><div v-else class="mt-8 flex min-h-44 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 text-center"><span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm"><ReceiptText :size="22" /></span><p class="mt-4 text-sm font-semibold text-slate-800">Nenhum lançamento ainda</p><p class="mt-1 max-w-sm text-sm text-slate-500">Quando você registrar receitas ou despesas, o histórico será exibido aqui.</p></div></article>
-            <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 class="font-semibold text-slate-950">Primeiros passos</h2><p class="mt-1 text-sm text-slate-500">Prepare sua estrutura financeira.</p><div class="mt-5 grid gap-3"><Link :href="route('accounts.index')" class="group flex items-center gap-3 rounded-2xl border border-slate-200 p-4 hover:bg-slate-50"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><WalletCards :size="19" /></span><span class="flex-1 text-sm font-medium text-slate-800">Cadastre sua primeira conta</span><ArrowRight :size="17" class="text-slate-300 group-hover:text-slate-600" /></Link><Link :href="route('pockets.index')" class="group flex items-center gap-3 rounded-2xl border border-slate-200 p-4 hover:bg-slate-50"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-700"><PiggyBank :size="19" /></span><span class="flex-1 text-sm font-medium text-slate-800">Organize uma caixinha</span><ArrowRight :size="17" class="text-slate-300 group-hover:text-slate-600" /></Link></div></article>
+
+        <section class="mt-4 grid gap-3 xl:grid-cols-[1.15fr_2fr]">
+            <article class="flex min-h-32 flex-col justify-between rounded-2xl bg-slate-950 p-5 text-white shadow-lg shadow-slate-200"><div class="flex items-center justify-between gap-3 text-sm text-slate-400"><span class="flex items-center gap-2"><Landmark :size="17" /> Saldo geral</span><span class="text-xs">Contas + caixinhas</span></div><p class="mt-5 text-3xl font-semibold tracking-tight">{{ formatMoney(overview.general_balance) }}</p></article>
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><article v-for="card in periodCards" :key="card.label" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><span class="flex h-8 w-8 items-center justify-center rounded-lg" :class="card.tone"><component :is="card.icon" :size="16" /></span><p class="mt-3 text-xs leading-4 text-slate-500">{{ card.label }}</p><p class="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950" :title="formatMoney(card.value)">{{ formatMoney(card.value) }}</p></article></div>
         </section>
+
+        <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Taxa de economia</p><p class="mt-1 font-semibold" :class="Number(overview.period_summary.savings_rate) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatPercent(overview.period_summary.savings_rate) }}</p></article>
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Movimentações</p><p class="mt-1 font-semibold text-slate-900">{{ overview.period_summary.transaction_count }}</p></article>
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Maior despesa</p><p class="mt-1 truncate font-semibold text-rose-700" :title="formatMoney(overview.period_summary.largest_expense)">{{ formatMoney(overview.period_summary.largest_expense) }}</p></article>
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Categoria ativa</p><p class="mt-1 truncate font-semibold text-slate-900" :title="selectedCategoryName">{{ selectedCategoryName }}</p></article>
+        </section>
+
+        <section class="mt-6"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Evolução financeira</h2><p class="text-sm text-slate-500">Saldo acumulado e entradas versus saídas no período.</p></div><div class="grid gap-4 xl:grid-cols-2"><GeneralBalanceChart :chart="overview.chart" /><CashFlowChart :cash-flow="overview.cash_flow" /></div></section>
+
+        <section class="mt-6"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Visualização por categoria</h2><p class="text-sm text-slate-500">Compare onde o dinheiro entrou e saiu sem perder o contexto.</p></div><div class="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
+            <CategoryBreakdownChart :categories="overview.category_breakdown" />
+            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div class="flex items-center justify-between gap-4"><div><h3 class="font-semibold text-slate-950">Atividade recente</h3><p class="text-xs text-slate-500">{{ selectedCategoryName }}</p></div><ReceiptText :size="18" class="text-slate-400" /></div><div v-if="overview.recent_entries.length" class="mt-3 divide-y divide-slate-100"><div v-for="entry in overview.recent_entries" :key="entry.id" class="flex items-center gap-3 py-2.5"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="entry.is_positive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'"><ArrowDownLeft v-if="entry.is_positive" :size="15" /><ArrowUpRight v-else :size="15" /></span><div class="min-w-0 flex-1"><p class="truncate text-sm font-medium text-slate-800">{{ entry.description || entry.type_label }}</p><p class="truncate text-xs text-slate-500">{{ entry.reference_name }} · {{ formatDate(entry.occurred_at) }}</p></div><p class="shrink-0 text-xs font-semibold" :class="entry.is_positive ? 'text-emerald-700' : 'text-rose-700'">{{ entry.is_positive ? '+' : '−' }} {{ formatMoney(entry.amount) }}</p></div></div><p v-else class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">Nenhuma movimentação para estes filtros.</p></article>
+        </div></section>
+
+        <section class="mt-4 grid gap-3 sm:grid-cols-2"><Link :href="route('accounts.index')" class="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:bg-slate-50"><span class="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><WalletCards :size="17" /></span><span class="flex-1 text-sm font-medium text-slate-800">Gerenciar contas</span><ArrowRight :size="16" class="text-slate-300 group-hover:text-slate-600" /></Link><Link :href="route('categories.index')" class="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:bg-slate-50"><span class="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-700"><Tags :size="17" /></span><span class="flex-1 text-sm font-medium text-slate-800">Gerenciar categorias</span><ArrowRight :size="16" class="text-slate-300 group-hover:text-slate-600" /></Link></section>
     </AuthenticatedLayout>
 </template>

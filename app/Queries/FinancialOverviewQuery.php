@@ -14,9 +14,27 @@ use Illuminate\Database\Eloquent\Builder;
 
 class FinancialOverviewQuery
 {
-    public function forUser(User $user, int $period = 30): array
+    public function forUser(User $user, int $period = 30, ?int $categoryId = null): array
     {
         $entries = LedgerEntry::query()->whereBelongsTo($user);
+        $start = CarbonImmutable::now()->startOfDay()->subDays($period - 1);
+        $end = CarbonImmutable::now()->endOfDay();
+        $periodEntries = LedgerEntry::query()->whereBelongsTo($user)
+            ->whereIn('type', [LedgerEntryType::Income, LedgerEntryType::Expense])
+            ->whereBetween('occurred_at', [$start, $end])
+            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId));
+        $periodSummary = (clone $periodEntries)->toBase()
+            ->selectRaw('COALESCE(SUM(CASE WHEN type = ? THEN amount ELSE 0 END), 0) AS income', [LedgerEntryType::Income->value])
+            ->selectRaw('COALESCE(SUM(CASE WHEN type = ? THEN amount ELSE 0 END), 0) AS expense', [LedgerEntryType::Expense->value])
+            ->selectRaw('COUNT(*) AS transaction_count')
+            ->selectRaw('COALESCE(MAX(CASE WHEN type = ? THEN amount ELSE NULL END), 0) AS largest_expense', [LedgerEntryType::Expense->value])
+            ->first();
+        $income = BigDecimal::of((string) $periodSummary->income);
+        $expense = BigDecimal::of((string) $periodSummary->expense);
+        $net = $income->minus($expense);
+        $savingsRate = $income->isZero()
+            ? '0'
+            : (string) $net->multipliedBy(100)->dividedBy($income, 2, RoundingMode::HalfUp);
 
         return [
             'general_balance' => $this->balance(clone $entries),
@@ -30,7 +48,18 @@ class FinancialOverviewQuery
                 ->where('type', LedgerEntryType::Expense)
                 ->whereBetween('occurred_at', [now()->startOfMonth(), now()->endOfMonth()])
                 ->sum('amount'),
+            'period_summary' => [
+                'income' => (string) $income,
+                'expense' => (string) $expense,
+                'net' => (string) $net,
+                'savings_rate' => $savingsRate,
+                'average_daily_expense' => (string) $expense->dividedBy($period, 2, RoundingMode::HalfUp),
+                'transaction_count' => (int) $periodSummary->transaction_count,
+                'largest_expense' => (string) $periodSummary->largest_expense,
+            ],
             'recent_entries' => (clone $entries)
+                ->whereBetween('occurred_at', [$start, $end])
+                ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
                 ->with('reference:id,name')
                 ->latest('occurred_at')
                 ->latest('id')
@@ -47,17 +76,19 @@ class FinancialOverviewQuery
                     'description' => $entry->description,
                 ]),
             'chart' => $this->chart($user, $period),
-            'category_breakdown' => $this->categoryBreakdown($user, $period),
+            'cash_flow' => $this->cashFlow($user, $period, $categoryId),
+            'category_breakdown' => $this->categoryBreakdown($user, $period, $categoryId),
         ];
     }
 
-    private function categoryBreakdown(User $user, int $period): array
+    private function categoryBreakdown(User $user, int $period, ?int $categoryId): array
     {
         $start = CarbonImmutable::now()->startOfDay()->subDays($period - 1);
         $end = CarbonImmutable::now()->endOfDay();
         $rows = LedgerEntry::query()->whereBelongsTo($user)
             ->whereIn('type', [LedgerEntryType::Income, LedgerEntryType::Expense])
             ->whereBetween('occurred_at', [$start, $end])
+            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
             ->select(['category_id', 'type'])
             ->selectRaw('SUM(amount) AS total')
             ->groupBy('category_id', 'type')
@@ -87,7 +118,39 @@ class FinancialOverviewQuery
                 );
 
                 return [...$first, 'total' => (string) $total];
-            })->values()->all();
+            })->sortByDesc(fn (array $item): string => (string) BigDecimal::of($item['total'])->abs())
+            ->values()->all();
+    }
+
+    private function cashFlow(User $user, int $period, ?int $categoryId): array
+    {
+        $end = CarbonImmutable::now()->endOfDay();
+        $start = CarbonImmutable::now()->startOfDay()->subDays($period - 1);
+        $rows = LedgerEntry::query()->whereBelongsTo($user)
+            ->whereIn('type', [LedgerEntryType::Income, LedgerEntryType::Expense])
+            ->whereBetween('occurred_at', [$start, $end])
+            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
+            ->selectRaw('DATE(occurred_at) AS entry_date')
+            ->selectRaw('SUM(CASE WHEN type = ? THEN amount ELSE 0 END) AS income', [LedgerEntryType::Income->value])
+            ->selectRaw('SUM(CASE WHEN type = ? THEN amount ELSE 0 END) AS expense', [LedgerEntryType::Expense->value])
+            ->groupBy('entry_date')
+            ->get()
+            ->keyBy('entry_date');
+        $points = [];
+
+        for ($date = $start; $date->lte($end); $date = $date->addDay()) {
+            $row = $rows->get($date->toDateString());
+            $income = BigDecimal::of((string) ($row?->getAttribute('income') ?? '0'));
+            $expense = BigDecimal::of((string) ($row?->getAttribute('expense') ?? '0'));
+            $points[] = [
+                'date' => $date->toDateString(),
+                'income' => (string) $income,
+                'expense' => (string) $expense,
+                'net' => (string) $income->minus($expense),
+            ];
+        }
+
+        return ['period' => $period, 'points' => $points];
     }
 
     private function chart(User $user, int $period): array
