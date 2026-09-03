@@ -21,13 +21,13 @@ const labels = computed(() => {
 </script>
 
 <template>
-    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <article class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div>
             <h2 class="text-sm font-semibold text-slate-950">Entradas e saídas</h2>
             <p class="mt-0.5 text-xs text-slate-500">Comparação diária no filtro selecionado.</p>
         </div>
-        <div class="mt-4 overflow-x-auto">
-            <svg class="h-44 min-w-[34rem] w-full" :viewBox="`0 0 ${width} ${height}`" role="img" aria-label="Gráfico diário de receitas e despesas">
+        <div class="mt-4 w-full max-w-full overflow-x-auto">
+            <svg class="h-44 w-full min-w-[34rem]" :viewBox="`0 0 ${width} ${height}`" role="img" aria-label="Gráfico diário de receitas e despesas">
                 <line x1="0" :y1="baseline" :x2="width" :y2="baseline" stroke="#cbd5e1" stroke-width="1" />
                 <g v-for="(point, index) in cashFlow.points" :key="point.date">
                     <rect :x="index * slotWidth + slotWidth / 2 - barWidth - 1" :y="baseline - barHeight(point.income)" :width="barWidth" :height="barHeight(point.income)" fill="#10b981" rx="2"><title>{{ formatDate(point.date) }} — receitas {{ formatMoney(point.income) }}</title></rect>
