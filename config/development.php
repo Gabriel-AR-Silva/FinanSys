@@ -2,7 +2,7 @@
 
 return [
     'user' => [
-        'email' => env('DEV_USER_EMAIL', 'gabriel@gmail.com'),
+        'email' => env('DEV_USER_EMAIL', 'gabrielsilva.contato9@gmail.com'),
         'password' => env('DEV_USER_PASSWORD'),
         'name' => env('DEV_USER_NAME', 'Gabriel'),
     ],

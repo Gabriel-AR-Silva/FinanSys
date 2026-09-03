@@ -7,6 +7,7 @@ use App\Models\Account;
 use App\Models\Category;
 use App\Models\LedgerEntry;
 use App\Models\Pocket;
+use App\Models\SocialIdentity;
 use App\Services\MailtrapApiSandboxSender;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -41,6 +42,12 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
+        RateLimiter::for('google-auth', function (Request $request): array {
+            return [
+                Limit::perMinute(10)->by($request->ip()),
+            ];
+        });
+
         DevCommands::artisan('queue:work --sleep=1 --tries=3 --timeout=60 --max-jobs=100', 'queue');
 
         Relation::enforceMorphMap([
@@ -48,6 +55,7 @@ class AppServiceProvider extends ServiceProvider
             'category' => Category::class,
             'pocket' => Pocket::class,
             'ledger_entry' => LedgerEntry::class,
+            'social_identity' => SocialIdentity::class,
         ]);
 
         Vite::prefetch(concurrency: 3);

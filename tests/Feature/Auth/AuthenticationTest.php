@@ -13,12 +13,16 @@ class AuthenticationTest extends TestCase
 
     public function test_login_screen_can_be_rendered(): void
     {
+        config()->set('services.google.client_id', null);
+
         $response = $this->get('/login');
 
         $response->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Auth/Login')
                 ->where('canResetPassword', true)
+                ->where('googleAuthenticationEnabled', false)
+                ->where('googleError', null)
                 ->where('status', null));
     }
 

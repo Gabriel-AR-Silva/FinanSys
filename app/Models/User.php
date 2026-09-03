@@ -38,6 +38,11 @@ class User extends Authenticatable
         return $this->hasMany(Category::class);
     }
 
+    public function socialIdentities(): HasMany
+    {
+        return $this->hasMany(SocialIdentity::class);
+    }
+
     public function sendPasswordResetNotification($token): void
     {
         $this->notify((new QueuedResetPassword($token))->afterCommit());

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\SocialProvider;
 use App\Http\Requests\ProfileUpdateRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,14 @@ class ProfileController extends Controller
     public function edit(Request $request): Response
     {
         return Inertia::render('Profile/Edit', [
+            'googleAuthenticationEnabled' => filled(config('services.google.client_id'))
+                && filled(config('services.google.client_secret'))
+                && filled(config('services.google.redirect'))
+                && filled(config('services.google.allowed_email')),
+            'googleIdentity' => $request->user()
+                ->socialIdentities()
+                ->where('provider', SocialProvider::Google)
+                ->first(['email', 'linked_at']),
         ]);
     }
 

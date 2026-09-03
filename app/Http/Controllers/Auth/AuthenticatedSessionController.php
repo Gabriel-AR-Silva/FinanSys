@@ -20,6 +20,8 @@ class AuthenticatedSessionController extends Controller
     {
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
+            'googleAuthenticationEnabled' => $this->googleAuthenticationEnabled(),
+            'googleError' => session('error'),
             'status' => session('status'),
         ]);
     }
@@ -48,5 +50,13 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    private function googleAuthenticationEnabled(): bool
+    {
+        return filled(config('services.google.client_id'))
+            && filled(config('services.google.client_secret'))
+            && filled(config('services.google.redirect'))
+            && filled(config('services.google.allowed_email'));
     }
 }

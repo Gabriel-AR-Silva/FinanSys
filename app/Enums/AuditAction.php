@@ -10,4 +10,6 @@ enum AuditAction: string
     case Restored = 'restored';
     case Purged = 'purged';
     case Reversed = 'reversed';
+    case Linked = 'linked';
+    case Unlinked = 'unlinked';
 }

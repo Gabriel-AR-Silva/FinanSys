@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
+use App\Http\Controllers\Auth\GoogleAuthenticationController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -12,6 +13,10 @@ Route::middleware('guest')->group(function () {
         ->name('login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
+
+    Route::get('auth/google', [GoogleAuthenticationController::class, 'redirectForLogin'])
+        ->middleware('throttle:google-auth')
+        ->name('google.login');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
@@ -28,6 +33,14 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
+    Route::get('profile/google', [GoogleAuthenticationController::class, 'redirectForLink'])
+        ->middleware(['password.confirm', 'throttle:google-auth'])
+        ->name('google.link');
+
+    Route::delete('profile/google', [GoogleAuthenticationController::class, 'destroy'])
+        ->middleware(['password.confirm', 'throttle:google-auth'])
+        ->name('google.unlink');
+
     Route::get('confirm-password', [ConfirmablePasswordController::class, 'show'])
         ->name('password.confirm');
 
@@ -38,3 +51,7 @@ Route::middleware('auth')->group(function () {
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');
 });
+
+Route::get('auth/google/callback', [GoogleAuthenticationController::class, 'callback'])
+    ->middleware('throttle:google-auth')
+    ->name('google.callback');

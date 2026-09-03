@@ -1,5 +1,6 @@
 <script setup>
 import Checkbox from '@/Components/Checkbox.vue';
+import GoogleLogo from '@/Components/GoogleLogo.vue';
 import InputError from '@/Components/InputError.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ArrowRight, Eye, EyeOff, ShieldCheck, Sparkles, TrendingUp, WalletCards } from '@lucide/vue';
@@ -7,6 +8,8 @@ import { ref } from 'vue';
 
 defineProps({
     canResetPassword: { type: Boolean },
+    googleAuthenticationEnabled: { type: Boolean },
+    googleError: { type: String, default: null },
     status: { type: String },
 });
 
@@ -98,6 +101,10 @@ const submit = () => {
                         {{ status }}
                     </div>
 
+                    <div v-if="googleError" class="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800" role="alert">
+                        {{ googleError }}
+                    </div>
+
                     <form class="mt-7 flex flex-col gap-5" @submit.prevent="submit">
                         <div class="flex flex-col gap-2">
                             <label for="email" class="text-sm font-semibold text-slate-700">E-mail</label>
@@ -161,6 +168,20 @@ const submit = () => {
                             <span v-else class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden="true"></span>
                         </button>
                     </form>
+
+                    <div v-if="googleAuthenticationEnabled" class="mt-5 flex flex-col gap-4">
+                        <div class="flex items-center gap-3 text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+                            <span class="h-px flex-1 bg-slate-200"></span>
+                            <span>ou</span>
+                            <span class="h-px flex-1 bg-slate-200"></span>
+                        </div>
+                        <a :href="route('google.login')" class="group relative flex h-12 w-full items-center justify-center rounded-xl border border-[#747775] bg-white px-12 text-sm font-medium leading-5 text-[#1f1f1f] shadow-sm transition hover:bg-[#f8fafd] hover:shadow-md focus:outline-none focus:ring-4 focus:ring-blue-500/20 active:bg-[#f1f3f4]">
+                            <span class="absolute left-3 grid h-9 w-9 place-items-center rounded-lg transition group-hover:bg-white">
+                                <GoogleLogo />
+                            </span>
+                            Entrar com Google
+                        </a>
+                    </div>
 
                     <p class="mt-6 flex items-center justify-center gap-2 text-center text-xs text-slate-400">
                         <ShieldCheck :size="14" />
