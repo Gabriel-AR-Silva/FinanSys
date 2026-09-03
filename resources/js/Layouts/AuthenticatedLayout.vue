@@ -1,10 +1,8 @@
 <script setup>
-import Dropdown from '@/Components/Dropdown.vue';
-import DropdownLink from '@/Components/DropdownLink.vue';
 import QuickActionModal from '@/Components/QuickActionModal.vue';
 import ToastHost from '@/Components/ToastHost.vue';
 import { Link } from '@inertiajs/vue3';
-import { ArrowDownCircle, ArrowLeftRight, ArrowRightLeft, ArrowUpCircle, ChevronDown, LayoutDashboard, Menu, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, Tags, UserRound, WalletCards, X } from '@lucide/vue';
+import { ArrowDownCircle, ArrowLeftRight, ArrowRightLeft, ArrowUpCircle, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, Tags, UserRound, WalletCards, X } from '@lucide/vue';
 import { onMounted, ref, watch } from 'vue';
 
 const mobileNavigationOpen = ref(false);
@@ -53,18 +51,17 @@ watch(sidebarCollapsed, (collapsed) => {
                 <span v-if="sidebarCollapsed" class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">Nova movimentação</span>
             </button>
 
-            <div class="mt-5 border-t border-white/10 pt-5">
-                <Dropdown align="right" width="56">
-                    <template #trigger>
-                        <button type="button" class="group relative flex w-full items-center rounded-xl p-2 text-left transition hover:bg-white/10" :class="sidebarCollapsed ? 'justify-center' : 'gap-3'" aria-label="Menu do usuário">
-                            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-sm font-semibold text-emerald-300">{{ $page.props.auth.user.name.slice(0, 1).toUpperCase() }}</span>
-                            <span v-show="!sidebarCollapsed" class="min-w-0 flex-1"><span class="block truncate text-sm font-medium">{{ $page.props.auth.user.name }}</span><span class="block truncate text-xs text-slate-400">{{ $page.props.auth.user.email }}</span></span>
-                            <ChevronDown v-show="!sidebarCollapsed" :size="16" class="text-slate-400" />
-                            <span v-if="sidebarCollapsed" class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">Perfil de {{ $page.props.auth.user.name }}</span>
-                        </button>
-                    </template>
-                    <template #content><DropdownLink :href="route('profile.edit')">Meu perfil</DropdownLink><DropdownLink :href="route('logout')" method="post" as="button">Sair</DropdownLink></template>
-                </Dropdown>
+            <div class="mt-5 flex flex-col gap-1 border-t border-white/10 pt-5">
+                <Link :href="route('profile.edit')" class="group relative flex w-full items-center rounded-xl p-2 text-left transition hover:bg-white/10" :class="sidebarCollapsed ? 'justify-center' : 'gap-3'" aria-label="Meu perfil">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-semibold text-emerald-300">{{ $page.props.auth.user.name.slice(0, 1).toUpperCase() }}</span>
+                    <span v-show="!sidebarCollapsed" class="min-w-0 flex-1"><span class="block truncate text-sm font-medium">{{ $page.props.auth.user.name }}</span><span class="block truncate text-xs text-slate-400">{{ $page.props.auth.user.email }}</span></span>
+                    <span v-if="sidebarCollapsed" class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">Meu perfil</span>
+                </Link>
+                <Link :href="route('logout')" method="post" as="button" class="group relative flex w-full items-center rounded-xl p-2 text-sm font-medium text-rose-300 transition hover:bg-rose-400/10 hover:text-rose-200" :class="sidebarCollapsed ? 'justify-center' : 'gap-3 px-3'" aria-label="Sair do FinanSys">
+                    <LogOut :size="19" class="shrink-0" />
+                    <span v-show="!sidebarCollapsed">Sair</span>
+                    <span v-if="sidebarCollapsed" class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">Sair</span>
+                </Link>
             </div>
         </aside>
 
@@ -90,7 +87,10 @@ watch(sidebarCollapsed, (collapsed) => {
                 <nav class="mt-8 flex flex-1 flex-col gap-2">
                     <Link v-for="item in navigation" :key="item.route" :href="route(item.route)" class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium" :class="isActive(item.route) ? 'bg-white text-slate-950' : 'text-slate-300'" @click="mobileNavigationOpen = false"><component :is="item.icon" :size="20" />{{ item.label }}</Link>
                 </nav>
-                <Link :href="route('profile.edit')" class="flex items-center gap-3 border-t border-white/10 px-3 pt-5 text-sm text-slate-300"><UserRound :size="19" />Meu perfil</Link>
+                <div class="flex flex-col gap-3 border-t border-white/10 pt-5">
+                    <Link :href="route('profile.edit')" class="flex items-center gap-3 px-3 text-sm text-slate-300" @click="mobileNavigationOpen = false"><UserRound :size="19" />Meu perfil</Link>
+                    <Link :href="route('logout')" method="post" as="button" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-rose-300 hover:bg-rose-400/10" @click="mobileNavigationOpen = false"><LogOut :size="19" />Sair</Link>
+                </div>
             </aside>
         </div>
 
