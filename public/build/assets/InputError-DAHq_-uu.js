@@ -1,0 +1,1 @@
+import{H as e,I as t,d as n,g as r,k as i,y as a}from"./app-CCMFZTiQ.js";var o={class:`text-sm text-red-600`},s={__name:`InputError`,props:{message:{type:String}},setup(s){return(c,l)=>t((i(),a(`div`,null,[r(`p`,o,e(s.message),1)],512)),[[n,s.message]])}};export{s as t};
