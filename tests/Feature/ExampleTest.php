@@ -17,6 +17,8 @@ class ExampleTest extends TestCase
 
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Welcome')
+            ->where('canLogin', true)
+            ->missing('canRegister')
             ->missing('laravelVersion')
             ->missing('phpVersion'));
     }

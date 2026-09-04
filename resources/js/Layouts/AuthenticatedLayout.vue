@@ -1,7 +1,7 @@
 <script setup>
 import QuickActionModal from '@/Components/QuickActionModal.vue';
 import ToastHost from '@/Components/ToastHost.vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import { ArrowDownCircle, ArrowLeftRight, ArrowRightLeft, ArrowUpCircle, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, Tags, UserRound, WalletCards, X } from '@lucide/vue';
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
@@ -21,6 +21,14 @@ let previousBodyOverflow = '';
 
 const openMobileNavigation = () => {
     mobileNavigationOpen.value = true;
+};
+
+const logout = () => {
+    router.post(route('logout'), {}, {
+        preserveScroll: false,
+        replace: true,
+        onSuccess: () => closeMobileNavigation(false),
+    });
 };
 
 const closeMobileNavigation = (restoreFocus = true) => {
@@ -92,11 +100,11 @@ watch(mobileNavigationOpen, (open) => {
                     <span v-show="!sidebarCollapsed" class="min-w-0 flex-1"><span class="block truncate text-sm font-medium">{{ $page.props.auth.user.name }}</span><span class="block truncate text-xs text-slate-400">{{ $page.props.auth.user.email }}</span></span>
                     <span v-if="sidebarCollapsed" class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">Meu perfil</span>
                 </Link>
-                <Link :href="route('logout')" method="post" as="button" class="group relative flex w-full items-center rounded-xl p-2 text-sm font-medium text-rose-300 transition hover:bg-rose-400/10 hover:text-rose-200" :class="sidebarCollapsed ? 'justify-center' : 'gap-3 px-3'" aria-label="Sair do FinanSys">
+                <button type="button" class="group relative flex w-full items-center rounded-xl p-2 text-sm font-medium text-rose-300 transition hover:bg-rose-400/10 hover:text-rose-200" :class="sidebarCollapsed ? 'justify-center' : 'gap-3 px-3'" aria-label="Sair do FinanSys" @click="logout">
                     <LogOut :size="19" class="shrink-0" />
                     <span v-show="!sidebarCollapsed">Sair</span>
                     <span v-if="sidebarCollapsed" class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">Sair</span>
-                </Link>
+                </button>
             </div>
         </aside>
 
@@ -124,7 +132,7 @@ watch(mobileNavigationOpen, (open) => {
                 </nav>
                 <div class="flex shrink-0 flex-col gap-3 border-t border-white/10 pt-5">
                     <Link :href="route('profile.edit')" class="flex items-center gap-3 px-3 text-sm text-slate-300" @click="closeMobileNavigation(false)"><UserRound :size="19" />Meu perfil</Link>
-                    <Link :href="route('logout')" method="post" as="button" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-rose-300 hover:bg-rose-400/10" @click="closeMobileNavigation(false)"><LogOut :size="19" />Sair</Link>
+                    <button type="button" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-rose-300 hover:bg-rose-400/10" @click="logout"><LogOut :size="19" />Sair</button>
                 </div>
             </aside>
         </div>
