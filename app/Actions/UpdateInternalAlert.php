@@ -51,7 +51,9 @@ class UpdateInternalAlert
 
             $wasAdverse = in_array($alert->current_situation, ['insufficient', 'outside_plan'], true)
                 || $alert->current_deficit !== null;
-            $recoveredAt = $wasAdverse && ! $adverse ? CarbonImmutable::now('America/Sao_Paulo') : $alert->recovered_at;
+            $recoveredAt = $adverse
+                ? null
+                : ($wasAdverse ? CarbonImmutable::now('America/Sao_Paulo') : $alert->recovered_at);
             $worstSituation = $this->severity($situation) > $this->severity($alert->worst_situation)
                 ? $situation
                 : $alert->worst_situation;
