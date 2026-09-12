@@ -29,6 +29,7 @@ class PayCreditCard
     public function __construct(
         private CardPaymentAllocator $allocator,
         private AuditRecorder $auditRecorder,
+        private RefreshCurrentInternalAlert $refreshAlert,
     ) {}
 
     /** @param array{credit_card_id:int,source_account_id:int,amount:string,paid_on:string,operation_id:string} $data */
@@ -113,6 +114,8 @@ class PayCreditCard
                     $this->auditRecorder->record($user, AuditAction::Created, $allocation);
                     $this->auditRecorder->record($user, AuditAction::Updated, $installment, $before);
                 }
+
+                $this->refreshAlert->handle($user);
 
                 return $payment->load('allocations');
             }, 3);
