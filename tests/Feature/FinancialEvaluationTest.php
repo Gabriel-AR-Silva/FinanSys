@@ -3,14 +3,17 @@
 namespace Tests\Feature;
 
 use App\Actions\CloseFinancialEvaluation;
+use App\Actions\CreateCardPurchase;
 use App\Actions\CreateExpenseRefund;
 use App\Actions\CreateManualLedgerEntry;
+use App\Actions\PayCreditCard;
 use App\Actions\RefreshCurrentInternalAlert;
 use App\Actions\UpdateInternalAlert;
 use App\Enums\ExpensePlanningType;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\CreditCard;
 use App\Models\EssentialBudget;
 use App\Models\FinancialEvaluation;
 use App\Models\LedgerEntry;
@@ -18,6 +21,7 @@ use App\Models\MonthlyFinancialSetting;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class FinancialEvaluationTest extends TestCase
@@ -194,6 +198,48 @@ class FinancialEvaluationTest extends TestCase
 
         $this->assertSame($alertId, $user->internalAlerts()->where('view', 'current')->value('id'));
         $this->assertSame('under_control', $user->internalAlerts()->where('view', 'current')->value('current_situation'));
+        $this->assertDatabaseCount('financial_evaluations', 0);
+    }
+
+    public function test_card_purchase_and_payment_refresh_projected_and_current_alerts_without_snapshot(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $incomeCategory = Category::factory()->for($user)->create(['type' => 'income']);
+        $expenseCategory = Category::factory()->for($user)->create(['type' => 'expense']);
+        $card = CreditCard::factory()->for($user)->create();
+        MonthlyFinancialSetting::factory()->for($user)->create([
+            'month' => now('America/Sao_Paulo')->format('Y-m'),
+            'protection_value' => '0',
+        ]);
+        LedgerEntry::factory()->openingBalance()->for($user)->for($account, 'reference')->create(['amount' => '1200.00']);
+        $this->entry($user, $account, $incomeCategory, 'income', null, '1000.00', now('America/Sao_Paulo')->toDateString());
+
+        app(CreateCardPurchase::class)->handle($user, [
+            'credit_card_id' => $card->id,
+            'category_id' => $expenseCategory->id,
+            'description' => 'Compra acima da verba',
+            'planning_type' => ExpensePlanningType::Extraordinary->value,
+            'gross_amount' => '1100.00',
+            'purchased_on' => now('America/Sao_Paulo')->toDateString(),
+            'installments_count' => 1,
+            'first_due_on' => now('America/Sao_Paulo')->toDateString(),
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $this->assertSame('outside_plan', $user->internalAlerts()->where('view', 'projected')->value('current_situation'));
+        $this->assertFalse($user->internalAlerts()->where('view', 'current')->exists());
+
+        app(PayCreditCard::class)->handle($user, [
+            'credit_card_id' => $card->id,
+            'source_account_id' => $account->id,
+            'amount' => '1100.00',
+            'paid_on' => now('America/Sao_Paulo')->toDateString(),
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $this->assertSame('outside_plan', $user->internalAlerts()->where('view', 'current')->value('current_situation'));
+        $this->assertDatabaseCount('internal_alerts', 2);
         $this->assertDatabaseCount('financial_evaluations', 0);
     }
 
