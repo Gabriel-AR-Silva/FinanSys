@@ -159,6 +159,44 @@ class FinancialEvaluationTest extends TestCase
         $this->assertDatabaseCount('internal_alerts', 1);
     }
 
+    public function test_adverse_alert_becomes_active_again_after_recovery(): void
+    {
+        $user = User::factory()->create();
+        $adverse = FinancialEvaluation::factory()->for($user)->create([
+            'evaluation_date' => '2026-09-02',
+            'view' => 'current',
+            'source' => 'recorded',
+            'result' => ['situation' => 'outside_plan', 'deficit' => '100.00', 'base' => '100.00', 'reasons' => []],
+        ]);
+        $recovered = FinancialEvaluation::factory()->for($user)->create([
+            'evaluation_date' => '2026-09-02',
+            'view' => 'current',
+            'revision' => 2,
+            'supersedes_id' => $adverse->id,
+            'source' => 'recorded',
+            'result' => ['situation' => 'under_control', 'deficit' => null, 'base' => '1000.00', 'reasons' => []],
+        ]);
+        $adverseAgain = FinancialEvaluation::factory()->for($user)->create([
+            'evaluation_date' => '2026-09-02',
+            'view' => 'current',
+            'revision' => 3,
+            'supersedes_id' => $recovered->id,
+            'source' => 'recorded',
+            'result' => ['situation' => 'insufficient', 'deficit' => '50.00', 'base' => '-50.00', 'reasons' => []],
+        ]);
+        $action = app(UpdateInternalAlert::class);
+
+        $action->handle($user, $adverse);
+        $action->handle($user, $recovered);
+        $reactivated = $action->handle($user, $adverseAgain);
+
+        $this->assertSame('insufficient', $reactivated->current_situation);
+        $this->assertSame('insufficient', $reactivated->worst_situation);
+        $this->assertSame('50.00', $reactivated->current_deficit);
+        $this->assertNull($reactivated->recovered_at);
+        $this->assertDatabaseCount('internal_alerts', 1);
+    }
+
     public function test_manual_entry_refreshes_alerts_before_daily_close(): void
     {
         $user = User::factory()->create();
