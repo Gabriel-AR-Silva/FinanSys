@@ -192,6 +192,24 @@ class FinancialPlanningOverviewQueryTest extends TestCase
         $this->assertSame('0', $result['variable']['realized']);
     }
 
+    public function test_month_boundaries_follow_the_application_timezone(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $incomeCategory = Category::factory()->for($user)->create(['type' => 'income']);
+        MonthlyFinancialSetting::factory()->for($user)->create(['month' => '2026-09', 'protection_value' => '0']);
+        $this->entry($user, $account, $incomeCategory, 'income', null, '100.00', '2026-09-01 00:00:00');
+        $this->entry($user, $account, $incomeCategory, 'income', null, '200.00', '2026-09-30 23:59:59');
+        $this->entry($user, $account, $incomeCategory, 'income', null, '400.00', '2026-10-01 00:00:00');
+
+        $result = app(FinancialPlanningOverviewQuery::class)->forUser(
+            $user,
+            CarbonImmutable::parse('2026-09-30 23:59:59', 'America/Sao_Paulo'),
+        );
+
+        $this->assertSame('300.00', $result['income']['received']);
+    }
+
     private function entry(User $user, Account $account, Category $category, string $type, ?ExpensePlanningType $planningType, string $amount, string $occurredAt): LedgerEntry
     {
         return LedgerEntry::factory()->for($user)->for($account, 'reference')->for($category)->create([
