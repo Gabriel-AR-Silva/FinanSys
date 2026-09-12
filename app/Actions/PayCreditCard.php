@@ -7,6 +7,8 @@ use App\Enums\CardInstallmentStatus;
 use App\Enums\LedgerEntryType;
 use App\Enums\RecordStatus;
 use App\Models\Account;
+use App\Models\CardCharge;
+use App\Models\CardChargePaymentAllocation;
 use App\Models\CardInstallment;
 use App\Models\CardPayment;
 use App\Models\CardPaymentAllocation;
@@ -32,7 +34,7 @@ class PayCreditCard
         private RefreshCurrentInternalAlert $refreshAlert,
     ) {}
 
-    /** @param array{credit_card_id:int,source_account_id:int,amount:string,paid_on:string,operation_id:string} $data */
+    /** @param array{credit_card_id:int,source_account_id:int,amount:string,paid_on:string,operation_id:string,card_charge_ids?:list<int>} $data */
     public function handle(User $user, array $data): CardPayment
     {
         $amount = $this->money($data['amount']);
@@ -44,13 +46,19 @@ class PayCreditCard
             throw ValidationException::withMessages(['operation_id' => 'Informe uma chave de operação válida.']);
         }
         $operationId = strtolower($data['operation_id']);
+        $rawChargeIds = $data['card_charge_ids'] ?? [];
+        if (! is_array($rawChargeIds) || collect($rawChargeIds)->contains(fn ($id): bool => filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false)
+            || count($rawChargeIds) !== count(array_unique($rawChargeIds, SORT_REGULAR))) {
+            throw ValidationException::withMessages(['card_charge_ids' => 'Selecione encargos válidos, sem repetição.']);
+        }
+        $selectedChargeIds = collect($rawChargeIds)->map(fn ($id): int => (int) $id)->sort()->values()->all();
 
         try {
-            return DB::transaction(function () use ($user, $data, $amount, $paidOn, $operationId): CardPayment {
+            return DB::transaction(function () use ($user, $data, $amount, $paidOn, $operationId, $selectedChargeIds): CardPayment {
                 User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
-                $existing = CardPayment::query()->whereBelongsTo($user)->where('operation_id', $operationId)->with('allocations')->first();
+                $existing = CardPayment::query()->whereBelongsTo($user)->where('operation_id', $operationId)->with(['allocations', 'chargeAllocations'])->first();
                 if ($existing) {
-                    return $this->validateReplay($existing, $data, $amount, $paidOn);
+                    return $this->validateReplay($existing, $data, $amount, $paidOn, $selectedChargeIds);
                 }
                 $card = CreditCard::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->whereKey($data['credit_card_id'])->lockForUpdate()->first();
                 $account = Account::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->whereKey($data['source_account_id'])->lockForUpdate()->first();
@@ -63,17 +71,38 @@ class PayCreditCard
                 if ($this->accountBalance($account)->isLessThan($amount)) {
                     throw ValidationException::withMessages(['amount' => 'A conta escolhida não possui saldo suficiente.']);
                 }
+                $charges = CardCharge::query()->whereBelongsTo($user)
+                    ->where('credit_card_id', $card->id)
+                    ->where('status', CardInstallmentStatus::Pending)
+                    ->whereDate('due_on', '<=', $paidOn->endOfMonth()->toDateString())
+                    ->whereIn('id', $selectedChargeIds)
+                    ->orderBy('due_on')->orderBy('id')->lockForUpdate()->get();
+                if ($charges->count() !== count($selectedChargeIds)) {
+                    throw ValidationException::withMessages(['card_charge_ids' => 'Selecione apenas encargos pendentes e disponíveis neste fechamento.']);
+                }
                 $installments = CardInstallment::query()->whereBelongsTo($user)
                     ->where('status', CardInstallmentStatus::Pending)
                     ->whereDate('due_on', '<=', $paidOn->endOfMonth()->toDateString())
                     ->whereHas('purchase', fn ($query) => $query->where('credit_card_id', $card->id))
                     ->orderBy('due_on')->orderBy('id')->lockForUpdate()->get();
+                $chargeDebt = $charges->reduce(
+                    fn (BigDecimal $total, CardCharge $charge): BigDecimal => $total->plus(BigDecimal::of($charge->amount)->minus($charge->paid_amount)),
+                    BigDecimal::zero(),
+                );
+                $chargePayment = $amount->isGreaterThan($chargeDebt) ? $chargeDebt : $amount;
+                $chargeAllocations = $chargePayment->isPositive()
+                    ? $this->allocator->allocate((string) $chargePayment, $charges->map(fn (CardCharge $charge): array => [
+                        'id' => $charge->id, 'due_on' => $charge->due_on->toDateString(),
+                        'remaining' => (string) BigDecimal::of($charge->amount)->minus($charge->paid_amount),
+                    ])->all())
+                    : [];
+                $installmentPayment = $amount->minus($chargePayment);
                 try {
-                    $allocations = $this->allocator->allocate((string) $amount, $installments->map(fn (CardInstallment $installment): array => [
+                    $allocations = $installmentPayment->isPositive() ? $this->allocator->allocate((string) $installmentPayment, $installments->map(fn (CardInstallment $installment): array => [
                         'id' => $installment->id,
                         'due_on' => $installment->due_on->toDateString(),
                         'remaining' => (string) BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount),
-                    ])->all());
+                    ])->all()) : [];
                 } catch (InvalidArgumentException $exception) {
                     throw ValidationException::withMessages(['amount' => $exception->getMessage() === 'Payment must not exceed the selected debt.'
                         ? 'O pagamento não pode ultrapassar a dívida pendente do cartão.'
@@ -94,10 +123,25 @@ class PayCreditCard
                     'ledger_entry_id' => $ledgerEntry->id,
                     'amount' => (string) $amount,
                     'paid_on' => $paidOn->toDateString(),
+                    'selected_charge_ids' => $selectedChargeIds,
                     'operation_id' => $operationId,
                 ]);
                 $this->auditRecorder->record($user, AuditAction::Created, $ledgerEntry);
                 $this->auditRecorder->record($user, AuditAction::Created, $payment);
+                foreach ($chargeAllocations as $allocationData) {
+                    $charge = $charges->firstWhere('id', $allocationData['installment_id']);
+                    $allocation = CardChargePaymentAllocation::query()->create([
+                        'user_id' => $user->id, 'card_payment_id' => $payment->id,
+                        'card_charge_id' => $charge->id, 'amount' => $allocationData['amount'],
+                    ]);
+                    $before = $charge->attributesToArray();
+                    $charge->paid_amount = (string) BigDecimal::of($charge->paid_amount)->plus($allocation->amount);
+                    $charge->status = BigDecimal::of($charge->paid_amount)->isEqualTo($charge->amount)
+                        ? CardInstallmentStatus::Paid : CardInstallmentStatus::Pending;
+                    $charge->save();
+                    $this->auditRecorder->record($user, AuditAction::Created, $allocation);
+                    $this->auditRecorder->record($user, AuditAction::Updated, $charge, $before);
+                }
                 foreach ($allocations as $allocationData) {
                     $installment = $installments->firstWhere('id', $allocationData['installment_id']);
                     $allocation = CardPaymentAllocation::query()->create([
@@ -117,12 +161,12 @@ class PayCreditCard
 
                 $this->refreshAlert->handle($user);
 
-                return $payment->load('allocations');
+                return $payment->load(['allocations', 'chargeAllocations']);
             }, 3);
         } catch (UniqueConstraintViolationException) {
-            $existing = CardPayment::query()->whereBelongsTo($user)->where('operation_id', $operationId)->with('allocations')->first();
+            $existing = CardPayment::query()->whereBelongsTo($user)->where('operation_id', $operationId)->with(['allocations', 'chargeAllocations'])->first();
             if ($existing) {
-                return $this->validateReplay($existing, $data, $amount, $paidOn);
+                return $this->validateReplay($existing, $data, $amount, $paidOn, $selectedChargeIds);
             }
 
             throw ValidationException::withMessages(['operation_id' => 'Não foi possível repetir o pagamento com segurança.']);
@@ -153,10 +197,12 @@ class PayCreditCard
         return $amount;
     }
 
-    private function validateReplay(CardPayment $payment, array $data, BigDecimal $amount, CarbonImmutable $paidOn): CardPayment
+    /** @param list<int> $selectedChargeIds */
+    private function validateReplay(CardPayment $payment, array $data, BigDecimal $amount, CarbonImmutable $paidOn, array $selectedChargeIds): CardPayment
     {
         if ($payment->credit_card_id !== (int) $data['credit_card_id'] || $payment->source_account_id !== (int) $data['source_account_id']
-            || $payment->amount !== (string) $amount || $payment->paid_on->toDateString() !== $paidOn->toDateString()) {
+            || $payment->amount !== (string) $amount || $payment->paid_on->toDateString() !== $paidOn->toDateString()
+            || ($payment->selected_charge_ids ?? []) !== $selectedChargeIds) {
             throw ValidationException::withMessages(['operation_id' => 'Esta chave já foi usada com dados diferentes.']);
         }
 
