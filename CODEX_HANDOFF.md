@@ -57,12 +57,23 @@ A revisão comparou `copilot_mod_v1` com `main`, inspecionou contratos, migratio
 
    A branch do Copilot continha um `public/build/manifest.json` novo, mas quase todos os bundles referenciados estavam ausentes. O build produzido pelo CI foi baixado, validado e publicado: 44 arquivos em `public/build`. A regra `/public/build` saiu do `.gitignore` porque o fluxo atual de hospedagem depende de artefatos compilados versionados; novos hashes agora aparecem no Git em vez de serem silenciosamente ignorados.
 
+7. **Alertas sincronizados com mutações de planejamento**
+
+   Criação, edição e cancelamento de previsões, vínculo de recebimentos, exclusão/restauração manual e cascatas de conta ou caixinha agora atualizam os alertas na mesma operação. Replay e edição sem alteração retornam antes do recálculo; cascatas formadas apenas por transferências continuam semanticamente neutras.
+
+8. **Roteiro de etapas consolidado**
+
+   `FINANCIAL_PLANNING_STAGES.md` deixou de funcionar como diário histórico e agora mostra o estado real de E0–E7, separando claramente o que foi entregue do que ainda bloqueia o contrato.
+
 ### Testes adicionados
 
 - fronteiras do mês respeitam o fuso configurado da aplicação;
 - compra parcelada cria/atualiza alerta projetado sem gerar snapshot;
 - pagamento do cartão atualiza alerta atual sem gerar snapshot;
 - alerta recuperado volta ao estado ativo quando a situação piora novamente.
+- ciclo criar/editar/cancelar previsão atualiza o alerta projetado;
+- vínculo com recebimento excedente evita dupla contagem na projeção;
+- exclusão/restauração manual e cascatas de conta/caixinha atualizam o alerta atual.
 
 ## Evidência de validação
 
@@ -78,13 +89,13 @@ A execução inicial do workflow **FinanSys CI** concluiu com sucesso no GitHub 
 
 Execução de referência: <https://github.com/Gabriel-AR-Silva/FinanSys/actions/runs/34701239413>.
 
-Antes de integrar, confirme que a execução referente ao commit mais recente da branch também está verde.
+Incremento de alertas validado em <https://github.com/Gabriel-AR-Silva/FinanSys/actions/runs/34702296003>: 346 testes e 1.873 assertions, Pint, build Vite e validação do manifest aprovados.
 
 ## Pendências reais
 
 Estas pendências não devem ser confundidas com funcionalidades já entregues:
 
-1. Avaliar atualização imediata de alertas nos fluxos que ainda alteram fatos de planejamento: criação/edição/cancelamento de previsão, exclusão/restauração de lançamento manual e exclusão/restauração de conta. Só integrar refresh quando houver mudança semântica; transferências internas continuam neutras.
+1. Completar o contrato de cartões: encargos, antecipação com desconto, estorno de compra e crédito explicitamente aplicado a outra fatura.
 2. Validar concorrência no mesmo banco usado em produção. SQLite comprova regras e atomicidade básica, mas não reproduz locks e deadlocks de MySQL/PostgreSQL.
 3. Revisar corrida entre transferência e exclusão/restauração de conta ou caixinha. As consultas atuais não bloqueiam todas as relações desde o início da operação.
 4. Atualizar o `README.md`, que ainda afirma que categorias e fluxo HTTP de transferências não existem.
@@ -97,7 +108,7 @@ Estas pendências não devem ser confundidas com funcionalidades já entregues:
 
 1. Confirmar CI verde no último commit.
 2. Revisar o diff `copilot_mod_v1...codex/copilot-mod-v1-hardening`.
-3. Corrigir primeiro integrações de alerta com impacto observável e acrescentar testes focais.
+3. Implementar o ciclo restante de cartões em incrementos contratuais pequenos.
 4. Executar testes de concorrência no banco de produção escolhido.
 5. Realizar aceite visual das novas telas.
 6. Atualizar README e checklist de implantação.

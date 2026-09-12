@@ -19,11 +19,11 @@ Estados usados:
 | --- | --- | --- | --- |
 | E0 — Contratos verificáveis | Concluída | Regras P1–P6, fórmulas, exemplos e invariantes registrados | Manter documentação sincronizada quando o comportamento mudar |
 | E1 — Configuração financeira | Parcial | Configuração mensal, proteção fixa/percentual, essenciais, categoria rápida, isolamento, auditoria e controle de versão | Aceite visual no Edge desktop/mobile |
-| E2 — Planejamento e liquidação | Parcial | Previsões, recorrência, edição/remarcação, parcial, residual, excedente, cancelamento, vínculo, desvínculo e revínculo explícito | Atualização imediata de alertas em todo o ciclo e concorrência no banco de produção |
+| E2 — Planejamento e liquidação | Parcial | Previsões, recorrência, edição/remarcação, parcial, residual, excedente, cancelamento, vínculo, desvínculo e revínculo explícito | Concorrência no banco de produção e aceite visual |
 | E3 — Cartões e parcelas | Parcial | Cartões, compras parceladas, parcelas, pagamentos parciais, alocação determinística e dívida carregada | Encargos, antecipação com desconto, estorno de compra e crédito de cartão |
 | E4 — Calculadora matemática | Concluída | Proteção, progresso de recebimentos, projeções, essenciais, margem, verba diária, déficit e faixas | Manter matriz de fronteiras ao evoluir regras |
 | E5 — Integração e indicadores | Parcial | Adaptadores reais, visões atual/projetada, neutralização de transferências/estornos e dashboard de planejamento | Jornada integrada final, isolamento transversal e aceite visual |
-| E6 — Histórico e alertas | Parcial | Fechamento diário, reconstrução, revisões, proveniência e alertas internos deduplicados | Completar gatilhos imediatos, validar recuperação e fechar aceite visual |
+| E6 — Histórico e alertas | Parcial | Fechamento diário, reconstrução, revisões, proveniência, alertas deduplicados e gatilhos imediatos | Validar retenção e fechar aceite visual |
 | E7 — WhatsApp | Fora da entrega | Contrato de independência preservado | Implementação futura em contrato próprio |
 
 ## Dependências de fechamento
@@ -78,10 +78,10 @@ Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada
 - Cancelamento preservando valores já recebidos.
 - Desvínculo por estorno/exclusão e revínculo somente por confirmação explícita.
 - Idempotência, versão otimista, auditoria, isolamento e rollback nos fluxos cobertos.
+- Atualização imediata dos alertas após criação, alteração, cancelamento e vínculo efetivos.
 
 ### Pendente
 
-- Recalcular alertas imediatamente após criação, edição, cancelamento e vínculo quando houver mudança semântica.
 - Validar locks, unicidade e retries no mesmo mecanismo de banco escolhido para produção.
 - Executar aceite visual dos modais, recorrência e revínculo.
 
@@ -158,15 +158,20 @@ Os adaptadores devem entregar conjuntos exclusivos. Pagamento de obrigação, re
 - Alertas internos por visão e mês, deduplicados e atualizáveis.
 - Preservação da pior situação e do histórico de déficit.
 - Reativação correta quando uma situação recuperada volta a piorar.
-- Atualização imediata após lançamento manual, reembolso, estorno manual, compra e pagamento de cartão.
+- Atualização imediata após lançamento manual, previsão, vínculo de recebimento, reembolso, estorno manual, compra e pagamento de cartão.
+- Exclusão e restauração de lançamento, conta ou caixinha recalculam alertas somente quando o lote contém fatos relevantes ao planejamento.
 - CI com PHPUnit, Pint, build Vite e validação do manifest.
 
 ### Pendente
 
-- Integrar atualização imediata com previsões e exclusão/restauração de lançamentos, contas e caixinhas.
-- Confirmar que replay e operações semanticamente neutras não repetem atualização.
 - Validar linguagem, leitura, filtros e responsividade da página de alertas.
 - Definir retenção operacional sem apagar silenciosamente histórico ou auditoria.
+
+### Evidência do incremento de alertas
+
+- Commit: `6ccadaf6bc8c5f69fccf6da2c355243b7404bef5`.
+- CI: 346 testes e 1.873 assertions aprovados; Pint, build Vite e manifest aprovados.
+- Casos novos: ciclo criar/editar/cancelar previsão, vínculo com excedente sem dupla contagem, exclusão/restauração manual e cascatas de conta/caixinha.
 
 ## E7 — WhatsApp opcional
 
