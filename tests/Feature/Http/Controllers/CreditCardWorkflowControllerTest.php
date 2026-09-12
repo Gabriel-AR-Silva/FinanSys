@@ -50,13 +50,21 @@ class CreditCardWorkflowControllerTest extends TestCase
             'installments_count' => 1, 'first_due_on' => '2026-09-12', 'operation_id' => (string) Str::uuid(),
         ])->assertRedirect(route('credit-cards.index'))->assertSessionHas('success');
 
+        $this->post(route('card-charges.store'), [
+            'credit_card_id' => $card->id, 'category_id' => $category->id, 'type' => 'interest',
+            'description' => 'Juros confirmados', 'planning_type' => 'extraordinary', 'amount' => '15.00',
+            'charged_on' => '2026-09-09', 'due_on' => '2026-09-12', 'operation_id' => (string) Str::uuid(),
+        ])->assertRedirect(route('credit-cards.index'))->assertSessionHas('success');
+        $chargeId = $card->charges()->value('id');
+
         $this->post(route('card-payments.store'), [
-            'credit_card_id' => $card->id, 'source_account_id' => $account->id, 'amount' => '120.00',
-            'paid_on' => '2026-09-10', 'operation_id' => (string) Str::uuid(),
+            'credit_card_id' => $card->id, 'source_account_id' => $account->id, 'amount' => '135.00',
+            'paid_on' => '2026-09-10', 'card_charge_ids' => [$chargeId], 'operation_id' => (string) Str::uuid(),
         ])->assertRedirect(route('credit-cards.index'))->assertSessionHas('success');
 
         $this->assertDatabaseHas('card_installments', ['gross_amount' => 120, 'paid_amount' => 120, 'status' => 'paid']);
-        $this->assertDatabaseHas('ledger_entries', ['type' => 'card_payment', 'amount' => 120]);
+        $this->assertDatabaseHas('card_charges', ['amount' => 15, 'paid_amount' => 15, 'status' => 'paid']);
+        $this->assertDatabaseHas('ledger_entries', ['type' => 'card_payment', 'amount' => 135]);
     }
 
     public function test_card_endpoints_validate_input_and_reject_foreign_resources(): void
@@ -75,6 +83,13 @@ class CreditCardWorkflowControllerTest extends TestCase
             'installments_count' => 1, 'first_due_on' => '2026-09-12', 'operation_id' => (string) Str::uuid(),
         ])->assertSessionHasErrors('credit_card_id');
 
+        $this->post(route('card-charges.store'), [
+            'credit_card_id' => $foreignCard->id, 'category_id' => $foreignCategory->id, 'type' => 'interest',
+            'description' => 'Não pode', 'planning_type' => 'extraordinary', 'amount' => '10.00',
+            'charged_on' => '2026-09-01', 'due_on' => '2026-09-12', 'operation_id' => (string) Str::uuid(),
+        ])->assertSessionHasErrors('credit_card_id');
+
         $this->assertDatabaseCount('card_purchases', 0);
+        $this->assertDatabaseCount('card_charges', 0);
     }
 }

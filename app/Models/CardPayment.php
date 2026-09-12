@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['user_id', 'credit_card_id', 'source_account_id', 'ledger_entry_id', 'amount', 'paid_on', 'operation_id'])]
+#[Fillable(['user_id', 'credit_card_id', 'source_account_id', 'ledger_entry_id', 'amount', 'paid_on', 'selected_charge_ids', 'operation_id'])]
 class CardPayment extends Model
 {
     /** @use HasFactory<CardPaymentFactory> */
@@ -17,7 +17,7 @@ class CardPayment extends Model
 
     protected function casts(): array
     {
-        return ['amount' => 'decimal:2', 'paid_on' => 'immutable_date'];
+        return ['amount' => 'decimal:2', 'paid_on' => 'immutable_date', 'selected_charge_ids' => 'array'];
     }
 
     public function user(): BelongsTo
@@ -43,5 +43,10 @@ class CardPayment extends Model
     public function allocations(): HasMany
     {
         return $this->hasMany(CardPaymentAllocation::class);
+    }
+
+    public function chargeAllocations(): HasMany
+    {
+        return $this->hasMany(CardChargePaymentAllocation::class);
     }
 }

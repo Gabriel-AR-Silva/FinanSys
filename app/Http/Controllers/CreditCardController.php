@@ -20,18 +20,32 @@ class CreditCardController extends Controller
     public function index(Request $request, AccountBalanceQuery $accountBalances): Response
     {
         $cards = CreditCard::query()->whereBelongsTo($request->user())
-            ->with(['purchases' => fn ($query) => $query->with(['category:id,name', 'installments'])->latest('purchased_on')->latest('id')])
+            ->with([
+                'purchases' => fn ($query) => $query->with(['category:id,name', 'installments'])->latest('purchased_on')->latest('id'),
+                'charges' => fn ($query) => $query->with('category:id,name')->latest('charged_on')->latest('id'),
+            ])
             ->orderBy('name')->orderBy('id')->get()
             ->map(function (CreditCard $card): array {
                 $installments = $card->purchases->pluck('installments')->flatten();
                 $pending = $installments->reduce(
                     fn (BigDecimal $total, $installment): BigDecimal => $total->plus(BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)),
                     BigDecimal::zero(),
-                );
+                )->plus($card->charges->reduce(
+                    fn (BigDecimal $total, $charge): BigDecimal => $total->plus(BigDecimal::of($charge->amount)->minus($charge->paid_amount)),
+                    BigDecimal::zero(),
+                ));
 
                 return [
                     'id' => $card->id, 'name' => $card->name, 'closing_day' => $card->closing_day, 'due_day' => $card->due_day,
                     'pending' => (string) $pending,
+                    'charges' => $card->charges->map(fn ($charge): array => [
+                        'id' => $charge->id, 'type' => $charge->type->value, 'description' => $charge->description,
+                        'category_name' => $charge->category->name, 'planning_type' => $charge->planning_type->value,
+                        'amount' => $charge->amount, 'paid_amount' => $charge->paid_amount,
+                        'pending_amount' => (string) BigDecimal::of($charge->amount)->minus($charge->paid_amount),
+                        'charged_on' => $charge->charged_on->toDateString(), 'due_on' => $charge->due_on->toDateString(),
+                        'status' => $charge->status->value,
+                    ])->values(),
                     'purchases' => $card->purchases->map(fn ($purchase): array => [
                         'id' => $purchase->id, 'description' => $purchase->description, 'category_name' => $purchase->category->name,
                         'gross_amount' => $purchase->gross_amount, 'purchased_on' => $purchase->purchased_on->toDateString(),

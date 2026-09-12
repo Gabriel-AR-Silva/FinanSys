@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\CardChargeController;
 use App\Http\Controllers\CardPaymentController;
 use App\Http\Controllers\CardPurchaseController;
 use App\Http\Controllers\CategoryController;
@@ -37,6 +38,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/cartoes', [CreditCardController::class, 'index'])->name('credit-cards.index');
     Route::post('/cartoes', [CreditCardController::class, 'store'])->name('credit-cards.store');
     Route::post('/cartoes/compras', [CardPurchaseController::class, 'store'])->name('card-purchases.store');
+    Route::post('/cartoes/encargos', [CardChargeController::class, 'store'])->name('card-charges.store');
     Route::post('/cartoes/pagamentos', [CardPaymentController::class, 'store'])->name('card-payments.store');
     Route::get('/recebimentos-previstos', [ReceiptForecastController::class, 'index'])->name('receipt-forecasts.index');
     Route::post('/recebimentos-previstos', [ReceiptForecastController::class, 'store'])->name('receipt-forecasts.store');

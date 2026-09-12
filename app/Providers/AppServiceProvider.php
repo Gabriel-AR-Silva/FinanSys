@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Contracts\MailtrapSandboxSender;
 use App\Models\Account;
+use App\Models\CardCharge;
+use App\Models\CardChargePaymentAllocation;
 use App\Models\CardInstallment;
 use App\Models\CardPayment;
 use App\Models\CardPaymentAllocation;
@@ -74,6 +76,8 @@ class AppServiceProvider extends ServiceProvider
             'credit_card' => CreditCard::class,
             'card_purchase' => CardPurchase::class,
             'card_installment' => CardInstallment::class,
+            'card_charge' => CardCharge::class,
+            'card_charge_payment_allocation' => CardChargePaymentAllocation::class,
             'card_payment' => CardPayment::class,
             'card_payment_allocation' => CardPaymentAllocation::class,
         ]);

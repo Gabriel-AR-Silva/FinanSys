@@ -36,4 +36,9 @@ class CreditCard extends Model
     {
         return $this->hasMany(CardPayment::class);
     }
+
+    public function charges(): HasMany
+    {
+        return $this->hasMany(CardCharge::class);
+    }
 }

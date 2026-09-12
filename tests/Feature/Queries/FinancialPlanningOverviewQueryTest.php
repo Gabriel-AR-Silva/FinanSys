@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Queries;
 
+use App\Actions\CreateCardCharge;
 use App\Actions\CreateCardPurchase;
 use App\Actions\CreateExpenseRefund;
 use App\Actions\PayCreditCard;
@@ -154,6 +155,33 @@ class FinancialPlanningOverviewQueryTest extends TestCase
         $this->assertSame('60.00', $after['variable']['realized']);
         $this->assertSame('100.00', $after['variable']['projected']);
         $this->assertSame('60.00', $purchase->installments()->oldest('due_on')->first()->fresh()->paid_amount);
+    }
+
+    public function test_confirmed_card_charge_is_a_new_expense_and_payment_only_realizes_it(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => 'expense']);
+        $card = CreditCard::factory()->for($user)->create();
+        MonthlyFinancialSetting::factory()->for($user)->create(['month' => '2026-09', 'protection_value' => '0']);
+        LedgerEntry::factory()->openingBalance()->for($user)->for($account, 'reference')->create(['amount' => '1000.00']);
+        $charge = app(CreateCardCharge::class)->handle($user, [
+            'credit_card_id' => $card->id, 'category_id' => $category->id, 'type' => 'late_fee',
+            'description' => 'Multa confirmada', 'planning_type' => ExpensePlanningType::Extraordinary->value,
+            'amount' => '15.00', 'charged_on' => '2026-09-03', 'due_on' => '2026-09-12', 'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $before = app(FinancialPlanningOverviewQuery::class)->forUser($user, CarbonImmutable::parse('2026-09-09', 'America/Sao_Paulo'));
+        app(PayCreditCard::class)->handle($user, [
+            'credit_card_id' => $card->id, 'source_account_id' => $account->id, 'amount' => '15.00',
+            'paid_on' => '2026-09-09', 'card_charge_ids' => [$charge->id], 'operation_id' => (string) Str::uuid(),
+        ]);
+        $after = app(FinancialPlanningOverviewQuery::class)->forUser($user, CarbonImmutable::parse('2026-09-09', 'America/Sao_Paulo'));
+
+        $this->assertSame('0.00', $before['variable']['realized']);
+        $this->assertSame('15.00', $before['variable']['projected']);
+        $this->assertSame('15.00', $after['variable']['realized']);
+        $this->assertSame('15.00', $after['variable']['projected']);
     }
 
     public function test_overdue_card_debt_keeps_its_opening_commitment_after_a_partial_payment(): void
