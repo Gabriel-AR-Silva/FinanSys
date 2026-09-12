@@ -22,7 +22,10 @@ use Illuminate\Validation\ValidationException;
 
 class CreateCardPurchase
 {
-    public function __construct(private AuditRecorder $auditRecorder) {}
+    public function __construct(
+        private AuditRecorder $auditRecorder,
+        private RefreshCurrentInternalAlert $refreshAlert,
+    ) {}
 
     /** @param array{credit_card_id:int,category_id:int,description:string,planning_type:string,gross_amount:string,purchased_on:string,installments_count:int,first_due_on:string,operation_id:string} $data */
     public function handle(User $user, array $data): CardPurchase
@@ -90,6 +93,8 @@ class CreateCardPurchase
                     ]);
                     $this->auditRecorder->record($user, AuditAction::Created, $installment);
                 }
+
+                $this->refreshAlert->handle($user);
 
                 return $purchase->load('installments');
             }, 3);
