@@ -1,0 +1,88 @@
+name: FinanSys CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - copilot_mod_v1
+      - 'codex/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, sqlite3
+          coverage: none
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare application
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      - name: Check PHP formatting
+        run: vendor/bin/pint --test
+
+      - name: Run PHP tests
+        run: php artisan test --compact
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Verify Vite manifest assets
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+
+          const manifest = JSON.parse(fs.readFileSync('public/build/manifest.json', 'utf8'));
+          const missing = new Set();
+
+          for (const entry of Object.values(manifest)) {
+            for (const relativePath of [entry.file, ...(entry.css ?? []), ...(entry.assets ?? [])]) {
+              if (relativePath && !fs.existsSync(`public/build/${relativePath}`)) {
+                missing.add(relativePath);
+              }
+            }
+          }
+
+          if (missing.size > 0) {
+            throw new Error(`Vite manifest references missing files:\n${[...missing].join('\n')}`);
+          }
+          NODE
+
+      - name: Upload production build
+        uses: actions/upload-artifact@v4
+        with:
+          name: finansys-public-build
+          path: public/build
+          if-no-files-found: error
+          retention-days: 7
