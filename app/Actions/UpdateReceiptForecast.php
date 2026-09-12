@@ -21,6 +21,7 @@ class UpdateReceiptForecast
     public function __construct(
         private AuditRecorder $auditRecorder,
         private RecalculateReceiptForecast $recalculate,
+        private RefreshCurrentInternalAlert $refreshAlert,
     ) {}
 
     /** @param array{category_id:int,amount:string,expected_on:string,version:int,edit_scope?:string} $data */
@@ -61,8 +62,9 @@ class UpdateReceiptForecast
                 : collect([$forecast]);
             $selectedDate = CarbonImmutable::createFromFormat('!Y-m-d', $data['expected_on'], 'America/Sao_Paulo');
             $originalDay = $selectedDate->day;
+            $changed = false;
 
-            $targets->each(function (ReceiptForecast $target) use ($user, $forecast, $category, $amount, $selectedDate, $originalDay, $scope): void {
+            $targets->each(function (ReceiptForecast $target) use ($user, $forecast, $category, $amount, $selectedDate, $originalDay, $scope, &$changed): void {
                 $before = $target->attributesToArray();
                 $expectedOn = $scope === 'future'
                     ? $this->occurrenceDate($selectedDate, $originalDay, $target->series_position - $forecast->series_position)
@@ -77,8 +79,13 @@ class UpdateReceiptForecast
                     $target->version++;
                     $target->save();
                     $this->auditRecorder->record($user, AuditAction::Updated, $target, $before);
+                    $changed = true;
                 }
             });
+
+            if ($changed) {
+                $this->refreshAlert->handle($user);
+            }
 
             return $targets->firstWhere('id', $forecast->id) ?? $forecast;
         }, 3);

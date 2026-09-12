@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Enums\AuditAction;
+use App\Enums\LedgerEntryType;
 use App\Enums\RecordStatus;
 use App\Models\Account;
 use App\Models\LedgerEntry;
@@ -15,10 +16,10 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class RestorePocket
 {
-    /**
-     * Create a new class instance.
-     */
-    public function __construct(private AuditRecorder $auditRecorder) {}
+    public function __construct(
+        private AuditRecorder $auditRecorder,
+        private RefreshCurrentInternalAlert $refreshAlert,
+    ) {}
 
     public function handle(User $user, int $pocketId): Pocket
     {
@@ -34,6 +35,11 @@ class RestorePocket
             }
             $batchId = $pocket->deletion_batch_id;
             $entries = LedgerEntry::onlyTrashed()->whereBelongsTo($user)->where('deletion_batch_id', $batchId)->get();
+            $affectsPlanning = $entries->contains(fn (LedgerEntry $entry): bool => in_array(
+                $entry->type,
+                [LedgerEntryType::Income, LedgerEntryType::Expense, LedgerEntryType::Refund],
+                true,
+            ));
             $before = $pocket->attributesToArray();
             $pocket->restore();
             $pocket->update(['deletion_batch_id' => null]);
@@ -43,6 +49,10 @@ class RestorePocket
                 $entry->restore();
                 $entry->update(['deletion_batch_id' => null]);
                 $this->auditRecorder->record($user, AuditAction::Restored, $entry, $before);
+            }
+
+            if ($affectsPlanning) {
+                $this->refreshAlert->handle($user);
             }
 
             return $pocket;

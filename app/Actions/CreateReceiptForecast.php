@@ -19,7 +19,10 @@ use Ramsey\Uuid\Uuid;
 
 class CreateReceiptForecast
 {
-    public function __construct(private AuditRecorder $auditRecorder) {}
+    public function __construct(
+        private AuditRecorder $auditRecorder,
+        private RefreshCurrentInternalAlert $refreshAlert,
+    ) {}
 
     /** @param array{category_id:int,amount:string,expected_on:string,operation_id:string,recurrence_count?:int} $data */
     public function handle(User $user, array $data): ReceiptForecast
@@ -71,6 +74,8 @@ class CreateReceiptForecast
                 $this->auditRecorder->record($user, AuditAction::Created, $occurrence);
                 $forecast ??= $occurrence;
             }
+
+            $this->refreshAlert->handle($user);
 
             return $forecast;
         }, 3);

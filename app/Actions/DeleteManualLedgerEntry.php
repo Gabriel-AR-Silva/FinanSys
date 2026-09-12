@@ -18,6 +18,7 @@ class DeleteManualLedgerEntry
     public function __construct(
         private AuditRecorder $auditRecorder,
         private DetachReceiptForecast $detachReceiptForecast,
+        private RefreshCurrentInternalAlert $refreshAlert,
     ) {}
 
     public function handle(User $user, int $entryId): void
@@ -39,6 +40,7 @@ class DeleteManualLedgerEntry
             $entry->update(['deletion_batch_id' => null]);
             $entry->delete();
             $this->auditRecorder->record($user, AuditAction::Deleted, $entry, $before);
+            $this->refreshAlert->handle($user);
         });
     }
 }

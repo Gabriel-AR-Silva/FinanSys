@@ -12,7 +12,10 @@ use Illuminate\Validation\ValidationException;
 
 class CancelReceiptForecast
 {
-    public function __construct(private AuditRecorder $auditRecorder) {}
+    public function __construct(
+        private AuditRecorder $auditRecorder,
+        private RefreshCurrentInternalAlert $refreshAlert,
+    ) {}
 
     public function handle(User $user, int $forecastId, int $version): ReceiptForecast
     {
@@ -29,6 +32,7 @@ class CancelReceiptForecast
             $before = $forecast->attributesToArray();
             $forecast->update(['status' => ReceiptForecastStatus::Cancelled, 'version' => $forecast->version + 1]);
             $this->auditRecorder->record($user, AuditAction::Updated, $forecast, $before);
+            $this->refreshAlert->handle($user);
 
             return $forecast;
         }, 3);

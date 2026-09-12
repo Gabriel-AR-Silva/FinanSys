@@ -15,7 +15,10 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class RestoreManualLedgerEntry
 {
-    public function __construct(private AuditRecorder $auditRecorder) {}
+    public function __construct(
+        private AuditRecorder $auditRecorder,
+        private RefreshCurrentInternalAlert $refreshAlert,
+    ) {}
 
     public function handle(User $user, int $entryId): LedgerEntry
     {
@@ -36,6 +39,7 @@ class RestoreManualLedgerEntry
             $before = $entry->attributesToArray();
             $entry->restore();
             $this->auditRecorder->record($user, AuditAction::Restored, $entry, $before);
+            $this->refreshAlert->handle($user);
 
             return $entry;
         });

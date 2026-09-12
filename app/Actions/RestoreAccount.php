@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Enums\AuditAction;
+use App\Enums\LedgerEntryType;
 use App\Models\Account;
 use App\Models\LedgerEntry;
 use App\Models\Pocket;
@@ -13,7 +14,10 @@ use Illuminate\Validation\ValidationException;
 
 class RestoreAccount
 {
-    public function __construct(private AuditRecorder $auditRecorder) {}
+    public function __construct(
+        private AuditRecorder $auditRecorder,
+        private RefreshCurrentInternalAlert $refreshAlert,
+    ) {}
 
     public function handle(User $user, int $accountId): Account
     {
@@ -33,6 +37,11 @@ class RestoreAccount
             $batchId = $account->deletion_batch_id;
             $pockets = Pocket::onlyTrashed()->whereBelongsTo($user)->where('deletion_batch_id', $batchId)->get();
             $entries = LedgerEntry::onlyTrashed()->whereBelongsTo($user)->where('deletion_batch_id', $batchId)->get();
+            $affectsPlanning = $entries->contains(fn (LedgerEntry $entry): bool => in_array(
+                $entry->type,
+                [LedgerEntryType::Income, LedgerEntryType::Expense, LedgerEntryType::Refund],
+                true,
+            ));
 
             $before = $account->attributesToArray();
             $account->restore();
@@ -50,6 +59,10 @@ class RestoreAccount
                 $entry->restore();
                 $entry->update(['deletion_batch_id' => null]);
                 $this->auditRecorder->record($user, AuditAction::Restored, $entry, $before);
+            }
+
+            if ($affectsPlanning) {
+                $this->refreshAlert->handle($user);
             }
 
             return $account;

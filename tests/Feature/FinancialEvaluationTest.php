@@ -2,13 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Actions\CancelReceiptForecast;
 use App\Actions\CloseFinancialEvaluation;
 use App\Actions\CreateCardPurchase;
 use App\Actions\CreateExpenseRefund;
 use App\Actions\CreateManualLedgerEntry;
+use App\Actions\CreateReceiptForecast;
+use App\Actions\DeleteAccount;
+use App\Actions\DeleteManualLedgerEntry;
+use App\Actions\DeletePocket;
+use App\Actions\LinkReceiptForecast;
 use App\Actions\PayCreditCard;
 use App\Actions\RefreshCurrentInternalAlert;
+use App\Actions\RestoreAccount;
+use App\Actions\RestoreManualLedgerEntry;
+use App\Actions\RestorePocket;
 use App\Actions\UpdateInternalAlert;
+use App\Actions\UpdateReceiptForecast;
 use App\Enums\ExpensePlanningType;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
@@ -18,6 +28,8 @@ use App\Models\EssentialBudget;
 use App\Models\FinancialEvaluation;
 use App\Models\LedgerEntry;
 use App\Models\MonthlyFinancialSetting;
+use App\Models\Pocket;
+use App\Models\ReceiptForecast;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -279,6 +291,147 @@ class FinancialEvaluationTest extends TestCase
         $this->assertSame('outside_plan', $user->internalAlerts()->where('view', 'current')->value('current_situation'));
         $this->assertDatabaseCount('internal_alerts', 2);
         $this->assertDatabaseCount('financial_evaluations', 0);
+    }
+
+    public function test_forecast_create_update_and_cancel_refresh_projected_alert_without_snapshot(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-10 12:00:00', 'America/Sao_Paulo'));
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $incomeCategory = Category::factory()->for($user)->create(['type' => 'income']);
+        $expenseCategory = Category::factory()->for($user)->create(['type' => 'expense']);
+        MonthlyFinancialSetting::factory()->for($user)->create(['month' => '2026-09']);
+        $this->entry($user, $account, $expenseCategory, 'expense', ExpensePlanningType::Fixed, '1000.00', '2026-09-10');
+        app(RefreshCurrentInternalAlert::class)->handle($user);
+
+        $forecast = app(CreateReceiptForecast::class)->handle($user, [
+            'category_id' => $incomeCategory->id,
+            'amount' => '1500.00',
+            'expected_on' => '2026-09-20',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $projectedAlert = $user->internalAlerts()->where('view', 'projected')->sole();
+        $this->assertSame('under_control', $projectedAlert->current_situation);
+        $this->assertNotNull($projectedAlert->recovered_at);
+
+        app(UpdateReceiptForecast::class)->handle($user, $forecast->id, [
+            'category_id' => $incomeCategory->id,
+            'amount' => '500.00',
+            'expected_on' => '2026-09-20',
+            'version' => $forecast->fresh()->version,
+        ]);
+
+        $projectedAlert->refresh();
+        $this->assertSame('insufficient', $projectedAlert->current_situation);
+        $this->assertSame('500.00', $projectedAlert->current_deficit);
+        $this->assertNull($projectedAlert->recovered_at);
+
+        app(CancelReceiptForecast::class)->handle($user, $forecast->id, $forecast->fresh()->version);
+
+        $projectedAlert->refresh();
+        $this->assertSame('insufficient', $projectedAlert->current_situation);
+        $this->assertSame('1000.00', $projectedAlert->current_deficit);
+        $this->assertDatabaseCount('financial_evaluations', 0);
+    }
+
+    public function test_linking_excess_receipt_refreshes_projected_alert_without_double_counting_income(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-10 12:00:00', 'America/Sao_Paulo'));
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $incomeCategory = Category::factory()->for($user)->create(['type' => 'income']);
+        $expenseCategory = Category::factory()->for($user)->create(['type' => 'expense']);
+        MonthlyFinancialSetting::factory()->for($user)->create(['month' => '2026-09']);
+        $this->entry($user, $account, $expenseCategory, 'expense', ExpensePlanningType::Fixed, '1200.00', '2026-09-10');
+        $income = $this->entry($user, $account, $incomeCategory, 'income', null, '1000.00', '2026-09-10');
+        $forecast = ReceiptForecast::factory()->for($user)->for($incomeCategory)->create([
+            'amount' => '500.00',
+            'expected_on' => '2026-09-20',
+        ]);
+        app(RefreshCurrentInternalAlert::class)->handle($user);
+
+        $this->assertFalse($user->internalAlerts()->where('view', 'projected')->exists());
+
+        app(LinkReceiptForecast::class)->handle(
+            $user,
+            $forecast->id,
+            $income->id,
+            $forecast->version,
+            (string) Str::uuid(),
+        );
+
+        $projectedAlert = $user->internalAlerts()->where('view', 'projected')->sole();
+        $this->assertSame('insufficient', $projectedAlert->current_situation);
+        $this->assertSame('200.00', $projectedAlert->current_deficit);
+        $this->assertDatabaseCount('financial_evaluations', 0);
+    }
+
+    public function test_manual_entry_delete_and_restore_refresh_current_alert(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-10 12:00:00', 'America/Sao_Paulo'));
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $incomeCategory = Category::factory()->for($user)->create(['type' => 'income']);
+        $expenseCategory = Category::factory()->for($user)->create(['type' => 'expense']);
+        MonthlyFinancialSetting::factory()->for($user)->create(['month' => '2026-09']);
+        $income = $this->entry($user, $account, $incomeCategory, 'income', null, '1500.00', '2026-09-10');
+        $this->entry($user, $account, $expenseCategory, 'expense', ExpensePlanningType::Fixed, '1000.00', '2026-09-10');
+        app(RefreshCurrentInternalAlert::class)->handle($user);
+
+        app(DeleteManualLedgerEntry::class)->handle($user, $income->id);
+
+        $currentAlert = $user->internalAlerts()->where('view', 'current')->sole();
+        $this->assertSame('insufficient', $currentAlert->current_situation);
+        $this->assertSame('1000.00', $currentAlert->current_deficit);
+
+        app(RestoreManualLedgerEntry::class)->handle($user, $income->id);
+
+        $currentAlert->refresh();
+        $this->assertSame('under_control', $currentAlert->current_situation);
+        $this->assertNull($currentAlert->current_deficit);
+        $this->assertNotNull($currentAlert->recovered_at);
+    }
+
+    public function test_account_and_pocket_cascades_refresh_alerts_for_planning_entries(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-10 12:00:00', 'America/Sao_Paulo'));
+
+        foreach (['account', 'pocket'] as $referenceType) {
+            $user = User::factory()->create();
+            $expenseAccount = Account::factory()->for($user)->create();
+            $incomeAccount = Account::factory()->for($user)->create();
+            $reference = $referenceType === 'pocket'
+                ? Pocket::factory()->for($user)->for($incomeAccount)->create()
+                : $incomeAccount;
+            $incomeCategory = Category::factory()->for($user)->create(['type' => 'income']);
+            $expenseCategory = Category::factory()->for($user)->create(['type' => 'expense']);
+            MonthlyFinancialSetting::factory()->for($user)->create(['month' => '2026-09']);
+            LedgerEntry::factory()->for($user)->for($reference, 'reference')->for($incomeCategory)->create([
+                'type' => LedgerEntryType::Income,
+                'amount' => '1500.00',
+                'occurred_at' => '2026-09-10',
+            ]);
+            $this->entry($user, $expenseAccount, $expenseCategory, 'expense', ExpensePlanningType::Fixed, '1000.00', '2026-09-10');
+            app(RefreshCurrentInternalAlert::class)->handle($user);
+
+            if ($reference instanceof Pocket) {
+                app(DeletePocket::class)->handle($user, $reference->id);
+            } else {
+                app(DeleteAccount::class)->handle($user, $reference->id);
+            }
+
+            $currentAlert = $user->internalAlerts()->where('view', 'current')->sole();
+            $this->assertSame('insufficient', $currentAlert->current_situation);
+
+            if ($reference instanceof Pocket) {
+                app(RestorePocket::class)->handle($user, $reference->id);
+            } else {
+                app(RestoreAccount::class)->handle($user, $reference->id);
+            }
+
+            $this->assertSame('under_control', $currentAlert->fresh()->current_situation);
+        }
     }
 
     private function entry(User $user, Account $account, Category $category, string $type, ?ExpensePlanningType $planningType, string $amount, string $occurredAt): LedgerEntry

@@ -21,6 +21,7 @@ class LinkReceiptForecast
     public function __construct(
         private AuditRecorder $auditRecorder,
         private RecalculateReceiptForecast $recalculate,
+        private RefreshCurrentInternalAlert $refreshAlert,
     ) {}
 
     public function handle(User $user, int $forecastId, int $ledgerEntryId, int $forecastVersion, string $operationId): ReceiptForecastLink
@@ -88,6 +89,7 @@ class LinkReceiptForecast
                 ]);
                 $this->auditRecorder->record($user, AuditAction::Linked, $link, $before);
                 $this->recalculate->handle($user, $forecast);
+                $this->refreshAlert->handle($user);
 
                 return $link;
             }, 3);

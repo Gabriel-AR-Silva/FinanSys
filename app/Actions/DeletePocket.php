@@ -22,6 +22,7 @@ class DeletePocket
     public function __construct(
         private AuditRecorder $auditRecorder,
         private DetachReceiptForecast $detachReceiptForecast,
+        private RefreshCurrentInternalAlert $refreshAlert,
     ) {}
 
     public function handle(User $user, int $pocketId): void
@@ -57,6 +58,11 @@ class DeletePocket
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
+            $affectsPlanning = $entries->contains(fn (LedgerEntry $entry): bool => in_array(
+                $entry->type,
+                [LedgerEntryType::Income, LedgerEntryType::Expense, LedgerEntryType::Refund],
+                true,
+            ));
             foreach ($entries as $entry) {
                 $this->detachReceiptForecast->handle($user, $entry, ReceiptForecastUnlinkReason::LedgerDeleted);
                 $before = $entry->attributesToArray();
@@ -68,6 +74,10 @@ class DeletePocket
             $pocket->update(['deletion_batch_id' => $batchId]);
             $pocket->delete();
             $this->auditRecorder->record($user, AuditAction::Deleted, $pocket, $before);
+
+            if ($affectsPlanning) {
+                $this->refreshAlert->handle($user);
+            }
         });
     }
 }

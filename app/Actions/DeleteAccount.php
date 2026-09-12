@@ -19,6 +19,7 @@ class DeleteAccount
     public function __construct(
         private AuditRecorder $auditRecorder,
         private DetachReceiptForecast $detachReceiptForecast,
+        private RefreshCurrentInternalAlert $refreshAlert,
     ) {}
 
     public function handle(User $user, int $accountId): void
@@ -64,6 +65,11 @@ class DeleteAccount
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
+            $affectsPlanning = $entries->contains(fn (LedgerEntry $entry): bool => in_array(
+                $entry->type,
+                [LedgerEntryType::Income, LedgerEntryType::Expense, LedgerEntryType::Refund],
+                true,
+            ));
 
             foreach ($entries as $entry) {
                 $this->detachReceiptForecast->handle($user, $entry, ReceiptForecastUnlinkReason::LedgerDeleted);
@@ -84,6 +90,10 @@ class DeleteAccount
             $account->update(['deletion_batch_id' => $batchId]);
             $account->delete();
             $this->auditRecorder->record($user, AuditAction::Deleted, $account, $before);
+
+            if ($affectsPlanning) {
+                $this->refreshAlert->handle($user);
+            }
         });
     }
 }
