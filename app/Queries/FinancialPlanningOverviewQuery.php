@@ -44,8 +44,8 @@ class FinancialPlanningOverviewQuery
             ];
         }
 
-        $start = $now->startOfMonth()->utc();
-        $end = $now->endOfMonth()->utc();
+        $start = $now->startOfMonth();
+        $end = $now->endOfMonth();
         $entries = LedgerEntry::query()
             ->whereBelongsTo($user)
             ->whereNull('reversal_of_operation_id')
