@@ -357,7 +357,7 @@ class FinancialEvaluationTest extends TestCase
             $user,
             $forecast->id,
             $income->id,
-            $forecast->version,
+            $forecast->fresh()->version,
             (string) Str::uuid(),
         );
 
