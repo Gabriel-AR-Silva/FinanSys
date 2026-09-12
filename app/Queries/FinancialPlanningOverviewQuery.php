@@ -84,17 +84,20 @@ class FinancialPlanningOverviewQuery
                 'gross' => $installment->gross_amount,
                 'paid' => $installment->paid_amount,
                 'pending' => (string) BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount),
-            ])->concat(CardCharge::query()
-                ->whereBelongsTo($user)
-                ->whereBetween('due_on', [$now->startOfMonth()->toDateString(), $now->endOfMonth()->toDateString()])
-                ->get()
-                ->map(fn (CardCharge $charge): array => [
-                    'category_id' => $charge->category_id,
-                    'planning_type' => $charge->planning_type,
-                    'gross' => $charge->amount,
-                    'paid' => $charge->paid_amount,
-                    'pending' => (string) BigDecimal::of($charge->amount)->minus($charge->paid_amount),
-                ]));
+            ])
+            ->concat(
+                CardCharge::query()
+                    ->whereBelongsTo($user)
+                    ->whereBetween('due_on', [$now->startOfMonth()->toDateString(), $now->endOfMonth()->toDateString()])
+                    ->get()
+                    ->map(fn (CardCharge $charge): array => [
+                        'category_id' => $charge->category_id,
+                        'planning_type' => $charge->planning_type,
+                        'gross' => $charge->amount,
+                        'paid' => $charge->paid_amount,
+                        'pending' => (string) BigDecimal::of($charge->amount)->minus($charge->paid_amount),
+                    ])
+            );
         $previousCommitments = $this->previousCardCommitments($user, $now);
         $essentialCategoryIds = $settings->essentials->pluck('category_id');
         $essentialProjections = $settings->essentials->map(function (EssentialBudget $budget) use ($ordinary, $extraordinary, $cardCommitments, $now): array {
