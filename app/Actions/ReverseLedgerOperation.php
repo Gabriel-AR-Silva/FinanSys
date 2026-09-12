@@ -6,6 +6,7 @@ use App\Domain\Ledger\ReferenceResolver;
 use App\Enums\AuditAction;
 use App\Enums\LedgerEntryReferenceType;
 use App\Enums\LedgerEntryType;
+use App\Enums\ReceiptForecastUnlinkReason;
 use App\Enums\RecordStatus;
 use App\Models\Account;
 use App\Models\LedgerEntry;
@@ -26,6 +27,8 @@ class ReverseLedgerOperation
     public function __construct(
         private AuditRecorder $auditRecorder,
         private ReferenceResolver $referenceResolver,
+        private DetachReceiptForecast $detachReceiptForecast,
+        private RefreshCurrentInternalAlert $refreshAlert,
     ) {}
 
     /** @return Collection<int, LedgerEntry> */
@@ -36,7 +39,9 @@ class ReverseLedgerOperation
         }
 
         try {
-            return DB::transaction(function () use ($user, $entryId, $operationId): Collection {
+            $refresh = false;
+            $reversals = DB::transaction(function () use ($user, $entryId, $operationId, &$refresh): Collection {
+                User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
                 $selected = LedgerEntry::query()->whereBelongsTo($user)->lockForUpdate()->findOrFail($entryId);
                 $originals = LedgerEntry::query()->whereBelongsTo($user)->where('operation_id', $selected->operation_id)->lockForUpdate()->get();
                 $existingReplay = LedgerEntry::query()->whereBelongsTo($user)->where('operation_id', $operationId)->get();
@@ -49,10 +54,22 @@ class ReverseLedgerOperation
                     throw ValidationException::withMessages(['ledger_entry' => 'Esta operação já foi estornada.']);
                 }
 
-                return $this->isManual($originals)
+                $reversals = $this->isManual($originals)
                     ? collect([$this->reverseManual($user, $originals->sole(), $operationId)])
                     : $this->reverseTransfer($user, $originals, $operationId);
+
+                if ($this->isManual($originals)) {
+                    $this->detachReceiptForecast->handle($user, $originals->sole(), ReceiptForecastUnlinkReason::LedgerReversed);
+                    $refresh = true;
+                }
+
+                return $reversals;
             }, 3);
+            if ($refresh) {
+                $this->refreshAlert->handle($user);
+            }
+
+            return $reversals;
         } catch (UniqueConstraintViolationException) {
             $original = LedgerEntry::query()->whereBelongsTo($user)->find($entryId);
             if ($original === null) {
@@ -90,7 +107,7 @@ class ReverseLedgerOperation
     private function isManual(Collection $originals): bool
     {
         return $originals->count() === 1
-            && in_array($originals->sole()->type, [LedgerEntryType::Income, LedgerEntryType::Expense], true);
+            && in_array($originals->sole()->type, [LedgerEntryType::Income, LedgerEntryType::Expense, LedgerEntryType::Refund], true);
     }
 
     private function reverseManual(User $user, LedgerEntry $original, string $operationId): LedgerEntry
@@ -103,7 +120,7 @@ class ReverseLedgerOperation
         $entry = $reference->ledgerEntries()->create([
             'user_id' => $user->getKey(),
             'category_id' => $original->category_id,
-            'type' => $original->type === LedgerEntryType::Income ? LedgerEntryType::Expense : LedgerEntryType::Income,
+            'type' => in_array($original->type, [LedgerEntryType::Income, LedgerEntryType::Refund], true) ? LedgerEntryType::Expense : LedgerEntryType::Income,
             'amount' => $original->amount,
             'operation_id' => $operationId,
             'reversal_of_operation_id' => $original->operation_id,
@@ -176,7 +193,7 @@ class ReverseLedgerOperation
 
     private function balanceOf(Account|Pocket $reference): BigDecimal
     {
-        $positiveTypes = [LedgerEntryType::OpeningBalance->value, LedgerEntryType::Income->value, LedgerEntryType::TransferIn->value];
+        $positiveTypes = [LedgerEntryType::OpeningBalance->value, LedgerEntryType::Income->value, LedgerEntryType::Refund->value, LedgerEntryType::TransferIn->value];
         $placeholders = implode(', ', array_fill(0, count($positiveTypes), '?'));
         $balance = LedgerEntry::query()
             ->where('user_id', $reference->user_id)

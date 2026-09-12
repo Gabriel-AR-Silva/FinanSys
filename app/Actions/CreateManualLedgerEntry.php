@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Domain\Ledger\ReferenceResolver;
 use App\Enums\AuditAction;
+use App\Enums\ExpensePlanningType;
 use App\Enums\LedgerEntryReferenceType;
 use App\Enums\LedgerEntryType;
 use App\Enums\RecordStatus;
@@ -24,9 +25,13 @@ use Illuminate\Validation\ValidationException;
 
 class CreateManualLedgerEntry
 {
-    public function __construct(private AuditRecorder $auditRecorder, private ReferenceResolver $referenceResolver) {}
+    public function __construct(
+        private AuditRecorder $auditRecorder,
+        private ReferenceResolver $referenceResolver,
+        private RefreshCurrentInternalAlert $refreshAlert,
+    ) {}
 
-    public function handle(User $user, int $accountId, int $categoryId, LedgerEntryType $type, string $value, string $occurredAt, ?string $description, string $operationId): LedgerEntry
+    public function handle(User $user, int $accountId, int $categoryId, LedgerEntryType $type, string $value, string $occurredAt, ?string $description, string $operationId, ?ExpensePlanningType $planningType = null): LedgerEntry
     {
         if (! Str::isUuid($operationId)) {
             throw ValidationException::withMessages(['operation_id' => 'Informe uma chave de operação UUID válida.']);
@@ -69,39 +74,54 @@ class CreateManualLedgerEntry
             throw ValidationException::withMessages(['category_id' => 'A categoria selecionada não está disponível para este tipo de lançamento.']);
         }
 
+        if ($type === LedgerEntryType::Expense && $planningType === null) {
+            throw ValidationException::withMessages(['planning_type' => 'Informe como essa despesa participa do planejamento.']);
+        }
+
+        if ($type === LedgerEntryType::Income && $planningType !== null) {
+            throw ValidationException::withMessages(['planning_type' => 'Receitas não usam classificação de despesa.']);
+        }
+
         try {
-            return DB::transaction(function () use ($user, $accountId, $categoryId, $type, $amount, $occurredAt, $description, $operationId): LedgerEntry {
+            $created = false;
+            $entry = DB::transaction(function () use ($user, $accountId, $categoryId, $type, $amount, $occurredAt, $description, $operationId, $planningType, &$created): LedgerEntry {
                 $existing = LedgerEntry::withTrashed()->whereBelongsTo($user)->where('operation_id', $operationId)->get();
                 if ($existing->isNotEmpty()) {
-                    return $this->validateExisting($existing, $type, $accountId, $categoryId, $amount, $occurredAt, $description);
+                    return $this->validateExisting($existing, $type, $accountId, $categoryId, $amount, $occurredAt, $description, $planningType);
                 }
 
                 $account = Account::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->lockForUpdate()->findOrFail($accountId);
                 $entry = $account->ledgerEntries()->create([
-                    'user_id' => $user->getKey(), 'category_id' => $categoryId, 'type' => $type, 'amount' => (string) $amount,
+                    'user_id' => $user->getKey(), 'category_id' => $categoryId, 'type' => $type, 'planning_type' => $planningType, 'amount' => (string) $amount,
                     'operation_id' => $operationId, 'occurred_at' => $occurredAt, 'description' => $description,
                 ]);
+                $created = true;
                 $this->auditRecorder->record($user, AuditAction::Created, $entry);
 
                 return $entry;
             });
+            if ($created) {
+                $this->refreshAlert->handle($user);
+            }
+
+            return $entry;
         } catch (UniqueConstraintViolationException) {
             $existing = LedgerEntry::withTrashed()->whereBelongsTo($user)->where('operation_id', $operationId)->get();
             if ($existing->isEmpty()) {
                 throw ValidationException::withMessages(['operation_id' => 'Não foi possível recuperar a operação concorrente.']);
             }
 
-            return $this->validateExisting($existing, $type, $accountId, $categoryId, $amount, $occurredAt, $description);
+            return $this->validateExisting($existing, $type, $accountId, $categoryId, $amount, $occurredAt, $description, $planningType);
         }
     }
 
     /** @param Collection<int, LedgerEntry> $entries */
-    private function validateExisting(Collection $entries, LedgerEntryType $type, int $accountId, int $categoryId, BigDecimal $amount, string $occurredAt, ?string $description): LedgerEntry
+    private function validateExisting(Collection $entries, LedgerEntryType $type, int $accountId, int $categoryId, BigDecimal $amount, string $occurredAt, ?string $description, ?ExpensePlanningType $planningType): LedgerEntry
     {
         $entry = $entries->first(fn (LedgerEntry $candidate): bool => $candidate->type === $type);
 
         if ($entries->count() !== 1 || $entry === null || $entry->reference_type !== (new Account)->getMorphClass() || (int) $entry->reference_id !== $accountId || (int) $entry->category_id !== $categoryId
-            || $entry->amount !== (string) $amount || $entry->occurred_at->toDateString() !== $occurredAt || $entry->description !== $description) {
+            || $entry->planning_type !== $planningType || $entry->amount !== (string) $amount || $entry->occurred_at->toDateString() !== $occurredAt || $entry->description !== $description) {
             throw ValidationException::withMessages(['operation_id' => 'Esta chave de operação já foi usada com dados diferentes.']);
         }
 

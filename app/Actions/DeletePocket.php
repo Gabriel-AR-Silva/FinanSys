@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Enums\AuditAction;
 use App\Enums\LedgerEntryType;
+use App\Enums\ReceiptForecastUnlinkReason;
 use App\Enums\RecordStatus;
 use App\Models\Account;
 use App\Models\LedgerEntry;
@@ -18,11 +19,15 @@ class DeletePocket
     /**
      * Create a new class instance.
      */
-    public function __construct(private AuditRecorder $auditRecorder) {}
+    public function __construct(
+        private AuditRecorder $auditRecorder,
+        private DetachReceiptForecast $detachReceiptForecast,
+    ) {}
 
     public function handle(User $user, int $pocketId): void
     {
         DB::transaction(function () use ($user, $pocketId): void {
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             $accountId = Pocket::query()->whereBelongsTo($user)->whereKey($pocketId)->value('account_id');
             $account = Account::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->lockForUpdate()->findOrFail($accountId);
             $pocket = Pocket::query()->whereBelongsTo($user)->whereBelongsTo($account)->lockForUpdate()->findOrFail($pocketId);
@@ -53,6 +58,7 @@ class DeletePocket
                 ->lockForUpdate()
                 ->get();
             foreach ($entries as $entry) {
+                $this->detachReceiptForecast->handle($user, $entry, ReceiptForecastUnlinkReason::LedgerDeleted);
                 $before = $entry->attributesToArray();
                 $entry->update(['deletion_batch_id' => $batchId]);
                 $entry->delete();

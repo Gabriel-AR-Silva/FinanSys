@@ -4,20 +4,27 @@ namespace App\Actions;
 
 use App\Enums\AuditAction;
 use App\Enums\LedgerEntryType;
+use App\Enums\ReceiptForecastUnlinkReason;
 use App\Models\Account;
+use App\Models\ExpenseRefund;
 use App\Models\LedgerEntry;
 use App\Models\User;
 use App\Support\AuditRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class DeleteAccount
 {
-    public function __construct(private AuditRecorder $auditRecorder) {}
+    public function __construct(
+        private AuditRecorder $auditRecorder,
+        private DetachReceiptForecast $detachReceiptForecast,
+    ) {}
 
     public function handle(User $user, int $accountId): void
     {
         DB::transaction(function () use ($user, $accountId): void {
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             $account = Account::withTrashed()->whereBelongsTo($user)->lockForUpdate()->findOrFail($accountId);
             if ($account->trashed()) {
                 return;
@@ -31,6 +38,11 @@ class DeleteAccount
                         $query->orWhere(fn ($nested) => $nested->where('reference_type', 'pocket')->whereIn('reference_id', $pockets->modelKeys()));
                     }
                 })->get();
+
+            if (ExpenseRefund::query()->whereBelongsTo($user)->active()
+                ->whereIn('expense_ledger_entry_id', $entries->modelKeys())->exists()) {
+                throw ValidationException::withMessages(['account' => 'Desfaça os reembolsos ativos antes de excluir esta conta.']);
+            }
 
             $transferOperationIds = $entries
                 ->filter(fn (LedgerEntry $entry): bool => in_array($entry->type, [LedgerEntryType::TransferIn, LedgerEntryType::TransferOut], true))
@@ -54,6 +66,7 @@ class DeleteAccount
                 ->get();
 
             foreach ($entries as $entry) {
+                $this->detachReceiptForecast->handle($user, $entry, ReceiptForecastUnlinkReason::LedgerDeleted);
                 $before = $entry->attributesToArray();
                 $entry->update(['deletion_batch_id' => $batchId]);
                 $entry->delete();

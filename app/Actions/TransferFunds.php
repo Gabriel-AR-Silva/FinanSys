@@ -125,6 +125,7 @@ class TransferFunds
         $positiveTypes = [
             LedgerEntryType::OpeningBalance->value,
             LedgerEntryType::Income->value,
+            LedgerEntryType::Refund->value,
             LedgerEntryType::TransferIn->value,
         ];
         $placeholders = implode(', ', array_fill(0, count($positiveTypes), '?'));

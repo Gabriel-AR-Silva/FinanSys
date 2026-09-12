@@ -13,7 +13,7 @@ class PocketBalanceQuery
     /** @return Collection<int, Pocket> */
     public function forUser(User $user): Collection
     {
-        $positiveTypes = [LedgerEntryType::OpeningBalance->value, LedgerEntryType::Income->value, LedgerEntryType::TransferIn->value];
+        $positiveTypes = [LedgerEntryType::OpeningBalance->value, LedgerEntryType::Income->value, LedgerEntryType::Refund->value, LedgerEntryType::TransferIn->value];
         $placeholders = implode(', ', array_fill(0, count($positiveTypes), '?'));
 
         return Pocket::query()->whereBelongsTo($user)

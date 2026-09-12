@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Domain\Ledger\ReferenceResolver;
+use App\Enums\ExpensePlanningType;
 use App\Enums\LedgerEntryReferenceType;
 use App\Enums\LedgerEntryType;
 use App\Enums\RecordStatus;
@@ -23,6 +24,7 @@ class StoreLedgerEntryRequest extends FormRequest
     {
         return [
             'type' => ['required', Rule::in([LedgerEntryType::Income->value, LedgerEntryType::Expense->value])],
+            'planning_type' => ['required_if:type,'.LedgerEntryType::Expense->value, 'prohibited_unless:type,'.LedgerEntryType::Expense->value, Rule::enum(ExpensePlanningType::class)],
             'account_id' => ['required', 'integer', Rule::exists(Account::class, 'id')->where(fn ($query) => $query->where('user_id', $this->user()?->getKey())->where('status', RecordStatus::Active->value)->whereNull('deleted_at'))],
             'category_id' => ['required', 'integer', Rule::exists(Category::class, 'id')->where(fn ($query) => $query->where('user_id', $this->user()?->getKey())->where('type', $this->input('type'))->where('status', RecordStatus::Active->value))],
             'amount' => ['required', 'decimal:0,2', 'gt:0', 'regex:/^\d{1,17}(?:\.\d{1,2})?$/'],
@@ -36,6 +38,9 @@ class StoreLedgerEntryRequest extends FormRequest
     {
         return [
             'type.in' => 'Escolha receita ou despesa.',
+            'planning_type.required_if' => 'Informe como essa despesa participa do planejamento.',
+            'planning_type.prohibited_unless' => 'Receitas não usam classificação de despesa.',
+            'planning_type.*' => 'Escolha gasto fixo, cotidiano ou extraordinário.',
             'account_id.exists' => 'A conta selecionada não está disponível.',
             'category_id.required' => 'Escolha uma categoria.',
             'category_id.exists' => 'A categoria selecionada não está disponível para este tipo de lançamento.',

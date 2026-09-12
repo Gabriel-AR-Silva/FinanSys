@@ -1,12 +1,21 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\CardPaymentController;
+use App\Http\Controllers\CardPurchaseController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CreditCardController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExpenseRefundController;
+use App\Http\Controllers\FinancialEvaluationController;
+use App\Http\Controllers\FinancialSettingsController;
+use App\Http\Controllers\InternalAlertController;
 use App\Http\Controllers\LedgerEntryController;
 use App\Http\Controllers\LedgerEntryReversalController;
 use App\Http\Controllers\PocketController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReceiptForecastController;
+use App\Http\Controllers\ReceiptForecastReceiptController;
 use App\Http\Controllers\RestoredAccountController;
 use App\Http\Controllers\RestoredLedgerEntryController;
 use App\Http\Controllers\RestoredPocketController;
@@ -25,6 +34,20 @@ Route::get('/dashboard', DashboardController::class)
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/cartoes', [CreditCardController::class, 'index'])->name('credit-cards.index');
+    Route::post('/cartoes', [CreditCardController::class, 'store'])->name('credit-cards.store');
+    Route::post('/cartoes/compras', [CardPurchaseController::class, 'store'])->name('card-purchases.store');
+    Route::post('/cartoes/pagamentos', [CardPaymentController::class, 'store'])->name('card-payments.store');
+    Route::get('/recebimentos-previstos', [ReceiptForecastController::class, 'index'])->name('receipt-forecasts.index');
+    Route::post('/recebimentos-previstos', [ReceiptForecastController::class, 'store'])->name('receipt-forecasts.store');
+    Route::put('/recebimentos-previstos/{forecast}', [ReceiptForecastController::class, 'update'])->whereNumber('forecast')->name('receipt-forecasts.update');
+    Route::put('/recebimentos-previstos/{forecast}/cancelar', [ReceiptForecastController::class, 'cancel'])->whereNumber('forecast')->name('receipt-forecasts.cancel');
+    Route::post('/recebimentos-previstos/{forecast}/recebimentos', [ReceiptForecastReceiptController::class, 'store'])->whereNumber('forecast')->name('receipt-forecasts.receipts.store');
+    Route::get('/configuracao-financeira', [FinancialSettingsController::class, 'edit'])->name('financial-settings.edit');
+    Route::get('/historico-financeiro', [FinancialEvaluationController::class, 'index'])->name('financial-evaluations.index');
+    Route::get('/avisos-financeiros', [InternalAlertController::class, 'index'])->name('internal-alerts.index');
+    Route::put('/configuracao-financeira', [FinancialSettingsController::class, 'update'])->name('financial-settings.update');
+    Route::post('/configuracao-financeira/categorias', [FinancialSettingsController::class, 'storeCategory'])->name('financial-settings.categories.store');
     Route::resource('contas', AccountController::class)
         ->parameters(['contas' => 'account'])
         ->only(['index', 'store', 'update', 'destroy'])
@@ -51,6 +74,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/lancamentos/{ledgerEntry}/estorno', LedgerEntryReversalController::class)
         ->name('ledger-entries.reversals.store');
     Route::post('/transferencias', [TransferController::class, 'store'])->name('transfers.store');
+    Route::post('/reembolsos', [ExpenseRefundController::class, 'store'])->name('expense-refunds.store');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
 });

@@ -107,13 +107,37 @@ class LedgerEntryControllerTest extends TestCase
 
         $response = $this->actingAs($user)->post(route('ledger-entries.store'), [
             'type' => 'expense', 'account_id' => $account->id, 'category_id' => $category->id, 'amount' => '99999999999999999.99',
+            'planning_type' => 'extraordinary',
             'occurred_at' => '2026-09-01', 'description' => 'Compra importante',
             'operation_id' => '4b264db5-2755-40b6-99d9-aa48062e27b2',
         ]);
 
         $response->assertRedirect(route('ledger-entries.index'))->assertSessionHas('success');
-        $this->assertDatabaseHas('ledger_entries', ['user_id' => $user->id, 'category_id' => $category->id, 'reference_id' => $account->id, 'amount' => '99999999999999999.99', 'type' => 'expense']);
+        $this->assertDatabaseHas('ledger_entries', ['user_id' => $user->id, 'category_id' => $category->id, 'reference_id' => $account->id, 'amount' => '99999999999999999.99', 'type' => 'expense', 'planning_type' => 'extraordinary']);
         $this->assertDatabaseCount('audit_logs', 1);
+    }
+
+    public function test_expense_requires_a_valid_planning_type_and_income_rejects_one(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $expenseCategory = Category::factory()->for($user)->create(['type' => 'expense']);
+        $incomeCategory = Category::factory()->for($user)->create(['type' => 'income']);
+        $base = ['account_id' => $account->id, 'amount' => '10.00', 'occurred_at' => now()->toDateString(), 'operation_id' => fake()->uuid()];
+
+        $this->actingAs($user)->post(route('ledger-entries.store'), $base + [
+            'type' => 'expense', 'category_id' => $expenseCategory->id,
+        ])->assertSessionHasErrors('planning_type');
+
+        $this->actingAs($user)->post(route('ledger-entries.store'), [...$base, 'operation_id' => fake()->uuid()] + [
+            'type' => 'expense', 'category_id' => $expenseCategory->id, 'planning_type' => 'guess',
+        ])->assertSessionHasErrors('planning_type');
+
+        $this->actingAs($user)->post(route('ledger-entries.store'), [...$base, 'operation_id' => fake()->uuid()] + [
+            'type' => 'income', 'category_id' => $incomeCategory->id, 'planning_type' => 'fixed',
+        ])->assertSessionHasErrors('planning_type');
+
+        $this->assertDatabaseCount('ledger_entries', 0);
     }
 
     public function test_same_operation_is_idempotent_and_different_payload_is_rejected(): void
@@ -132,7 +156,7 @@ class LedgerEntryControllerTest extends TestCase
         $this->actingAs($user)->post(route('ledger-entries.store'), [...$payload, 'amount' => '10.21'])
             ->assertSessionHasErrors(['operation_id' => 'Esta chave de operação já foi usada com dados diferentes.']);
 
-        $this->actingAs($user)->post(route('ledger-entries.store'), [...$payload, 'type' => 'expense', 'category_id' => $expenseCategory->id])
+        $this->actingAs($user)->post(route('ledger-entries.store'), [...$payload, 'type' => 'expense', 'category_id' => $expenseCategory->id, 'planning_type' => 'ordinary'])
             ->assertSessionHasErrors(['operation_id']);
         $this->assertDatabaseCount('ledger_entries', 1);
     }

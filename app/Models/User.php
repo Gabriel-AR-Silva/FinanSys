@@ -43,6 +43,16 @@ class User extends Authenticatable
         return $this->hasMany(SocialIdentity::class);
     }
 
+    public function financialEvaluations(): HasMany
+    {
+        return $this->hasMany(FinancialEvaluation::class);
+    }
+
+    public function internalAlerts(): HasMany
+    {
+        return $this->hasMany(InternalAlert::class);
+    }
+
     public function sendPasswordResetNotification($token): void
     {
         $this->notify((new QueuedResetPassword($token))->afterCommit());

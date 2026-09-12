@@ -5,6 +5,7 @@ namespace App\Queries;
 use App\Enums\LedgerEntryReferenceType;
 use App\Enums\LedgerEntryType;
 use App\Models\Category;
+use App\Models\ExpenseRefund;
 use App\Models\LedgerEntry;
 use App\Models\User;
 use Brick\Math\BigDecimal;
@@ -44,10 +45,7 @@ class FinancialOverviewQuery
                 ->where('type', LedgerEntryType::Income)
                 ->whereBetween('occurred_at', [now()->startOfMonth(), now()->endOfMonth()])
                 ->sum('amount'),
-            'monthly_expense' => (clone $entries)
-                ->where('type', LedgerEntryType::Expense)
-                ->whereBetween('occurred_at', [now()->startOfMonth(), now()->endOfMonth()])
-                ->sum('amount'),
+            'monthly_expense' => $this->monthlyExpense($user),
             'period_summary' => [
                 'income' => (string) $income,
                 'expense' => (string) $expense,
@@ -208,7 +206,7 @@ class FinancialOverviewQuery
     /** @return list<LedgerEntryType> */
     private function positiveTypes(): array
     {
-        return [LedgerEntryType::OpeningBalance, LedgerEntryType::Income, LedgerEntryType::TransferIn];
+        return [LedgerEntryType::OpeningBalance, LedgerEntryType::Income, LedgerEntryType::Refund, LedgerEntryType::TransferIn];
     }
 
     private function typeLabel(LedgerEntryType $type): string
@@ -217,8 +215,30 @@ class FinancialOverviewQuery
             LedgerEntryType::OpeningBalance => 'Saldo inicial',
             LedgerEntryType::Income => 'Receita',
             LedgerEntryType::Expense => 'Despesa',
+            LedgerEntryType::Refund => 'Reembolso',
             LedgerEntryType::TransferIn => 'Transferência recebida',
             LedgerEntryType::TransferOut => 'Transferência enviada',
+            LedgerEntryType::CardPayment => 'Pagamento de cartão',
         };
+    }
+
+    private function monthlyExpense(User $user): string
+    {
+        $start = now('America/Sao_Paulo')->startOfMonth();
+        $end = now('America/Sao_Paulo')->endOfMonth();
+        $gross = BigDecimal::of((string) LedgerEntry::query()->whereBelongsTo($user)
+            ->where('type', LedgerEntryType::Expense)->whereBetween('occurred_at', [$start, $end])->sum('amount'));
+        $refundEntries = ExpenseRefund::query()->whereBelongsTo($user)
+            ->whereHas('expenseEntry', fn (Builder $query) => $query->whereBetween('occurred_at', [$start, $end]))
+            ->whereHas('refundEntry', fn (Builder $query) => $query->whereBetween('occurred_at', [$start, $end]))
+            ->with('refundEntry')->get()->pluck('refundEntry')->filter();
+        $reversed = LedgerEntry::query()->whereBelongsTo($user)
+            ->whereIn('reversal_of_operation_id', $refundEntries->pluck('operation_id'))
+            ->pluck('reversal_of_operation_id')->all();
+        $refunded = $refundEntries
+            ->reject(fn (LedgerEntry $entry): bool => in_array($entry->operation_id, $reversed, true))
+            ->reduce(fn (BigDecimal $total, LedgerEntry $entry): BigDecimal => $total->plus($entry->amount), BigDecimal::zero());
+
+        return (string) $gross->minus($refunded)->toScale(2, RoundingMode::Unnecessary);
     }
 }

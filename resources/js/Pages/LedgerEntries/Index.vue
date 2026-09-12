@@ -6,7 +6,7 @@ import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { formatMoneyInput, normalizeMoneyInput, sanitizeMoneyInput } from '@/Support/money';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ArchiveRestore, ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, CalendarClock, ChevronLeft, ChevronRight, Filter, Plus, ReceiptText, RotateCcw, Trash2, X } from '@lucide/vue';
+import { ArchiveRestore, ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, CalendarClock, ChevronLeft, ChevronRight, Filter, HandCoins, Plus, ReceiptText, RotateCcw, Trash2, X } from '@lucide/vue';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -32,16 +32,18 @@ const createModalOpen = ref(false);
 const transferModalOpen = ref(false);
 const deletingEntry = ref(null);
 const reversingEntry = ref(null);
+const refundingEntry = ref(null);
 const restoringEntryId = ref(null);
 const currentDate = new Date();
 const today = new Date(currentDate.getTime() - currentDate.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 const newOperationId = () => crypto.randomUUID();
 const createForm = useForm({
     type: 'expense', account_id: props.accounts[0]?.id ?? '',
-    category_id: '', description: '', amount: '', occurred_at: today, operation_id: newOperationId(),
+    category_id: '', planning_type: 'ordinary', description: '', amount: '', occurred_at: today, operation_id: newOperationId(),
 });
 const deleteForm = useForm({});
 const reversalForm = useForm({ operation_id: newOperationId() });
+const refundForm = useForm({ destination_account_id: props.accounts[0]?.id ?? '', amount: '', occurred_at: today, operation_id: newOperationId() });
 const sourceKey = ref('');
 const destinationKey = ref('');
 const transferForm = useForm({ amount: '', operation_id: newOperationId() });
@@ -54,8 +56,8 @@ const selectedSource = computed(() => props.transferReferences.find((reference) 
 const availableDestinations = computed(() => props.transferReferences.filter((reference) => reference.key !== sourceKey.value));
 const formatMoney = (value) => money.format(Number(value));
 const formatDate = (value) => date.format(new Date(value));
-const positiveTypes = ['income', 'opening_balance', 'transfer_in'];
-const typeLabels = { income: 'Receita', expense: 'Despesa', opening_balance: 'Saldo inicial', transfer_in: 'Transferência recebida', transfer_out: 'Transferência enviada' };
+const positiveTypes = ['income', 'refund', 'opening_balance', 'transfer_in'];
+const typeLabels = { income: 'Receita', expense: 'Despesa', refund: 'Reembolso', opening_balance: 'Saldo inicial', transfer_in: 'Transferência recebida', transfer_out: 'Transferência enviada' };
 const isIncome = (entry) => positiveTypes.includes(entry.type);
 const accountName = (entry) => entry.reference?.name ?? 'Conta';
 const entryTitle = (entry) => entry.description || entry.category?.name || 'Sem categoria';
@@ -77,6 +79,7 @@ function closeCreateModal() {
     createModalOpen.value = false;
     createForm.reset();
     createForm.type = 'expense';
+    createForm.planning_type = 'ordinary';
     createForm.account_id = props.accounts[0]?.id ?? '';
     createForm.category_id = availableCategories.value[0]?.id ?? '';
     createForm.occurred_at = today;
@@ -85,7 +88,7 @@ function closeCreateModal() {
 
 function submitCreate() {
     createForm
-        .transform((data) => ({ ...data, amount: normalizeMoneyInput(data.amount) }))
+        .transform((data) => ({ ...data, planning_type: data.type === 'expense' ? data.planning_type : undefined, amount: normalizeMoneyInput(data.amount) }))
         .post(route('ledger-entries.store'), { preserveScroll: true, onSuccess: closeCreateModal });
 }
 
@@ -142,6 +145,22 @@ function submitReversal() {
     });
 }
 
+function openRefund(entry) {
+    refundingEntry.value = entry;
+    refundForm.defaults({ destination_account_id: props.accounts[0]?.id ?? '', amount: formatMoneyInput(entry.refundable_amount), occurred_at: today, operation_id: newOperationId() });
+    refundForm.reset();
+    refundForm.clearErrors();
+}
+
+function closeRefund() {
+    if (!refundForm.processing) refundingEntry.value = null;
+}
+
+function submitRefund() {
+    refundForm.transform((data) => ({ ...data, expense_ledger_entry_id: refundingEntry.value.id, amount: normalizeMoneyInput(data.amount) }))
+        .post(route('expense-refunds.store'), { preserveScroll: true, onSuccess: closeRefund });
+}
+
 onMounted(() => {
     const params = new URLSearchParams(window.location.search);
     const requestedType = params.get('create');
@@ -191,7 +210,7 @@ watch(sourceKey, () => {
                     </div>
                     <div>
                         <InputLabel for="filter-type" value="Tipo" />
-                        <select id="filter-type" v-model="filters.type" class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"><option value="all">Todos</option><option value="income">Receitas</option><option value="expense">Despesas</option></select>
+                        <select id="filter-type" v-model="filters.type" class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"><option value="all">Todos</option><option value="income">Receitas</option><option value="expense">Despesas</option><option value="refund">Reembolsos</option></select>
                     </div>
                     <div>
                         <InputLabel for="filter-account" value="Conta" />
@@ -215,7 +234,7 @@ watch(sourceKey, () => {
                                 <td class="px-5 py-4 text-slate-600">{{ accountName(entry) }}</td>
                                 <td class="px-5 py-4 text-slate-600">{{ formatDate(entry.occurred_at) }}</td>
                                 <td class="px-5 py-4 text-right font-semibold" :class="isIncome(entry) ? 'text-emerald-700' : 'text-rose-700'">{{ isIncome(entry) ? '+' : '−' }} {{ formatMoney(entry.amount) }}</td>
-                                <td class="px-5 py-4 text-right"><div class="flex justify-end gap-1"><button v-if="entry.can_reverse" type="button" class="rounded-lg p-2 text-slate-400 hover:bg-amber-50 hover:text-amber-700" :aria-label="`Estornar ${entryTitle(entry)}`" @click="reversingEntry = entry"><RotateCcw :size="17" /></button><button v-if="entry.can_delete" type="button" class="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-700" :aria-label="`Excluir ${entryTitle(entry)}`" @click="deletingEntry = entry"><Trash2 :size="17" /></button></div></td>
+                                <td class="px-5 py-4 text-right"><div class="flex justify-end gap-1"><button v-if="entry.can_refund" type="button" class="rounded-lg p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-700" :aria-label="`Reembolsar ${entryTitle(entry)}`" @click="openRefund(entry)"><HandCoins :size="17" /></button><button v-if="entry.can_reverse" type="button" class="rounded-lg p-2 text-slate-400 hover:bg-amber-50 hover:text-amber-700" :aria-label="`Estornar ${entryTitle(entry)}`" @click="reversingEntry = entry"><RotateCcw :size="17" /></button><button v-if="entry.can_delete" type="button" class="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-700" :aria-label="`Excluir ${entryTitle(entry)}`" @click="deletingEntry = entry"><Trash2 :size="17" /></button></div></td>
                             </tr>
                         </tbody>
                     </table>
@@ -223,7 +242,7 @@ watch(sourceKey, () => {
 
                 <div class="grid gap-3 md:hidden">
                     <article v-for="entry in entries.data" :key="entry.id" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                        <div class="flex items-start gap-3"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" :class="isIncome(entry) ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'"><ArrowUpCircle v-if="isIncome(entry)" :size="20" /><ArrowDownCircle v-else :size="20" /></span><div class="min-w-0 flex-1"><div class="flex items-start justify-between gap-3"><p class="truncate font-semibold text-slate-900">{{ entryTitle(entry) }}</p><p class="shrink-0 font-semibold" :class="isIncome(entry) ? 'text-emerald-700' : 'text-rose-700'">{{ isIncome(entry) ? '+' : '−' }} {{ formatMoney(entry.amount) }}</p></div><p class="mt-1 text-xs text-slate-500">{{ entry.category?.name ?? 'Sem categoria' }} · {{ accountName(entry) }} · {{ formatDate(entry.occurred_at) }}<span v-if="entry.is_reversal" class="ml-1 font-semibold text-amber-700">· Estorno</span></p></div><div class="flex shrink-0 gap-1"><button v-if="entry.can_reverse" type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-amber-50 hover:text-amber-700" :aria-label="`Estornar ${entryTitle(entry)}`" @click="reversingEntry = entry"><RotateCcw :size="17" /></button><button v-if="entry.can_delete" type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-700" :aria-label="`Excluir ${entryTitle(entry)}`" @click="deletingEntry = entry"><Trash2 :size="17" /></button></div></div>
+                        <div class="flex items-start gap-3"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" :class="isIncome(entry) ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'"><ArrowUpCircle v-if="isIncome(entry)" :size="20" /><ArrowDownCircle v-else :size="20" /></span><div class="min-w-0 flex-1"><div class="flex items-start justify-between gap-3"><p class="truncate font-semibold text-slate-900">{{ entryTitle(entry) }}</p><p class="shrink-0 font-semibold" :class="isIncome(entry) ? 'text-emerald-700' : 'text-rose-700'">{{ isIncome(entry) ? '+' : '−' }} {{ formatMoney(entry.amount) }}</p></div><p class="mt-1 text-xs text-slate-500">{{ entry.category?.name ?? 'Sem categoria' }} · {{ accountName(entry) }} · {{ formatDate(entry.occurred_at) }}<span v-if="entry.is_reversal" class="ml-1 font-semibold text-amber-700">· Estorno</span></p></div><div class="flex shrink-0 gap-1"><button v-if="entry.can_refund" type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-emerald-50 hover:text-emerald-700" :aria-label="`Reembolsar ${entryTitle(entry)}`" @click="openRefund(entry)"><HandCoins :size="17" /></button><button v-if="entry.can_reverse" type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-amber-50 hover:text-amber-700" :aria-label="`Estornar ${entryTitle(entry)}`" @click="reversingEntry = entry"><RotateCcw :size="17" /></button><button v-if="entry.can_delete" type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-700" :aria-label="`Excluir ${entryTitle(entry)}`" @click="deletingEntry = entry"><Trash2 :size="17" /></button></div></div>
                     </article>
                 </div>
 
@@ -243,6 +262,7 @@ watch(sourceKey, () => {
                 <div class="mt-5 grid gap-5">
                     <div><InputLabel for="entry-account" value="Conta" /><select id="entry-account" v-model="createForm.account_id" class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"><option disabled value="">Selecione uma conta</option><option v-for="account in accounts" :key="account.id" :value="account.id">{{ account.name }}</option></select><InputError class="mt-2" :message="createForm.errors.account_id" /></div>
                     <div><InputLabel for="entry-category" value="Categoria" /><select id="entry-category" v-model="createForm.category_id" class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"><option disabled value="">Selecione uma categoria</option><option v-for="category in availableCategories" :key="category.id" :value="category.id">{{ category.name }}</option></select><InputError class="mt-2" :message="createForm.errors.category_id" /></div>
+                    <div v-if="createForm.type === 'expense'"><InputLabel for="entry-planning-type" value="Comportamento no planejamento" /><select id="entry-planning-type" v-model="createForm.planning_type" class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"><option value="ordinary">Cotidiano — entra no ritmo mensal</option><option value="fixed">Fixo — compromisso recorrente do mês</option><option value="extraordinary">Extraordinário — fora do ritmo cotidiano</option></select><p class="mt-2 text-xs leading-5 text-slate-500">A categoria diz onde você gastou; esta opção diz como o gasto entra na projeção.</p><InputError class="mt-2" :message="createForm.errors.planning_type" /></div>
                     <div><InputLabel for="entry-description" value="Detalhes (opcional)" /><TextInput id="entry-description" v-model="createForm.description" class="mt-2 block w-full" maxlength="255" autocomplete="off" placeholder="Ex.: parcela do financiamento" /><InputError class="mt-2" :message="createForm.errors.description" /></div>
                     <div class="grid gap-5 sm:grid-cols-2"><div><InputLabel for="entry-amount" value="Valor" /><div class="relative mt-2"><span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-slate-500">R$</span><TextInput id="entry-amount" v-model="createForm.amount" class="block w-full pl-10" inputmode="decimal" placeholder="0,00" @input="createForm.amount = sanitizeMoneyInput($event.target.value)" @blur="createForm.amount = formatMoneyInput(createForm.amount)" /></div><InputError class="mt-2" :message="createForm.errors.amount" /></div><div><InputLabel for="entry-date" value="Data" /><TextInput id="entry-date" v-model="createForm.occurred_at" type="date" :max="today" class="mt-2 block w-full" /><InputError class="mt-2" :message="createForm.errors.occurred_at" /></div></div>
                 </div>
@@ -264,5 +284,6 @@ watch(sourceKey, () => {
 
         <Modal :show="deletingEntry !== null" max-width="md" @close="deletingEntry = null"><div class="p-6"><span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-700"><Trash2 :size="22" /></span><h2 class="mt-5 text-xl font-semibold text-slate-950">Excluir lançamento?</h2><p class="mt-2 text-sm leading-6 text-slate-500">“{{ deletingEntry?.description }}” deixará de compor o saldo. Você poderá restaurá-lo por 30 dias.</p><div class="mt-7 flex justify-end gap-3"><button type="button" class="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100" @click="deletingEntry = null">Cancelar</button><button type="button" class="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50" :disabled="deleteForm.processing" @click="submitDelete">{{ deleteForm.processing ? 'Excluindo...' : 'Excluir lançamento' }}</button></div></div></Modal>
         <Modal :show="reversingEntry !== null" max-width="md" @close="closeReversalModal"><form class="p-6" @submit.prevent="submitReversal"><span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700"><RotateCcw :size="22" /></span><h2 class="mt-5 text-xl font-semibold text-slate-950">Estornar lançamento?</h2><p class="mt-2 text-sm leading-6 text-slate-500">Será criado um lançamento compensatório de {{ formatMoney(reversingEntry?.amount ?? 0) }}. O histórico original permanecerá auditável.</p><p v-if="reversingEntry?.type === 'transfer_out'" class="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">O estorno só será concluído se o destino atual tiver saldo suficiente.</p><InputError class="mt-3" :message="reversalForm.errors.ledger_entry || reversalForm.errors.amount || reversalForm.errors.operation_id" /><div class="mt-7 flex justify-end gap-3"><button type="button" class="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100" @click="closeReversalModal">Cancelar</button><button type="submit" class="flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50" :disabled="reversalForm.processing"><RotateCcw :size="17" />{{ reversalForm.processing ? 'Estornando...' : 'Confirmar estorno' }}</button></div></form></Modal>
+        <Modal :show="refundingEntry !== null" max-width="md" @close="closeRefund"><form class="flex min-w-0 flex-col gap-5 p-5 sm:p-6" @submit.prevent="submitRefund"><div><p class="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">Entrada de caixa, não renda</p><h2 class="pt-1 text-xl font-semibold text-slate-950">Registrar reembolso</h2><p class="pt-2 text-sm leading-6 text-slate-500">Disponível para esta despesa: {{ formatMoney(refundingEntry?.refundable_amount ?? 0) }}.</p></div><div><InputLabel for="refund-account" value="Conta que recebeu" /><select id="refund-account" v-model="refundForm.destination_account_id" class="mt-2 block w-full min-w-0 rounded-xl border-slate-300 text-sm"><option v-for="account in accounts" :key="account.id" :value="account.id">{{ account.name }}</option></select><InputError class="mt-2" :message="refundForm.errors.destination_account_id" /></div><div class="grid gap-4 sm:grid-cols-2"><div><InputLabel for="refund-amount" value="Valor" /><TextInput id="refund-amount" v-model="refundForm.amount" inputmode="decimal" class="mt-2 block w-full min-w-0" @input="refundForm.amount = sanitizeMoneyInput($event.target.value)" @blur="refundForm.amount = formatMoneyInput(refundForm.amount)" /><InputError class="mt-2" :message="refundForm.errors.amount" /></div><div><InputLabel for="refund-date" value="Data recebida" /><TextInput id="refund-date" v-model="refundForm.occurred_at" type="date" :max="today" class="mt-2 block w-full min-w-0" /><InputError class="mt-2" :message="refundForm.errors.occurred_at" /></div></div><InputError :message="refundForm.errors.expense_ledger_entry_id || refundForm.errors.operation_id" /><div class="flex flex-col gap-2 sm:flex-row sm:justify-end"><button type="button" class="rounded-xl px-4 py-3 text-sm font-semibold text-slate-600" @click="closeRefund">Cancelar</button><button type="submit" :disabled="refundForm.processing" class="rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{{ refundForm.processing ? 'Registrando…' : 'Confirmar reembolso' }}</button></div></form></Modal>
     </AuthenticatedLayout>
 </template>
