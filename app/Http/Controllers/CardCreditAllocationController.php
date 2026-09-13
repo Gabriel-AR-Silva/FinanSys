@@ -12,6 +12,6 @@ class CardCreditAllocationController extends Controller
     {
         $apply->handle($request->user(), $request->validated());
 
-        return to_route('credit-cards.index')->with('success', '💳 Crédito aplicado à obrigação selecionada sem criar nova saída de caixa.');
+        return to_route('card-corrections.index')->with('success', '💳 Crédito aplicado à obrigação selecionada sem criar nova saída de caixa.');
     }
 }
