@@ -22,6 +22,7 @@ class RestoreAccount
     public function handle(User $user, int $accountId): Account
     {
         return DB::transaction(function () use ($user, $accountId): Account {
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             $account = Account::withTrashed()->whereBelongsTo($user)->lockForUpdate()->findOrFail($accountId);
             if (! $account->trashed() || $account->deletion_batch_id === null) {
                 return $account;
@@ -35,8 +36,8 @@ class RestoreAccount
             }
 
             $batchId = $account->deletion_batch_id;
-            $pockets = Pocket::onlyTrashed()->whereBelongsTo($user)->where('deletion_batch_id', $batchId)->get();
-            $entries = LedgerEntry::onlyTrashed()->whereBelongsTo($user)->where('deletion_batch_id', $batchId)->get();
+            $pockets = Pocket::onlyTrashed()->whereBelongsTo($user)->where('deletion_batch_id', $batchId)->orderBy('id')->lockForUpdate()->get();
+            $entries = LedgerEntry::onlyTrashed()->whereBelongsTo($user)->where('deletion_batch_id', $batchId)->orderBy('id')->lockForUpdate()->get();
             $affectsPlanning = $entries->contains(fn (LedgerEntry $entry): bool => in_array(
                 $entry->type,
                 [LedgerEntryType::Income, LedgerEntryType::Expense, LedgerEntryType::Refund],
