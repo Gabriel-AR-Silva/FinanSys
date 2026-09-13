@@ -77,7 +77,7 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 ## Artisan
 
-- Run Artisan commands directly via the command line (e.g., `php artisan route:list`). Use `php artisan list` to discover available commands and `php artisan [command] --help` to check parameters.
+- Run Artisan commands directly via the command line (e.g., `php artisan route:list`). Use `php artisan list` to discover available commands and check parameters.
 - Inspect routes with `php artisan route:list`. Filter with: `--method=GET`, `--name=users`, `--path=api`, `--except-vendor`, `--only-vendor`.
 - Read configuration values using dot notation: `php artisan config:show app.name`, `php artisan config:show database.default`. Or read config files directly from the `config/` directory.
 
@@ -132,7 +132,7 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 # Do Things the Laravel Way
 
-- Use `php artisan make:` commands to create new files (i.e. migrations, controllers, models, etc.). You can list available Artisan commands using `php artisan list` and check their parameters with `php artisan [command] --help`.
+- Use `php artisan make:` commands to create new files (i.e. migrations, controllers, models, etc.). You can list available Artisan commands using `php artisan list` and check their parameters.
 - If you're creating a generic PHP class, use `php artisan make:class`.
 - Pass `--no-interaction` to all Artisan commands to ensure they work without user input. You should also pass the correct `--options` to ensure correct behavior.
 
@@ -217,6 +217,19 @@ Trate o usuário sempre como **Chefe**. A equipe é um conjunto de perspectivas 
 - Análises do Inv são referências educativas e hipóteses. Só se tornam regras do FinanSys quando Lia as formaliza e o Chefe as aprova.
 - A materialização da equipe ocupa somente `AGENTS.md` e `.agents/skills/{maia,lia,atlas,iris,nilo,bento,nexo,fluxo,inv,ratsel}`. Ela não altera nem bloqueia o trabalho técnico.
 </finansys-team>
+
+<git-workflow>
+# Fluxo Git oficial
+
+- `develop` é a branch-base de todo desenvolvimento corrente.
+- Toda nova branch de feature, correção, hardening ou experimento deve ser criada a partir do HEAD atual de `develop`.
+- Todo PR de desenvolvimento deve apontar para `develop`, nunca diretamente para `main`.
+- Depois de revisão, testes e aprovação, a branch de trabalho deve ser integrada em `develop` e então removida quando não carregar commits exclusivos.
+- `main` é reservada para promoção de versões aprovadas para produção. Não desenvolver diretamente em `main`.
+- O fluxo normal é: `develop` -> nova branch -> PR para `develop` -> merge em `develop` -> validação/aceite -> PR de release `develop` para `main`.
+- Antes de criar uma branch, atualizar/confirmar o HEAD de `develop` e usá-lo como base explícita.
+- Antes de abrir um PR, confirmar que a base é `develop`, exceto quando o objetivo declarado for uma promoção de release para produção.
+</git-workflow>
 
 <local-browser-workflow>
 # Navegador padrão de desenvolvimento
