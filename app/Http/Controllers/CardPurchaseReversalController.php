@@ -16,6 +16,6 @@ class CardPurchaseReversalController extends Controller
             ? '↩️ Compra estornada. As parcelas pendentes saíram do planejamento.'
             : '↩️ Compra estornada e o valor já pago virou crédito do cartão, sem entrar como renda.';
 
-        return to_route('credit-cards.index')->with('success', $message);
+        return to_route('card-corrections.index')->with('success', $message);
     }
 }
