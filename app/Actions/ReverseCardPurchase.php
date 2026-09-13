@@ -148,6 +148,10 @@ class ReverseCardPurchase
                     $this->auditRecorder->record($user, AuditAction::Updated, $installment, $before);
                 }
 
+                $purchaseBefore = $purchase->attributesToArray();
+                $purchase->delete();
+                $this->auditRecorder->record($user, AuditAction::Deleted, $purchase, $purchaseBefore);
+
                 $this->refreshAlert->handle($user);
 
                 return $reversal->setRelation('credit', $credit);
