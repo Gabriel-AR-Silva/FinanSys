@@ -58,7 +58,7 @@ WhatsApp e importação OFX permanecem intencionalmente fora desta publicação.
 
    `TransferFunds` agora adquire `lockForUpdate()` no usuário antes de reler idempotência, bloquear referências, calcular saldo e gravar as duas pernas. `DeleteAccount` e `DeletePocket` já usam o mesmo lock. `RestoreAccount` também passou a bloquear o usuário e a restaurar relações bloqueadas em ordem determinística.
 
-   Isso reduz a janela de corrida identificada pelo Nexo, mas **não fecha o gate de concorrência**: `RestorePocket` ainda não segue o mesmo protocolo completo e SQLite não comprova comportamento de locks/deadlocks do banco de produção.
+   `RestorePocket` também passou a usar o lock de usuário, bloquear conta, caixinha e lançamentos restaurados em ordem estável e aceitar replay sem repetir auditoria. Isso reduz a janela de corrida identificada pelo Nexo, mas **não fecha o gate de concorrência**: SQLite não comprova comportamento de locks/deadlocks do banco de produção.
 
 8. **README sincronizado**
 
@@ -68,9 +68,13 @@ WhatsApp e importação OFX permanecem intencionalmente fora desta publicação.
 
    `FINANCIAL_PLANNING_STAGES.md` agora reconhece encargos como entregues, registra o hardening de concorrência já feito e consolida a política P5 de preservar histórico/auditoria sem exclusão automática nesta publicação.
 
+10. **Antecipação de parcelas entregue**
+
+   Parcelas pendentes de meses futuros podem ser selecionadas explicitamente. O domínio preserva bruto liberado, desconto proporcional, líquido pago e vencimento original por alocação; o caixa recebe uma única saída líquida e o planejamento desloca somente esse líquido ao mês atual, removendo o bruto dos meses futuros. A interface mostra a distribuição antes da confirmação e o backend rejeita prévia obsoleta.
+
 ## Evidência recente
 
-Workflow **FinanSys CI** run #35, commit `057466afb1b9b4c61979586a56210deac5339147`, concluiu com sucesso em 2026-09-13 após a limpeza dos scaffolds experimentais: Pint, PHPUnit, frontend/build e validação do manifest passaram.
+Workflow **FinanSys CI** run #43, commit `c2b2ca0c598c7f0a3b42b9689f380077404602f0`, concluiu com sucesso em 2026-09-13: Pint, 371 testes PHPUnit com 1.996 asserções, frontend/build e validação do manifest passaram.
 
 O commit documental seguinte deve manter o mesmo gate verde antes de qualquer merge.
 
@@ -78,8 +82,8 @@ O commit documental seguinte deve manter o mesmo gate verde antes de qualquer me
 
 Não confundir com itens já entregues:
 
-1. **E3 — completar cartões:** antecipação de parcelas com desconto proporcional e distribuição determinística dos centavos; estorno de compra separando pendente de parte já paga; crédito do cartão e sua aplicação a outra obrigação somente por associação explícita; contratos HTTP, UI e testes desses fluxos.
-2. **Concorrência real:** alinhar `RestorePocket` ao lock de usuário e executar cenários concorrentes no mesmo mecanismo de banco adotado em produção. SQLite não é evidência suficiente.
+1. **E3 — completar cartões:** estorno de compra separando pendente de parte já paga; crédito do cartão e sua aplicação a outra obrigação somente por associação explícita; contratos HTTP, UI e testes desses dois fluxos.
+2. **Concorrência real:** executar cenários concorrentes no mesmo mecanismo de banco adotado em produção. SQLite não é evidência suficiente.
 3. **E5:** reexecutar a jornada contratual integrada após o fechamento de E3 e revisar isolamento transversal dos consumidores.
 4. **Aceite visual:** Microsoft Edge desktop/mobile real, incluindo teclado, foco, zoom, valores longos, modais, previsões, cartões, histórico e alertas.
 5. **Deploy:** ensaiar migrations no banco compatível com produção, backup/retorno, preservação da `APP_KEY`, OAuth, HTTPS, filas, scheduler e smoke test.
@@ -88,9 +92,9 @@ Não confundir com itens já entregues:
 
 ## Ordem recomendada para concluir
 
-1. Fechar E3 em três incrementos verificáveis: antecipação; estorno; crédito explícito.
+1. Registrar a política contábil da data do estorno e fechar E3 em dois incrementos verificáveis: estorno; crédito explícito.
 2. Integrar os novos fatos em E5/alertas sem dupla contagem.
-3. Completar o protocolo de lock de `RestorePocket` e testar concorrência no banco escolhido para produção.
+3. Testar concorrência no banco escolhido para produção.
 4. Rodar suíte completa, Pint, build e revisão do diff.
 5. Fazer aceite visual Edge desktop/mobile.
 6. Ensaiar migration/deploy e executar smoke test.

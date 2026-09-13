@@ -38,6 +38,22 @@ class DeleteAndRestorePocketTest extends TestCase
         $this->assertSoftDeleted($old);
     }
 
+    public function test_restore_replay_is_idempotent_and_does_not_duplicate_audit_records(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $pocket = Pocket::factory()->for($user)->for($account)->create();
+        LedgerEntry::factory()->for($user)->for($pocket, 'reference')->create();
+        app(DeletePocket::class)->handle($user, $pocket->id);
+
+        app(RestorePocket::class)->handle($user, $pocket->id);
+        $auditCount = DB::table('audit_logs')->count();
+        $replayed = app(RestorePocket::class)->handle($user, $pocket->id);
+
+        $this->assertFalse($replayed->trashed());
+        $this->assertSame($auditCount, DB::table('audit_logs')->count());
+    }
+
     public function test_exact_limit_is_allowed_and_one_microsecond_older_is_rejected(): void
     {
         $this->travelTo(now()->setMicrosecond(456789));

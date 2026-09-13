@@ -20,7 +20,7 @@ Estados usados:
 | E0 — Contratos verificáveis | Concluída | Regras P1–P6, fórmulas, exemplos e invariantes registrados | Manter documentação sincronizada quando o comportamento mudar |
 | E1 — Configuração financeira | Parcial | Configuração mensal, proteção fixa/percentual, essenciais, categoria rápida, isolamento, auditoria e controle de versão | Aceite visual no Edge desktop/mobile |
 | E2 — Planejamento e liquidação | Parcial | Previsões, recorrência, edição/remarcação, parcial, residual, excedente, cancelamento, vínculo, desvínculo e revínculo explícito | Concorrência no banco de produção e aceite visual |
-| E3 — Cartões e parcelas | Parcial | Cartões, compras parceladas, parcelas, pagamentos parciais, alocação determinística, dívida carregada e encargos confirmados | Antecipação com desconto, estorno de compra e crédito explicitamente aplicado |
+| E3 — Cartões e parcelas | Parcial | Cartões, compras parceladas, pagamentos parciais, dívida carregada, encargos confirmados e antecipação com desconto | Estorno de compra e crédito explicitamente aplicado |
 | E4 — Calculadora matemática | Concluída | Proteção, progresso de recebimentos, projeções, essenciais, margem, verba diária, déficit e faixas | Manter matriz de fronteiras ao evoluir regras |
 | E5 — Integração e indicadores | Parcial | Adaptadores reais, visões atual/projetada, neutralização de transferências/estornos, encargos e dashboard de planejamento | Jornada integrada final, isolamento transversal e aceite visual |
 | E6 — Histórico e alertas | Parcial | Fechamento diário, reconstrução, revisões, proveniência, alertas deduplicados e gatilhos imediatos | Aceite editorial/visual da página de alertas |
@@ -81,6 +81,7 @@ Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada
 - Atualização imediata dos alertas após criação, alteração, cancelamento e vínculo efetivos.
 - Transferências agora adquirem o mesmo lock de usuário usado pelas mutações estruturais de conta/caixinha antes de ler saldo ou gravar pernas, reduzindo a janela de corrida com exclusão/restauração.
 - Restauração de conta também serializa pelo usuário e bloqueia as relações restauradas em ordem determinística.
+- Restauração de caixinha segue o mesmo lock de usuário, bloqueia conta, caixinha e lançamentos em ordem estável e aceita replay sem repetir auditoria.
 
 ### Pendente
 
@@ -107,15 +108,16 @@ Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada
 - Dívida anterior carregada e pagamento sem criar uma segunda despesa de consumo.
 - Juros e multas confirmados são obrigações próprias, sem reapresentar o principal já carregado.
 - Encargos só participam do pagamento quando selecionados explicitamente; seleção duplicada, recurso de outro usuário e encargo de outro cartão do mesmo usuário são recusados sem escrita financeira parcial.
-- Isolamento, idempotência, auditoria e atualização imediata dos alertas para compra, encargo e pagamento.
+- Antecipação seleciona parcelas de meses futuros, rateia o desconto proporcionalmente com centavos determinísticos, debita somente o líquido no presente e libera o bruto futuro sem alterar a compra nem os vencimentos originais.
+- O fluxo de antecipação possui prévia por parcela, proteção contra prévia obsoleta, contrato HTTP, isolamento, idempotência, auditoria e atualização imediata dos alertas.
+- Isolamento, idempotência, auditoria e atualização imediata dos alertas para compra, encargo, pagamento e antecipação.
 
 ### Pendente
 
-- Antecipar parcelas com desconto, afetando o presente pelo valor efetivamente pago e liberando a obrigação futura.
 - Estornar compra ainda não paga, removendo apenas a obrigação pendente.
 - Estornar compra já paga, removendo o pendente e criando crédito no cartão pelo valor pago.
 - Aplicar crédito a outra fatura somente mediante associação explícita.
-- Acrescentar telas, contratos HTTP e testes para esses três fluxos restantes.
+- Acrescentar telas, contratos HTTP e testes para estorno e aplicação explícita de crédito.
 
 ### Critérios obrigatórios preservados
 

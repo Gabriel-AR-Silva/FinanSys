@@ -12,7 +12,6 @@ use App\Models\User;
 use App\Support\AuditRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class RestorePocket
 {
@@ -24,17 +23,19 @@ class RestorePocket
     public function handle(User $user, int $pocketId): Pocket
     {
         return DB::transaction(function () use ($user, $pocketId): Pocket {
-            $accountId = Pocket::onlyTrashed()->whereBelongsTo($user)->whereKey($pocketId)->value('account_id');
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $accountId = Pocket::withTrashed()->whereBelongsTo($user)->whereKey($pocketId)->value('account_id');
             $account = Account::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->lockForUpdate()->findOrFail($accountId);
-            $pocket = Pocket::onlyTrashed()->whereBelongsTo($user)->whereBelongsTo($account)->lockForUpdate()->findOrFail($pocketId);
-            if ($pocket->deletion_batch_id === null) {
-                throw new NotFoundHttpException;
+            $pocket = Pocket::withTrashed()->whereBelongsTo($user)->whereBelongsTo($account)->lockForUpdate()->findOrFail($pocketId);
+            if (! $pocket->trashed() || $pocket->deletion_batch_id === null) {
+                return $pocket;
             }
             if ($pocket->deleted_at->lt(now()->subDays((int) config('finansys.soft_delete_retention_days')))) {
                 throw ValidationException::withMessages(['pocket' => 'O prazo de restauração expirou.']);
             }
             $batchId = $pocket->deletion_batch_id;
-            $entries = LedgerEntry::onlyTrashed()->whereBelongsTo($user)->where('deletion_batch_id', $batchId)->get();
+            $entries = LedgerEntry::onlyTrashed()->whereBelongsTo($user)->where('deletion_batch_id', $batchId)
+                ->orderBy('id')->lockForUpdate()->get();
             $affectsPlanning = $entries->contains(fn (LedgerEntry $entry): bool => in_array(
                 $entry->type,
                 [LedgerEntryType::Income, LedgerEntryType::Expense, LedgerEntryType::Refund],
@@ -56,6 +57,6 @@ class RestorePocket
             }
 
             return $pocket;
-        });
+        }, 3);
     }
 }
