@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->unsignedBigInteger('credit_card_id');
-            $table->unsignedBigInteger('source_account_id');
+            $table->unsignedBigInteger('source_account_id')->nullable();
             $table->unsignedBigInteger('ledger_entry_id')->nullable();
             $table->decimal('gross_amount', 19, 2);
             $table->decimal('discount_amount', 19, 2);
@@ -43,6 +43,7 @@ return new class extends Migration
             $table->foreign(['card_advance_id', 'user_id'])->references(['id', 'user_id'])->on('card_advances')->cascadeOnDelete();
             $table->foreign(['card_installment_id', 'user_id'])->references(['id', 'user_id'])->on('card_installments')->restrictOnDelete();
             $table->unique(['card_advance_id', 'card_installment_id']);
+            $table->unique(['user_id', 'card_installment_id']);
             $table->index(['user_id', 'card_installment_id']);
         });
     }

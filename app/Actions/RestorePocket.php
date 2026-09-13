@@ -10,6 +10,7 @@ use App\Models\LedgerEntry;
 use App\Models\Pocket;
 use App\Models\User;
 use App\Support\AuditRecorder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -36,6 +37,7 @@ class RestorePocket
             $batchId = $pocket->deletion_batch_id;
             $entries = LedgerEntry::onlyTrashed()->whereBelongsTo($user)->where('deletion_batch_id', $batchId)
                 ->orderBy('id')->lockForUpdate()->get();
+            $this->ensureReferencesAreAvailable($user, $pocket, $entries);
             $affectsPlanning = $entries->contains(fn (LedgerEntry $entry): bool => in_array(
                 $entry->type,
                 [LedgerEntryType::Income, LedgerEntryType::Expense, LedgerEntryType::Refund],
@@ -58,5 +60,32 @@ class RestorePocket
 
             return $pocket;
         }, 3);
+    }
+
+    /** @param Collection<int, LedgerEntry> $entries */
+    private function ensureReferencesAreAvailable(User $user, Pocket $restoringPocket, Collection $entries): void
+    {
+        $references = $entries->map(fn (LedgerEntry $entry): array => [
+            'type' => $entry->reference_type,
+            'id' => (int) $entry->reference_id,
+        ])->unique(fn (array $reference): string => $reference['type'].':'.$reference['id'])
+            ->sortBy(fn (array $reference): string => $reference['type'].':'.str_pad((string) $reference['id'], 20, '0', STR_PAD_LEFT));
+
+        foreach ($references as $reference) {
+            if ($reference['type'] === $restoringPocket->getMorphClass() && $reference['id'] === $restoringPocket->id) {
+                continue;
+            }
+            $available = match ($reference['type']) {
+                'account' => Account::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)
+                    ->whereKey($reference['id'])->lockForUpdate()->first() !== null,
+                'pocket' => Pocket::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)
+                    ->whereHas('account', fn ($query) => $query->whereBelongsTo($user)->where('status', RecordStatus::Active))
+                    ->whereKey($reference['id'])->lockForUpdate()->first() !== null,
+                default => false,
+            };
+            if (! $available) {
+                throw ValidationException::withMessages(['pocket' => 'Restaure primeiro as outras contas ou caixinhas ligadas às transferências deste lote.']);
+            }
+        }
     }
 }

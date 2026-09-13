@@ -6,6 +6,7 @@ use App\Actions\DeleteAccount;
 use App\Actions\DeletePocket;
 use App\Actions\RestoreAccount;
 use App\Actions\RestorePocket;
+use App\Actions\TransferFunds;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
 use App\Models\LedgerEntry;
@@ -125,5 +126,28 @@ class DeleteAndRestorePocketTest extends TestCase
         $this->assertNull($out->fresh()->deletion_batch_id);
         $this->assertNull($in->fresh()->deletion_batch_id);
         $this->assertNotSoftDeleted($unrelated);
+    }
+
+    public function test_restore_rejects_a_transfer_whose_counterparty_was_deleted_later(): void
+    {
+        $user = User::factory()->create();
+        $parent = Account::factory()->for($user)->create();
+        $counterparty = Account::factory()->for($user)->create();
+        $pocket = Pocket::factory()->for($user)->for($parent)->create();
+        LedgerEntry::factory()->openingBalance()->for($user)->for($counterparty, 'reference')->create(['amount' => '100.00']);
+        $transfer = app(TransferFunds::class)->handle($user, $counterparty, $pocket, '50.00');
+
+        app(DeletePocket::class)->handle($user, $pocket->id);
+        app(DeleteAccount::class)->handle($user, $counterparty->id);
+
+        try {
+            app(RestorePocket::class)->handle($user, $pocket->id);
+            $this->fail('A contraparte excluída deveria bloquear a restauração.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('pocket', $exception->errors());
+        }
+
+        $this->assertSoftDeleted($pocket);
+        $this->assertSame(2, LedgerEntry::onlyTrashed()->where('operation_id', $transfer['out']->operation_id)->count());
     }
 }

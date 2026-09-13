@@ -10,6 +10,7 @@ use App\Models\Account;
 use App\Models\CardAdvance;
 use App\Models\CardAdvanceAllocation;
 use App\Models\CardInstallment;
+use App\Models\CardPaymentAllocation;
 use App\Models\CreditCard;
 use App\Models\LedgerEntry;
 use App\Models\User;
@@ -76,6 +77,12 @@ class AdvanceCardInstallments
                 }
                 if ($installments->contains(fn (CardInstallment $installment): bool => $installment->purchase->purchased_on->isAfter($advancedOn))) {
                     throw ValidationException::withMessages(['advanced_on' => 'A antecipação não pode ser anterior à compra selecionada.']);
+                }
+                if (CardPaymentAllocation::query()->whereBelongsTo($user)
+                    ->whereIn('card_installment_id', $selectedIds)
+                    ->whereHas('payment', fn ($query) => $query->whereDate('paid_on', '>', $advancedOn->toDateString()))
+                    ->exists()) {
+                    throw ValidationException::withMessages(['advanced_on' => 'Existem pagamentos posteriores à data informada. Use uma data atual ou revise as parcelas.']);
                 }
 
                 $remainingById = $installments->mapWithKeys(fn (CardInstallment $installment): array => [

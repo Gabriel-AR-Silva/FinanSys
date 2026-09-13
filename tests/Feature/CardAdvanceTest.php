@@ -164,19 +164,26 @@ class CardAdvanceTest extends TestCase
         ])->installments->first();
         $otherCard = CreditCard::factory()->for($user)->create();
         $otherCardInstallment = $this->purchase($user, $otherCard, $category)->installments->first();
-        LedgerEntry::query()->whereBelongsTo($user)->where('type', LedgerEntryType::OpeningBalance)->update(['amount' => '50.00']);
-
         foreach ([
             $this->payload($card, $account, [$current->id], ['expected_gross_amount' => '100.00', 'discount_amount' => '0.00']),
             $this->payload($card, $account, [$otherCardInstallment->id], ['expected_gross_amount' => '100.00', 'discount_amount' => '0.00']),
-            $this->payload($card, $account, [$future->id], ['expected_gross_amount' => '100.00', 'discount_amount' => '0.00']),
         ] as $payload) {
             try {
                 app(AdvanceCardInstallments::class)->handle($user, $payload);
                 $this->fail('A antecipação inválida deveria ser rejeitada.');
             } catch (ValidationException $exception) {
-                $this->assertNotEmpty($exception->errors());
+                $this->assertArrayHasKey('installment_ids', $exception->errors());
             }
+        }
+
+        LedgerEntry::query()->whereBelongsTo($user)->where('type', LedgerEntryType::OpeningBalance)->update(['amount' => '50.00']);
+        try {
+            app(AdvanceCardInstallments::class)->handle($user, $this->payload($card, $account, [$future->id], [
+                'expected_gross_amount' => '100.00', 'discount_amount' => '0.00',
+            ]));
+            $this->fail('Saldo insuficiente deveria impedir a antecipação.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('discount_amount', $exception->errors());
         }
 
         $this->assertDatabaseCount('card_advances', 0);

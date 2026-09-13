@@ -106,6 +106,7 @@ const eligibleInstallments = computed(() =>
             purchase.installments.map((installment) => ({
                 ...installment,
                 description: purchase.description,
+                purchased_on: purchase.purchased_on,
             })),
         )
         .filter(
@@ -208,6 +209,7 @@ const eligibleAdvanceInstallments = computed(() =>
         .filter(
             (installment) =>
                 installment.status === "pending" &&
+                installment.purchased_on <= advanceForm.advanced_on &&
                 installment.due_on.slice(0, 7) >
                     advanceForm.advanced_on.slice(0, 7),
         )
@@ -1355,6 +1357,12 @@ const date = (value) => value.split("-").reverse().join("/");
                             v-model="advanceForm.installment_ids"
                             type="checkbox"
                             :value="installment.id"
+                            :disabled="
+                                advanceForm.installment_ids.length >= 200 &&
+                                !advanceForm.installment_ids
+                                    .map(Number)
+                                    .includes(installment.id)
+                            "
                             class="rounded border-sky-300 text-sky-700"
                         /><span
                             class="flex min-w-0 flex-1 justify-between gap-2"
