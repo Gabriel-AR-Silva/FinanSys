@@ -9,6 +9,8 @@ use App\Enums\CategoryType;
 use App\Enums\ExpensePlanningType;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
+use App\Models\CardPayment;
+use App\Models\CardPaymentAllocation;
 use App\Models\Category;
 use App\Models\CreditCard;
 use App\Models\LedgerEntry;
@@ -16,10 +18,13 @@ use App\Models\MonthlyFinancialSetting;
 use App\Models\User;
 use App\Queries\AccountBalanceQuery;
 use App\Queries\FinancialPlanningOverviewQuery;
+use App\Support\AuditRecorder;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 use Tests\TestCase;
 
 class CardAdvanceTest extends TestCase
@@ -31,6 +36,7 @@ class CardAdvanceTest extends TestCase
         [$user, $card, $category, $account] = $this->context();
         $purchase = $this->purchase($user, $card, $category);
         $payload = $this->payload($card, $account, $purchase->installments->pluck('id')->all());
+        $auditCount = DB::table('audit_logs')->count();
 
         $first = app(AdvanceCardInstallments::class)->handle($user, $payload);
         $replayed = app(AdvanceCardInstallments::class)->handle($user, [...$payload, 'installment_ids' => array_reverse($payload['installment_ids'])]);
@@ -61,6 +67,7 @@ class CardAdvanceTest extends TestCase
         }
         $this->assertDatabaseCount('card_advances', 1);
         $this->assertDatabaseCount('ledger_entries', 2);
+        $this->assertSame($auditCount + 6, DB::table('audit_logs')->count());
     }
 
     public function test_full_discount_releases_the_obligation_without_artificial_cash_entry(): void
@@ -192,6 +199,87 @@ class CardAdvanceTest extends TestCase
         $this->assertSame(CardInstallmentStatus::Pending, $future->fresh()->status);
         $this->assertSame(CardInstallmentStatus::Pending, $current->fresh()->status);
         $this->assertSame(CardInstallmentStatus::Pending, $otherCardInstallment->fresh()->status);
+    }
+
+    public function test_http_validation_rejects_invalid_and_foreign_resources_without_writes(): void
+    {
+        [$user, $card, $category, $account] = $this->context();
+        $installment = $this->purchase($user, $card, $category)->installments->first();
+        $this->actingAs($user)->post(route('card-advances.store'), [])->assertSessionHasErrors([
+            'credit_card_id', 'source_account_id', 'installment_ids', 'discount_amount',
+            'expected_gross_amount', 'advanced_on', 'operation_id',
+        ]);
+        $this->post(route('card-advances.store'), $this->payload($card, $account, [$installment->id], [
+            'installment_ids' => [$installment->id, $installment->id],
+            'expected_gross_amount' => '100.00', 'advanced_on' => '2999-01-01', 'operation_id' => 'invalid',
+        ]))->assertSessionHasErrors(['installment_ids.1', 'advanced_on', 'operation_id']);
+
+        $foreignCard = CreditCard::factory()->create();
+        $foreignAccount = Account::factory()->create();
+        $this->post(route('card-advances.store'), $this->payload($foreignCard, $account, [$installment->id], [
+            'expected_gross_amount' => '100.00',
+        ]))->assertSessionHasErrors('credit_card_id');
+        $this->post(route('card-advances.store'), $this->payload($card, $foreignAccount, [$installment->id], [
+            'expected_gross_amount' => '100.00',
+        ]))->assertSessionHasErrors('source_account_id');
+
+        $this->assertDatabaseCount('card_advances', 0);
+        $this->assertDatabaseCount('card_advance_allocations', 0);
+    }
+
+    public function test_retroactive_advance_is_rejected_when_a_selected_installment_was_paid_later(): void
+    {
+        [$user, $card, $category, $account] = $this->context();
+        $installment = $this->purchase($user, $card, $category)->installments->first();
+        $payment = CardPayment::factory()->create([
+            'user_id' => $user->id,
+            'credit_card_id' => $card->id,
+            'source_account_id' => $account->id,
+            'amount' => '20.00',
+            'paid_on' => '2026-09-10',
+        ]);
+        CardPaymentAllocation::factory()->create([
+            'user_id' => $user->id,
+            'card_payment_id' => $payment->id,
+            'card_installment_id' => $installment->id,
+            'amount' => '20.00',
+        ]);
+        $installment->update(['paid_amount' => '20.00']);
+
+        try {
+            app(AdvanceCardInstallments::class)->handle($user, $this->payload($card, $account, [$installment->id], [
+                'expected_gross_amount' => '80.00',
+                'discount_amount' => '8.00',
+                'advanced_on' => '2026-09-09',
+            ]));
+            $this->fail('Uma antecipação anterior a um pagamento já registrado deveria ser rejeitada.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('advanced_on', $exception->errors());
+        }
+
+        $this->assertDatabaseCount('card_advances', 0);
+        $this->assertDatabaseCount('card_advance_allocations', 0);
+        $this->assertSame(CardInstallmentStatus::Pending, $installment->fresh()->status);
+        $this->assertSame('20.00', $installment->fresh()->paid_amount);
+    }
+
+    public function test_audit_failure_rolls_back_cash_advance_and_installment_status(): void
+    {
+        [$user, $card, $category, $account] = $this->context();
+        $purchase = $this->purchase($user, $card, $category);
+        $this->mock(AuditRecorder::class)->shouldReceive('record')->once()->andThrow(new RuntimeException('audit unavailable'));
+
+        try {
+            app(AdvanceCardInstallments::class)->handle($user, $this->payload($card, $account, $purchase->installments->pluck('id')->all()));
+            $this->fail('A falha de auditoria deveria abortar a operação.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('audit unavailable', $exception->getMessage());
+        }
+
+        $this->assertDatabaseCount('card_advances', 0);
+        $this->assertDatabaseCount('card_advance_allocations', 0);
+        $this->assertDatabaseCount('ledger_entries', 1);
+        $this->assertSame([CardInstallmentStatus::Pending, CardInstallmentStatus::Pending], $purchase->installments()->orderBy('id')->get()->pluck('status')->all());
     }
 
     /** @return array{User,CreditCard,Category,Account} */

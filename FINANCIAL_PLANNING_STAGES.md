@@ -110,6 +110,7 @@ Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada
 - Encargos só participam do pagamento quando selecionados explicitamente; seleção duplicada, recurso de outro usuário e encargo de outro cartão do mesmo usuário são recusados sem escrita financeira parcial.
 - Antecipação seleciona parcelas de meses futuros, rateia o desconto proporcionalmente com centavos determinísticos, debita somente o líquido no presente e libera o bruto futuro sem alterar a compra nem os vencimentos originais.
 - O fluxo de antecipação possui prévia por parcela, proteção contra prévia obsoleta, contrato HTTP, isolamento, idempotência, auditoria e atualização imediata dos alertas.
+- O histórico da antecipação sobrevive ao expurgo da conta de origem; uma parcela possui no máximo uma alocação de antecipação e datas retroativas incompatíveis com pagamentos posteriores são recusadas.
 - Isolamento, idempotência, auditoria e atualização imediata dos alertas para compra, encargo, pagamento e antecipação.
 
 ### Pendente

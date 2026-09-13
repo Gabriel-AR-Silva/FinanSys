@@ -72,9 +72,13 @@ WhatsApp e importação OFX permanecem intencionalmente fora desta publicação.
 
    Parcelas pendentes de meses futuros podem ser selecionadas explicitamente. O domínio preserva bruto liberado, desconto proporcional, líquido pago e vencimento original por alocação; o caixa recebe uma única saída líquida e o planejamento desloca somente esse líquido ao mês atual, removendo o bruto dos meses futuros. A interface mostra a distribuição antes da confirmação e o backend rejeita prévia obsoleta.
 
+11. **Integridade pós-revisão**
+
+   A antecipação preserva o histórico quando a conta de origem é expurgada, impede mais de uma antecipação por parcela, rejeita data retroativa incompatível com pagamentos posteriores e limita a seleção a 200 itens também na interface. `RestorePocket` recusa atomicamente lotes cuja contraparte de transferência esteja excluída.
+
 ## Evidência recente
 
-Workflow **FinanSys CI** run #43, commit `c2b2ca0c598c7f0a3b42b9689f380077404602f0`, concluiu com sucesso em 2026-09-13: Pint, 371 testes PHPUnit com 1.996 asserções, frontend/build e validação do manifest passaram.
+Workflow **FinanSys CI** run #46, commit `35bd238b6c656f86e3e631344cc430bbe9e7b7c7`, concluiu com sucesso em 2026-09-13: Pint, 375 testes PHPUnit com 2.019 asserções, frontend/build e validação do manifest passaram. O run inclui as regressões de purge da antecipação e contraparte excluída na restauração de caixinha.
 
 O commit documental seguinte deve manter o mesmo gate verde antes de qualquer merge.
 
