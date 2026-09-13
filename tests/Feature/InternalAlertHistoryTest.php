@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\InternalAlert;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -29,6 +30,7 @@ class InternalAlertHistoryTest extends TestCase
             'view' => 'current', 'from' => '2026-09-01', 'to' => '2026-09-03', 'deficit_only' => 1,
         ]))->assertInertia(fn (Assert $page) => $page
             ->component('InternalAlerts/Index')
+            ->where('schemaWarning', null)
             ->where('filters.deficit_only', true)
             ->where('alerts.data.0.current_situation', 'insufficient')
             ->has('alerts.data', 1));
@@ -44,5 +46,19 @@ class InternalAlertHistoryTest extends TestCase
         ]))->assertInertia(fn (Assert $page) => $page
             ->component('InternalAlerts/Index')
             ->has('alerts.data', 0));
+    }
+
+    public function test_alert_page_degrades_safely_when_alert_migration_is_pending(): void
+    {
+        $user = User::factory()->create();
+        Schema::drop('internal_alerts');
+
+        $this->actingAs($user)->get(route('internal-alerts.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('InternalAlerts/Index')
+                ->where('alerts.data', [])
+                ->where('alerts.current_page', 1)
+                ->where('schemaWarning', 'Os avisos financeiros ainda não foram sincronizados neste ambiente. Execute as migrations pendentes antes de validar este módulo.'));
     }
 }
