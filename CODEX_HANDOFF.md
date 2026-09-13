@@ -1,159 +1,160 @@
 # Handoff do desenvolvimento — FinanSys
 
 Atualizado em: 2026-09-13  
-Branch de origem: `copilot_mod_v1`  
-Branch de continuidade: `codex/copilot-mod-v1-hardening`  
-Base original: `main@182c06003663067d8b2292fb83a67ff8dd76f29a`  
-Commit do Copilot analisado: `f7c192bed83cdf7bbfaafdffb5094672e2f3c4c1`
+Branch atual: `codex/v1-card-reversal`  
+Base de integração: `codex/copilot-mod-v1-hardening`  
+Origem histórica: `copilot_mod_v1`
 
-## Objetivo deste arquivo
+## Ponto de continuidade
 
-Este é o ponto único de continuidade para o próximo agente de desenvolvimento. Antes de continuar, leia também `AGENTS.md`, `.ai/rules/index.md`, `FINANCIAL_PLANNING_CONTRACT.md`, `FINANCIAL_PLANNING_STAGES.md`, `CARD_REVERSAL_CONTRACT.md` e `DAILY_FINANCIAL_ENGINE_PROPOSAL.md`.
+Leia, nesta ordem: `AGENTS.md`, `.ai/rules/index.md`, `FINANCIAL_PLANNING_CONTRACT.md`, `CARD_REVERSAL_CONTRACT.md`, `FINANCIAL_PLANNING_STAGES.md` e `DAILY_FINANCIAL_ENGINE_PROPOSAL.md`.
 
-A ordem de autoridade é: contrato/regras aprovadas, contratos complementares de fechamento, código e migrations atuais, testes/evidências, instruções dos agentes e, por fim, este handoff. Este arquivo registra continuidade; não substitui o contrato.
+A lógica contratada do V1 está implementada nesta branch. Não reiniciar E3 nem misturar o Daily Financial Engine V2 ao V1. O trabalho restante antes de publicação é validação em ambiente real, aceite visual/manual e deploy.
 
-## Base funcional recebida do Copilot
-
-O commit `f7c192b` expandiu o FinanSys de um ledger financeiro básico para o primeiro domínio de planejamento financeiro, incluindo:
+## O que já existia antes desta branch
 
 - configuração financeira mensal, proteção e essenciais;
-- previsões de recebimento com recorrência, parcial, residual, excedente, cancelamento e vínculo explícito;
-- cartões, compras parceladas, parcelas e pagamentos;
-- reembolsos ligados à despesa original;
-- visões atual e projetada;
+- previsões recorrentes/parciais, residual, excesso e vínculos explícitos;
+- cartões, parcelas, pagamentos e dívida carregada;
+- encargos confirmados e antecipação com desconto;
+- visões atual/projetada;
 - fechamento diário, reconstrução, revisões e proveniência;
 - alertas financeiros internos deduplicados;
-- telas Inertia para configuração, previsões, cartões, avaliações e alertas;
-- contratos P1–P6 que definem o fechamento da publicação.
+- hardening de locks/idempotência/auditoria e CI completo.
 
-WhatsApp e importação OFX permanecem intencionalmente fora desta publicação.
+## Entregue nesta branch
 
-## Hardening realizado na branch Codex
+### 1. Estorno de compra e crédito de cartão
 
-1. **Fronteira mensal no fuso da aplicação**
+Implementado conforme `CARD_REVERSAL_CONTRACT.md`:
 
-   `FinancialPlanningOverviewQuery` passou a manter as fronteiras mensais no fuso configurado em vez de deslocar indevidamente o começo/fim do mês.
+- nova persistência `card_purchase_reversals`, `card_credits` e `card_credit_allocations`;
+- novo estado `CardInstallmentStatus::Reversed`;
+- `ReverseCardPurchase` com lock por usuário, locks dos recursos, idempotência, auditoria e rollback;
+- compra não paga cancela obrigação ativa e cria crédito zero;
+- compra parcial cancela residual e credita somente o valor liquidado elegível;
+- compra paga gera crédito sem apagar pagamentos históricos;
+- antecipação com desconto gera crédito pelo `net_amount` efetivamente pago, nunca pelo bruto nominal;
+- compra estornada é soft-deleted para sair dos conjuntos ativos sem perder histórico/auditoria;
+- crédito não é renda e não cria entrada em conta/caixinha.
 
-2. **Alertas sincronizados com mutações financeiras relevantes**
+### 2. Aplicação explícita de crédito
 
-   Compra parcelada, pagamento de cartão, previsões, vínculos, reembolsos, estornos manuais e exclusões/restaurações cobertas atualizam os alertas no mesmo fluxo transacional aplicável. Replay idempotente não repete efeito.
+- `ApplyCardCredit` permite alocação total/parcial;
+- destino: parcela ou encargo pendente;
+- mesmo usuário e mesmo cartão são obrigatórios;
+- saldo do crédito e saldo da obrigação são validados e travados;
+- replay exato é idempotente e replay divergente é rejeitado;
+- aplicação não cria ledger bancário;
+- UI própria em `Correções de cartão`, acessível pela navegação desktop/mobile.
 
-3. **Reativação correta de alertas recuperados**
+### 3. Correções retroativas e proveniência
 
-   Reincidência adversa limpa `recovered_at`, preservando pior situação e déficit já observado.
+`ReviseFinancialHistory` reutiliza `FinancialEvaluation`:
 
-4. **Encargos de cartão entregues**
+- fechamento já apresentado não é sobrescrito;
+- se o resultado histórico recalculado mudou, cria nova `revision`;
+- `supersedes_id` aponta para a versão anterior;
+- origem `correction` diferencia a revisão posterior;
+- estorno e aplicação de crédito atualizam histórico/alertas relevantes.
 
-   Juros/multas confirmados são obrigações próprias, entram no planejamento sem duplicar principal e só são liquidados quando explicitamente selecionados. O fluxo possui controller/request/UI e integração com pagamento.
+### 4. Erro da página de avisos / migration pendente
 
-5. **Seleção de encargos endurecida**
+Foi endurecido o cenário relatado pelo Chefe:
 
-   Commit `b95ce50` adicionou regressões para encargo pertencente a outro cartão do mesmo usuário e seleção duplicada. Ambos abortam sem pagamento, alocação ou movimento parcial. Encargo de outro usuário já possuía cobertura.
+- `InternalAlertController` verifica se `internal_alerts` existe;
+- se a migration ainda não foi aplicada, a página abre com lista vazia e aviso explícito em vez de 500;
+- `UpdateInternalAlert` também vira no-op seguro sem a tabela, então uma migration pendente do módulo de avisos não derruba a escrita financeira principal;
+- há testes automatizados para abertura da página e atualização de alerta com schema ausente;
+- isto não elimina a obrigação de executar migrations antes de considerar alertas operacionais.
 
-6. **CI e artefatos de frontend**
+### 5. Regressões descobertas e corrigidas durante CI
 
-   `.github/workflows/ci.yml` executa Composer, Pint, PHPUnit, npm, build Vite, validação do manifest e upload de `public/build`. O build versionado foi restaurado porque o fluxo atual de hospedagem depende desses artefatos.
+- novos modelos de estorno/crédito foram adicionados ao morph map obrigatório da auditoria;
+- teste antigo de rollback da antecipação foi corrigido para comparar auditoria com o baseline existente, sem enfraquecer a atomicidade;
+- nomes de rotas de `ledger-entries` foram preservados após revisão do diff;
+- UI de estorno deixou de mostrar um “valor pago” enganoso em compras com antecipação por desconto.
 
-7. **Concorrência transferência x estrutura parcialmente endurecida**
+## Evidência automatizada
 
-   `TransferFunds` agora adquire `lockForUpdate()` no usuário antes de reler idempotência, bloquear referências, calcular saldo e gravar as duas pernas. `DeleteAccount` e `DeletePocket` já usam o mesmo lock. `RestoreAccount` também passou a bloquear o usuário e a restaurar relações bloqueadas em ordem determinística.
+Run verde de referência: GitHub Actions `34784669863`, commit `e574462afebc9b80cb147eb615a275c49ef8eda7`:
 
-   `RestorePocket` também passou a usar o lock de usuário, bloquear conta, caixinha e lançamentos restaurados em ordem estável e aceitar replay sem repetir auditoria. Isso reduz a janela de corrida identificada pelo Nexo, mas **não fecha o gate de concorrência**: SQLite não comprova comportamento de locks/deadlocks do banco de produção.
+- Pint: 277 arquivos aprovados;
+- PHPUnit: **388 testes / 2.124 asserções**;
+- npm: instalação aprovada, zero vulnerabilidades reportadas naquele run;
+- Vite build: aprovado;
+- manifest: aprovado;
+- `public/build`: artefato gerado.
 
-8. **README sincronizado**
+Depois desse run foram adicionados hardenings/tests/UI/documentação. **Antes de merge/publicação, use como evidência o último HEAD verde**, não o run acima se houver commit posterior.
 
-   `README.md` deixou de afirmar que categorias e fluxo HTTP de transferências não existem. Agora descreve o estado real, os limites do CI e aponta para contrato/handoff.
+## Revisão coordenada dos agentes
 
-9. **Roteiro de etapas corrigido**
+### Inv + Lia
 
-   `FINANCIAL_PLANNING_STAGES.md` reconhece encargos como entregues, registra o hardening de concorrência já feito e consolida a política P5 de preservar histórico/auditoria sem exclusão automática nesta publicação.
+- crédito permanece compensação de cartão, nunca renda/caixa;
+- desconto de antecipação não reaparece como crédito fictício;
+- competência corrigida e data real do estorno permanecem separadas;
+- nenhuma regra do V2 foi introduzida no V1.
 
-10. **Antecipação de parcelas entregue**
+### Atlas
 
-   Parcelas pendentes de meses futuros podem ser selecionadas explicitamente. O domínio preserva bruto liberado, desconto proporcional, líquido pago e vencimento original por alocação; o caixa recebe uma única saída líquida e o planejamento desloca somente esse líquido ao mês atual, removendo o bruto dos meses futuros. A interface mostra a distribuição antes da confirmação e o backend rejeita prévia obsoleta.
+- modelo separa evento de estorno, saldo de crédito e aplicações;
+- soft delete remove compra dos conjuntos ativos preservando trilha histórica;
+- revisão histórica reutiliza infraestrutura existente em vez de criar um histórico paralelo.
 
-11. **Integridade pós-revisão**
+### Nexo
 
-   A antecipação preserva o histórico quando a conta de origem é expurgada, impede mais de uma antecipação por parcela, rejeita data retroativa incompatível com pagamentos posteriores e limita a seleção a 200 itens também na interface. `RestorePocket` recusa atomicamente lotes cuja contraparte de transferência esteja excluída.
+- mutações novas serializam pelo usuário e bloqueiam recursos financeiros relevantes;
+- chaves idempotentes impedem duplicação e divergência;
+- escrita, auditoria, revisão e efeitos internos ficam no fluxo transacional;
+- SQLite/CI não substitui teste concorrente no banco de produção.
 
-12. **Política de estorno de compra fechada para V1**
+### Íris
 
-   `CARD_REVERSAL_CONTRACT.md` fecha a lacuna funcional que bloqueava E3: a despesa é corrigida na competência original, enquanto o evento de estorno/crédito conserva a data real. Crédito de cartão não é renda nem caixa; aplicação em outra obrigação é explícita. Compra parcialmente paga cancela a parte pendente e gera crédito somente pela parte já paga elegível. Fechamentos já apresentados são preservados e correções posteriores usam revisão/proveniência.
+- consultas e mutações novas são restritas por `user_id`;
+- destino de crédito exige o mesmo cartão;
+- tentativa cross-user é coberta por teste sem escrita parcial.
 
-13. **Daily Financial Engine V2 documentado, não iniciado**
+### Bento
 
-   `DAILY_FINANCIAL_ENGINE_PROPOSAL.md` registra a evolução futura para múltiplas métricas diárias, folga diária/acumulada, metas e eficiência. Não alterar a matemática do V1 com regras do V2 antes do fechamento e validação do contrato atual.
+A matriz automatizada cobre não pago, parcial, integral, crédito parcial, replay, divergência, isolamento cross-user, antecipação com desconto e fallback de alerts sem migration. A suíte completa permanece o gate antes de merge.
 
-## Evidência recente
+### Maia
 
-Workflow **FinanSys CI** run #47, commit `b97a6e26ab321dcb1d2bad8f7dfe6ca8b46c00a3`, concluiu com sucesso em 2026-09-13: Pint, 378 testes PHPUnit com 2.049 asserções, frontend/build e validação do manifest passaram. O run inclui regressões de purge e restauração, além de auditoria, rollback, validação HTTP e conflito entre antecipação retroativa e pagamento posterior.
+E3/E5/E6 deixam de ter item lógico conhecido aguardando implementação. O próximo ciclo é exclusivamente evidência externa, visual e publicação, salvo regressão concreta descoberta pelos testes.
 
-O último commit de regra de negócio desta rodada foi `e28d576a2c321a3c2a0eb662f099a763c2012e88` (`CARD_REVERSAL_CONTRACT.md`). Esse commit é documental e **não prova implementação nem CI verde após a nova regra**.
+## O que ainda falta — não é nova lógica de contrato
 
-## Pendências reais do V1
+1. Último HEAD da branch com CI completo verde.
+2. Concorrência no mesmo mecanismo de banco adotado na hospedagem; SQLite não comprova locks/deadlocks.
+3. Teste manual/visual do Chefe no Microsoft Edge desktop/mobile, incluindo `Avisos financeiros` e `Correções de cartão`.
+4. Aplicar/ensaiar migrations no banco de destino com backup e rollback.
+5. Verificar `APP_KEY`, OAuth, HTTPS, filas, scheduler, secrets e ausência de seeder de desenvolvimento.
+6. Smoke test após implantação.
+7. Somente depois integrar/mesclar para a branch definida; não fazer push direto na `main`.
 
-Não confundir com itens já entregues:
+## Para o Codex
 
-1. **E3 — estorno de compra:** implementar `CARD_REVERSAL_CONTRACT.md`, incluindo cancelamento da parte pendente, crédito da parte já paga, proveniência, idempotência, isolamento, auditoria, alertas e contratos HTTP/UI.
-2. **E3 — aplicação explícita de crédito:** permitir associação total/parcial a obrigação elegível do mesmo cartão sem tratá-lo como renda ou caixa e sem consumo duplicado.
-3. **Concorrência real:** executar cenários concorrentes no mesmo mecanismo de banco adotado em produção. SQLite não é evidência suficiente.
-4. **E5:** reexecutar a jornada contratual integrada após o fechamento de E3 e revisar isolamento transversal dos consumidores.
-5. **Aceite visual:** Microsoft Edge desktop/mobile real, incluindo teclado, foco, zoom, valores longos, modais, previsões, cartões, histórico e alertas.
-6. **Deploy:** ensaiar migrations no banco compatível com produção, backup/retorno, preservação da `APP_KEY`, OAuth, HTTPS, filas, scheduler e smoke test.
-7. **Proteção da branch:** configuração administrativa continua externa ao código e deve exigir CI verde antes do merge.
+Se este chat precisar ser continuado pelo Codex:
 
-## Coordenação dos agentes para o próximo incremento
+- não reimplemente estorno/crédito;
+- confira primeiro o último workflow da `codex/v1-card-reversal`;
+- se falhar, corrija a regressão mantendo os contratos acima;
+- se estiver verde, faça revisão do diff e prepare evidência para teste concorrente/visual/deploy;
+- mantenha `FINANCIAL_PLANNING_STAGES.md` e este handoff sincronizados;
+- só comece `DAILY_FINANCIAL_ENGINE_PROPOSAL.md` depois que o V1 estiver estabilizado/aprovado.
 
-Maia deve conduzir somente os papéis necessários, nesta ordem:
+## Invariantes permanentes
 
-1. **Inv + Lia:** revisão curta do `CARD_REVERSAL_CONTRACT.md`; não reabrir decisões já registradas sem contradição concreta.
-2. **Atlas:** derivar modelo de dados/estados e contratos técnicos para estorno e crédito, priorizando estruturas já existentes.
-3. **Nexo + Íris:** revisar atomicidade, locks, replay, recuperação, autorização e isolamento antes do merge do domínio.
-4. **Nilo:** implementar primeiro o domínio de estorno/crédito e seus endpoints; frontend somente depois do contrato HTTP estabilizar.
-5. **Bento:** testes independentes da matriz mínima, incluindo parcial, totalmente pago, mês posterior, centavos, replay, outro usuário e rollback.
-6. **Maia:** integrar em E5, atualizar documentação e só então avançar para aceite/deploy.
-
-Nenhum papel aprova o próprio trabalho. Não marcar E3 como concluída somente porque classes/tabelas/telas existem.
-
-## Ordem recomendada para concluir o V1
-
-1. Implementar estorno da compra conforme `CARD_REVERSAL_CONTRACT.md`.
-2. Implementar crédito e aplicação explícita.
-3. Integrar os novos fatos em E5/alertas sem dupla contagem.
-4. Rodar suíte completa, Pint, build e revisar diff.
-5. Testar concorrência no banco escolhido para produção.
-6. Fazer aceite visual Edge desktop/mobile.
-7. Ensaiar migration/deploy e executar smoke test.
-8. Atualizar `FINANCIAL_PLANNING_STAGES.md` e este handoff com evidência real.
-9. Só então abrir/mesclar PR para a branch de integração; não fazer push direto na `main`.
-10. Depois do V1 estabilizado, iniciar revisão formal do `DAILY_FINANCIAL_ENGINE_PROPOSAL.md` para V2.
-
-## Comandos de verificação local
-
-```bash
-composer install
-npm ci
-cp .env.example .env
-php artisan key:generate
-vendor/bin/pint --test
-php artisan test --compact
-npm run build
-```
-
-Após `npm run build`, confirmar que os arquivos citados pelo `public/build/manifest.json` existem e que os artefatos necessários ao deploy estão versionados conforme o fluxo atual.
-
-## Regras que não devem ser quebradas
-
-- valores financeiros permanecem decimais exatos, nunca `float`;
-- todo dado financeiro permanece isolado por `user_id`;
-- operação mutável usa idempotência e rejeita a mesma chave com parâmetros diferentes;
-- escrita financeira, auditoria e efeitos internos obrigatórios permanecem atômicos;
-- transferência interna não vira receita ou despesa de planejamento;
-- previsão aceita vários recebimentos, mas uma receita real pertence integralmente a no máximo uma previsão ativa;
-- reembolso antigo afeta patrimônio, não renda sustentável do mês;
-- avaliações reconstruídas não fingem ter sido apresentadas ao usuário;
+- decimais financeiros exatos, nunca `float` nas regras;
+- isolamento por `user_id`;
+- idempotência e rejeição de chave repetida com parâmetros diferentes;
+- auditoria e escrita financeira atômicas;
+- transferência interna não vira renda/despesa;
 - crédito de cartão não é renda nem caixa;
-- estorno corrige competência da despesa sem apagar cronologia financeira passada;
-- fechamento já apresentado não é reescrito; correções posteriores geram revisão identificada;
-- WhatsApp e OFX não bloqueiam a publicação atual;
-- regras do Daily Financial Engine V2 não entram silenciosamente no V1.
+- estorno não apaga cronologia financeira passada;
+- fechamento apresentado não é reescrito silenciosamente;
+- falha do módulo de alertas não bloqueia a escrita financeira principal;
+- WhatsApp/OFX não bloqueiam V1;
+- V2 não entra silenciosamente no V1.
