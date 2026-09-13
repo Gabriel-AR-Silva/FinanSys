@@ -2,7 +2,7 @@
 import QuickActionModal from '@/Components/QuickActionModal.vue';
 import ToastHost from '@/Components/ToastHost.vue';
 import { Link, router } from '@inertiajs/vue3';
-import { ArrowDownCircle, ArrowLeftRight, ArrowRightLeft, ArrowUpCircle, BellRing, CreditCard, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, Settings, Tags, UserRound, WalletCards, X } from '@lucide/vue';
+import { ArrowDownCircle, ArrowLeftRight, ArrowRightLeft, ArrowUpCircle, BellRing, CreditCard, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, RotateCcw, Settings, Tags, UserRound, WalletCards, X } from '@lucide/vue';
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const mobileNavigationOpen = ref(false);
@@ -15,6 +15,7 @@ const navigation = [
     { label: 'Caixinhas', route: 'pockets.index', icon: PiggyBank },
     { label: 'Lançamentos', route: 'ledger-entries.index', icon: ReceiptText },
     { label: 'Cartões', route: 'credit-cards.index', icon: CreditCard },
+    { label: 'Correções de cartão', route: 'card-corrections.index', icon: RotateCcw },
     { label: 'Categorias', route: 'categories.index', icon: Tags },
     { label: 'Configuração financeira', route: 'financial-settings.edit', icon: Settings },
     { label: 'Avisos financeiros', route: 'internal-alerts.index', icon: BellRing },
