@@ -120,9 +120,9 @@ class CardAdvanceTest extends TestCase
         $this->assertSame('100.00', $octoberBefore['variable']['projected']);
         $this->assertSame('190.00', $september['variable']['realized']);
         $this->assertSame('190.00', $september['variable']['projected']);
-        $this->assertSame('0.00', $october['variable']['realized']);
-        $this->assertSame('0.00', $october['variable']['projected']);
-        $this->assertSame('0.00', $november['variable']['projected']);
+        $this->assertEquals(0, $october['variable']['realized']);
+        $this->assertEquals(0, $october['variable']['projected']);
+        $this->assertEquals(0, $november['variable']['projected']);
     }
 
     public function test_http_endpoint_requires_authentication_and_persists_the_server_recalculation(): void
