@@ -1,6 +1,7 @@
 <script setup>
 import QuickActionModal from '@/Components/QuickActionModal.vue';
 import ToastHost from '@/Components/ToastHost.vue';
+import TsukiOnboarding from '@/Components/TsukiOnboarding.vue';
 import { Link, router } from '@inertiajs/vue3';
 import { ArrowDownCircle, ArrowLeftRight, ArrowRightLeft, ArrowUpCircle, BellRing, CreditCard, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, RotateCcw, Settings, Tags, UserRound, WalletCards, X } from '@lucide/vue';
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -142,6 +143,13 @@ watch(mobileNavigationOpen, (open) => {
         </div>
 
         <QuickActionModal :show="quickActionOpen" @close="quickActionOpen = false" />
+        <TsukiOnboarding
+            v-if="$page.props.onboarding"
+            :essential-steps="$page.props.onboarding.essentialSteps"
+            :recommended-steps="$page.props.onboarding.recommendedSteps"
+            :progress="$page.props.onboarding.progress"
+            :initially-open="$page.props.onboarding.initiallyOpen"
+        />
         <ToastHost />
     </div>
 </template>
