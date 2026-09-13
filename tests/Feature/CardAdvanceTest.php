@@ -346,6 +346,7 @@ class CardAdvanceTest extends TestCase
     {
         [$user, $card, $category, $account] = $this->context();
         $purchase = $this->purchase($user, $card, $category);
+        $auditCount = DB::table('audit_logs')->count();
         $auditCalls = 0;
         $realAuditRecorder = new AuditRecorder;
         $this->mock(AuditRecorder::class)->shouldReceive('record')->times(6)->andReturnUsing(function (...$arguments) use (&$auditCalls, $realAuditRecorder) {
@@ -367,7 +368,7 @@ class CardAdvanceTest extends TestCase
         $this->assertDatabaseCount('card_advances', 0);
         $this->assertDatabaseCount('card_advance_allocations', 0);
         $this->assertDatabaseCount('ledger_entries', 1);
-        $this->assertDatabaseCount('audit_logs', 0);
+        $this->assertSame($auditCount, DB::table('audit_logs')->count());
         $this->assertSame([CardInstallmentStatus::Pending, CardInstallmentStatus::Pending], $purchase->installments()->orderBy('id')->get()->pluck('status')->all());
     }
 
