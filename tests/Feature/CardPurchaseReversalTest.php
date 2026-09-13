@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\AdvanceCardInstallments;
 use App\Actions\ApplyCardCredit;
 use App\Actions\CreateCardPurchase;
 use App\Actions\PayCreditCard;
@@ -74,21 +75,51 @@ class CardPurchaseReversalTest extends TestCase
         ]));
         $targetInstallment = $target->installments()->firstOrFail();
         $ledgerCount = LedgerEntry::query()->count();
-
-        $allocation = app(ApplyCardCredit::class)->handle($user, [
+        $payload = [
             'card_credit_id' => $reversal->credit->id,
             'target_type' => 'installment',
             'target_id' => $targetInstallment->id,
             'amount' => '180.00',
             'applied_on' => '2026-09-13',
             'operation_id' => (string) Str::uuid(),
-        ]);
+        ];
 
+        $allocation = app(ApplyCardCredit::class)->handle($user, $payload);
+        $replay = app(ApplyCardCredit::class)->handle($user, $payload);
+
+        $this->assertSame($allocation->id, $replay->id);
         $this->assertSame('180.00', $allocation->amount);
         $this->assertSame('180.00', $targetInstallment->fresh()->paid_amount);
         $this->assertSame('180.00', $reversal->credit->fresh()->applied_amount);
         $this->assertSame('120.00', (string) BigDecimal::of($reversal->credit->amount)->minus($reversal->credit->fresh()->applied_amount));
         $this->assertSame($ledgerCount, LedgerEntry::query()->count());
+        $this->assertDatabaseCount('card_credit_allocations', 1);
+    }
+
+    public function test_discounted_advance_reversal_credits_only_net_cash_paid(): void
+    {
+        [$user, $card, $category] = $this->cardContext();
+        $account = $this->fundedAccount($user, '500.00');
+        $purchase = app(CreateCardPurchase::class)->handle($user, $this->purchasePayload($card, $category, '100.00', [
+            'first_due_on' => '2026-10-12',
+        ]));
+        $installment = $purchase->installments()->firstOrFail();
+
+        app(AdvanceCardInstallments::class)->handle($user, [
+            'credit_card_id' => $card->id,
+            'source_account_id' => $account->id,
+            'installment_ids' => [$installment->id],
+            'discount_amount' => '5.00',
+            'expected_gross_amount' => '100.00',
+            'advanced_on' => '2026-09-09',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $reversal = app(ReverseCardPurchase::class)->handle($user, $this->reversalPayload($purchase));
+
+        $this->assertSame('0.00', $reversal->cancelled_pending_amount);
+        $this->assertSame('95.00', $reversal->credited_paid_amount);
+        $this->assertSame('95.00', $reversal->credit->amount);
     }
 
     public function test_reversal_replay_is_idempotent_and_changed_payload_is_rejected(): void
@@ -125,7 +156,7 @@ class CardPurchaseReversalTest extends TestCase
         $this->assertDatabaseHas('card_purchases', ['id' => $purchase->id, 'deleted_at' => null]);
     }
 
-    public function test_credit_application_replay_and_cross_user_target_are_safe(): void
+    public function test_credit_application_rejects_cross_user_target_without_partial_writes(): void
     {
         [$user, $card, $category] = $this->cardContext();
         $account = $this->fundedAccount($user, '500.00');
