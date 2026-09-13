@@ -22,6 +22,7 @@ class ApplyCardCredit
 {
     public function __construct(
         private AuditRecorder $auditRecorder,
+        private ReviseFinancialHistory $reviseHistory,
         private RefreshCurrentInternalAlert $refreshAlert,
     ) {}
 
@@ -64,6 +65,7 @@ class ApplyCardCredit
 
                 $installment = null;
                 $charge = null;
+                $affectedMonth = null;
                 if ($data['target_type'] === 'installment') {
                     $installment = CardInstallment::query()
                         ->whereBelongsTo($user)
@@ -80,6 +82,7 @@ class ApplyCardCredit
                         throw ValidationException::withMessages(['applied_on' => 'O crédito não pode ser aplicado antes da compra de destino.']);
                     }
                     $remaining = BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount);
+                    $affectedMonth = $installment->original_due_on->format('Y-m');
                 } else {
                     $charge = CardCharge::query()
                         ->whereBelongsTo($user)
@@ -95,6 +98,7 @@ class ApplyCardCredit
                         throw ValidationException::withMessages(['applied_on' => 'O crédito não pode ser aplicado antes do encargo de destino.']);
                     }
                     $remaining = BigDecimal::of($charge->amount)->minus($charge->paid_amount);
+                    $affectedMonth = $charge->due_on->format('Y-m');
                 }
 
                 if ($amount->isGreaterThan($remaining)) {
@@ -137,6 +141,7 @@ class ApplyCardCredit
                     $this->auditRecorder->record($user, AuditAction::Updated, $charge, $before);
                 }
 
+                $this->reviseHistory->handle($user, [$affectedMonth]);
                 $this->refreshAlert->handle($user);
 
                 return $allocation;
