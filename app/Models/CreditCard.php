@@ -46,4 +46,14 @@ class CreditCard extends Model
     {
         return $this->hasMany(CardAdvance::class);
     }
+
+    public function credits(): HasMany
+    {
+        return $this->hasMany(CardCredit::class);
+    }
+
+    public function purchaseReversals(): HasMany
+    {
+        return $this->hasMany(CardPurchaseReversal::class);
+    }
 }
