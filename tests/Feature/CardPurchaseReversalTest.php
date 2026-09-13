@@ -16,6 +16,7 @@ use App\Models\Category;
 use App\Models\CreditCard;
 use App\Models\LedgerEntry;
 use App\Models\User;
+use Brick\Math\BigDecimal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -86,7 +87,7 @@ class CardPurchaseReversalTest extends TestCase
         $this->assertSame('180.00', $allocation->amount);
         $this->assertSame('180.00', $targetInstallment->fresh()->paid_amount);
         $this->assertSame('180.00', $reversal->credit->fresh()->applied_amount);
-        $this->assertSame('120.00', (string) \Brick\Math\BigDecimal::of($reversal->credit->amount)->minus($reversal->credit->fresh()->applied_amount));
+        $this->assertSame('120.00', (string) BigDecimal::of($reversal->credit->amount)->minus($reversal->credit->fresh()->applied_amount));
         $this->assertSame($ledgerCount, LedgerEntry::query()->count());
     }
 
