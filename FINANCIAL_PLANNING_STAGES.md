@@ -20,17 +20,17 @@ Estados usados:
 | E0 — Contratos verificáveis | Concluída | Regras P1–P6, fórmulas, exemplos e invariantes registrados | Manter documentação sincronizada quando o comportamento mudar |
 | E1 — Configuração financeira | Parcial | Configuração mensal, proteção fixa/percentual, essenciais, categoria rápida, isolamento, auditoria e controle de versão | Aceite visual no Edge desktop/mobile |
 | E2 — Planejamento e liquidação | Parcial | Previsões, recorrência, edição/remarcação, parcial, residual, excedente, cancelamento, vínculo, desvínculo e revínculo explícito | Concorrência no banco de produção e aceite visual |
-| E3 — Cartões e parcelas | Parcial | Cartões, compras parceladas, parcelas, pagamentos parciais, alocação determinística e dívida carregada | Encargos, antecipação com desconto, estorno de compra e crédito de cartão |
+| E3 — Cartões e parcelas | Parcial | Cartões, compras parceladas, parcelas, pagamentos parciais, alocação determinística, dívida carregada e encargos confirmados | Antecipação com desconto, estorno de compra e crédito explicitamente aplicado |
 | E4 — Calculadora matemática | Concluída | Proteção, progresso de recebimentos, projeções, essenciais, margem, verba diária, déficit e faixas | Manter matriz de fronteiras ao evoluir regras |
-| E5 — Integração e indicadores | Parcial | Adaptadores reais, visões atual/projetada, neutralização de transferências/estornos e dashboard de planejamento | Jornada integrada final, isolamento transversal e aceite visual |
-| E6 — Histórico e alertas | Parcial | Fechamento diário, reconstrução, revisões, proveniência, alertas deduplicados e gatilhos imediatos | Validar retenção e fechar aceite visual |
+| E5 — Integração e indicadores | Parcial | Adaptadores reais, visões atual/projetada, neutralização de transferências/estornos, encargos e dashboard de planejamento | Jornada integrada final, isolamento transversal e aceite visual |
+| E6 — Histórico e alertas | Parcial | Fechamento diário, reconstrução, revisões, proveniência, alertas deduplicados e gatilhos imediatos | Aceite editorial/visual da página de alertas |
 | E7 — WhatsApp | Fora da entrega | Contrato de independência preservado | Implementação futura em contrato próprio |
 
 ## Dependências de fechamento
 
 ```mermaid
 flowchart TD
-    E2["E2: alertas e concorrência"] --> E5["E5: integração final"]
+    E2["E2: concorrência e aceite"] --> E5["E5: integração final"]
     E3["E3: ciclo completo do cartão"] --> E5
     E4["E4: matemática concluída"] --> E5
     E5 --> E6["E6: histórico e alertas"]
@@ -79,10 +79,13 @@ Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada
 - Desvínculo por estorno/exclusão e revínculo somente por confirmação explícita.
 - Idempotência, versão otimista, auditoria, isolamento e rollback nos fluxos cobertos.
 - Atualização imediata dos alertas após criação, alteração, cancelamento e vínculo efetivos.
+- Transferências agora adquirem o mesmo lock de usuário usado pelas mutações estruturais de conta/caixinha antes de ler saldo ou gravar pernas, reduzindo a janela de corrida com exclusão/restauração.
+- Restauração de conta também serializa pelo usuário e bloqueia as relações restauradas em ordem determinística.
 
 ### Pendente
 
-- Validar locks, unicidade e retries no mesmo mecanismo de banco escolhido para produção.
+- Executar evidência real de concorrência no mesmo mecanismo de banco escolhido para produção; SQLite continua insuficiente para comprovar locks/deadlocks.
+- Alinhar `RestorePocket` ao mesmo protocolo de serialização antes de declarar a corrida estrutural totalmente fechada.
 - Executar aceite visual dos modais, recorrência e revínculo.
 
 ### Critérios obrigatórios preservados
@@ -102,22 +105,23 @@ Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada
 - Pagamento total ou parcial limitado à dívida elegível.
 - Alocação determinística por vencimento e identificador.
 - Dívida anterior carregada e pagamento sem criar uma segunda despesa de consumo.
-- Isolamento, idempotência, auditoria e atualização imediata dos alertas para compra e pagamento.
+- Juros e multas confirmados são obrigações próprias, sem reapresentar o principal já carregado.
+- Encargos só participam do pagamento quando selecionados explicitamente; seleção duplicada, recurso de outro usuário e encargo de outro cartão do mesmo usuário são recusados sem escrita financeira parcial.
+- Isolamento, idempotência, auditoria e atualização imediata dos alertas para compra, encargo e pagamento.
 
 ### Pendente
 
-- Registrar juros e encargos sem reapresentar o principal já carregado.
 - Antecipar parcelas com desconto, afetando o presente pelo valor efetivamente pago e liberando a obrigação futura.
 - Estornar compra ainda não paga, removendo apenas a obrigação pendente.
 - Estornar compra já paga, removendo o pendente e criando crédito no cartão pelo valor pago.
 - Aplicar crédito a outra fatura somente mediante associação explícita.
-- Acrescentar telas, contratos HTTP e testes para esses fluxos.
+- Acrescentar telas, contratos HTTP e testes para esses três fluxos restantes.
 
 ### Critérios obrigatórios preservados
 
 - Dívida 500 paga em 300 deixa 200.
 - Encargo 15 transforma a obrigação restante em 215, sem duplicar os 200.
-- Antecipar obrigação 200 por 190 afeta 190 agora e libera 200 futuros.
+- Antecipar obrigação 200 por 190 deve afetar 190 agora e liberar 200 futuros.
 - Nenhuma parcela pode ser liquidada duas vezes.
 
 ## E4 — Calculadora matemática pura
@@ -137,7 +141,7 @@ Os adaptadores devem entregar conjuntos exclusivos. Pagamento de obrigação, re
 
 ### Entregue
 
-- Seleção por usuário e mês para lançamentos, previsões, reembolsos e parcelas.
+- Seleção por usuário e mês para lançamentos, previsões, reembolsos, parcelas e encargos.
 - Visões atual e projetada com renda, proteção, fixos, variáveis, essenciais, compromissos anteriores, margem e verba diária.
 - Transferências internas neutras e estornos considerados semanticamente.
 - Fronteiras mensais mantidas no fuso da aplicação.
@@ -146,7 +150,7 @@ Os adaptadores devem entregar conjuntos exclusivos. Pagamento de obrigação, re
 
 - Reexecutar o cenário contratual completo pelos endpoints e ações reais.
 - Confirmar ausência de vazamento entre usuários em todos os consumidores.
-- Cobrir os novos fluxos de encargos, antecipação e crédito após E3.
+- Cobrir antecipação, estorno de compra e crédito depois do fechamento de E3.
 - Validar estados incompleto, zero, déficit, valores longos e distinção atual/projetado no Edge desktop/mobile.
 
 ## E6 — Histórico e alertas internos
@@ -158,20 +162,20 @@ Os adaptadores devem entregar conjuntos exclusivos. Pagamento de obrigação, re
 - Alertas internos por visão e mês, deduplicados e atualizáveis.
 - Preservação da pior situação e do histórico de déficit.
 - Reativação correta quando uma situação recuperada volta a piorar.
-- Atualização imediata após lançamento manual, previsão, vínculo de recebimento, reembolso, estorno manual, compra e pagamento de cartão.
+- Atualização imediata após lançamento manual, previsão, vínculo de recebimento, reembolso, estorno manual, compra, encargo e pagamento de cartão.
 - Exclusão e restauração de lançamento, conta ou caixinha recalculam alertas somente quando o lote contém fatos relevantes ao planejamento.
+- Política P5 desta publicação: avaliações/histórico e auditoria não são apagados automaticamente; eventual retenção destrutiva exige política própria antes de SaaS/exclusão de conta.
 - CI com PHPUnit, Pint, build Vite e validação do manifest.
 
 ### Pendente
 
-- Validar linguagem, leitura, filtros e responsividade da página de alertas.
-- Definir retenção operacional sem apagar silenciosamente histórico ou auditoria.
+- Validar linguagem, leitura, filtros, teclado e responsividade da página de alertas no Edge desktop/mobile.
 
 ### Evidência do incremento de alertas
 
 - Commit: `6ccadaf6bc8c5f69fccf6da2c355243b7404bef5`.
-- CI: 346 testes e 1.873 assertions aprovados; Pint, build Vite e manifest aprovados.
-- Casos novos: ciclo criar/editar/cancelar previsão, vínculo com excedente sem dupla contagem, exclusão/restauração manual e cascatas de conta/caixinha.
+- CI de referência: 346 testes e 1.873 assertions aprovados; Pint, build Vite e manifest aprovados.
+- Casos adicionais de hardening de cartões: encargo de outro cartão do mesmo usuário e seleção duplicada não geram escrita parcial.
 
 ## E7 — WhatsApp opcional
 
