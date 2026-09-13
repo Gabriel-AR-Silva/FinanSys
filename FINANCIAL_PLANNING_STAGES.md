@@ -4,7 +4,7 @@
 
 Este roteiro acompanha a execução do [contrato funcional](FINANCIAL_PLANNING_CONTRACT.md). Ele descreve o estado atual da branch `codex/copilot-mod-v1-hardening`, não o estado histórico de incrementos intermediários.
 
-As decisões P1–P6 foram aprovadas em 2026-09-08. WhatsApp e importação OFX permanecem fora desta publicação e não bloqueiam o fechamento. O detalhamento técnico e as pendências operacionais ficam em [CODEX_HANDOFF.md](CODEX_HANDOFF.md).
+As decisões P1–P6 foram aprovadas em 2026-09-08. A política complementar de estorno de compra foi fechada em `CARD_REVERSAL_CONTRACT.md` em 2026-09-13 para destravar E3. WhatsApp, OFX e o Daily Financial Engine V2 permanecem fora desta publicação e não bloqueiam o fechamento do V1. O detalhamento técnico e as pendências operacionais ficam em [CODEX_HANDOFF.md](CODEX_HANDOFF.md).
 
 Estados usados:
 
@@ -17,24 +17,26 @@ Estados usados:
 
 | Etapa | Estado | Entregue | Falta para fechar |
 | --- | --- | --- | --- |
-| E0 — Contratos verificáveis | Concluída | Regras P1–P6, fórmulas, exemplos e invariantes registrados | Manter documentação sincronizada quando o comportamento mudar |
+| E0 — Contratos verificáveis | Concluída | Regras P1–P6, fórmulas, exemplos, invariantes e contrato complementar de estorno registrados | Manter documentação sincronizada quando o comportamento mudar |
 | E1 — Configuração financeira | Parcial | Configuração mensal, proteção fixa/percentual, essenciais, categoria rápida, isolamento, auditoria e controle de versão | Aceite visual no Edge desktop/mobile |
 | E2 — Planejamento e liquidação | Parcial | Previsões, recorrência, edição/remarcação, parcial, residual, excedente, cancelamento, vínculo, desvínculo e revínculo explícito | Concorrência no banco de produção e aceite visual |
-| E3 — Cartões e parcelas | Parcial | Cartões, compras parceladas, pagamentos parciais, dívida carregada, encargos confirmados e antecipação com desconto | Estorno de compra e crédito explicitamente aplicado |
+| E3 — Cartões e parcelas | Parcial | Cartões, compras parceladas, pagamentos parciais, dívida carregada, encargos confirmados, antecipação com desconto e regra de negócio do estorno fechada | Implementar estorno de compra, crédito de cartão e aplicação explícita; HTTP/UI/testes |
 | E4 — Calculadora matemática | Concluída | Proteção, progresso de recebimentos, projeções, essenciais, margem, verba diária, déficit e faixas | Manter matriz de fronteiras ao evoluir regras |
-| E5 — Integração e indicadores | Parcial | Adaptadores reais, visões atual/projetada, neutralização de transferências/estornos, encargos e dashboard de planejamento | Jornada integrada final, isolamento transversal e aceite visual |
-| E6 — Histórico e alertas | Parcial | Fechamento diário, reconstrução, revisões, proveniência, alertas deduplicados e gatilhos imediatos | Aceite editorial/visual da página de alertas |
+| E5 — Integração e indicadores | Parcial | Adaptadores reais, visões atual/projetada, neutralização de transferências/estornos, encargos e dashboard de planejamento | Integrar estorno/crédito após E3, jornada integrada final, isolamento transversal e aceite visual |
+| E6 — Histórico e alertas | Parcial | Fechamento diário, reconstrução, revisões, proveniência, alertas deduplicados e gatilhos imediatos | Integrar novos fatos de E3 e fazer aceite editorial/visual da página de alertas |
 | E7 — WhatsApp | Fora da entrega | Contrato de independência preservado | Implementação futura em contrato próprio |
+| V2 — Daily Financial Engine | Fora da entrega | Proposta registrada em `DAILY_FINANCIAL_ENGINE_PROPOSAL.md` | Revisão formal somente depois do V1 estabilizado |
 
 ## Dependências de fechamento
 
 ```mermaid
 flowchart TD
     E2["E2: concorrência e aceite"] --> E5["E5: integração final"]
-    E3["E3: ciclo completo do cartão"] --> E5
+    E3["E3: estorno + crédito"] --> E5
     E4["E4: matemática concluída"] --> E5
     E5 --> E6["E6: histórico e alertas"]
-    E6 --> PUB["Validação e publicação"]
+    E6 --> PUB["Validação e publicação V1"]
+    PUB --> V2["Daily Financial Engine V2"]
 ```
 
 E1 pode ser usada independentemente. E2 e E3 alimentam os indicadores de E5. E6 consome os resultados de E5, mas uma falha de histórico ou alerta não deve impedir o registro financeiro principal.
@@ -47,10 +49,12 @@ E1 pode ser usada independentemente. E2 e E3 alimentam os indicadores de E5. E6 
 - Invariantes de vínculo, residual, idempotência, exclusão, restauração e correção.
 - Regras de proteção, essenciais, projeção, cartões, histórico e alertas.
 - Exclusão explícita de WhatsApp e OFX da publicação atual.
+- Contrato complementar de estorno de compra: competência corrigida permanece vinculada à compra original; data real do estorno/crédito é preservada; crédito de cartão não é renda nem caixa; aplicação é explícita.
+- Proposta do Daily Financial Engine V2 registrada sem alterar o contrato vigente do V1.
 
 ### Gate permanente
 
-Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada. Ambiguidade de produto volta ao contrato antes da implementação dependente.
+Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada. Ambiguidade de produto volta ao contrato antes da implementação dependente. Regras V2 não entram no V1 por conveniência de implementação.
 
 ## E1 — Configuração financeira
 
@@ -79,14 +83,13 @@ Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada
 - Desvínculo por estorno/exclusão e revínculo somente por confirmação explícita.
 - Idempotência, versão otimista, auditoria, isolamento e rollback nos fluxos cobertos.
 - Atualização imediata dos alertas após criação, alteração, cancelamento e vínculo efetivos.
-- Transferências agora adquirem o mesmo lock de usuário usado pelas mutações estruturais de conta/caixinha antes de ler saldo ou gravar pernas, reduzindo a janela de corrida com exclusão/restauração.
-- Restauração de conta também serializa pelo usuário e bloqueia as relações restauradas em ordem determinística.
+- Transferências usam o mesmo lock de usuário das mutações estruturais antes de ler saldo ou gravar pernas.
+- Restauração de conta serializa pelo usuário e bloqueia relações restauradas em ordem determinística.
 - Restauração de caixinha segue o mesmo lock de usuário, bloqueia conta, caixinha e lançamentos em ordem estável e aceita replay sem repetir auditoria.
 
 ### Pendente
 
 - Executar evidência real de concorrência no mesmo mecanismo de banco escolhido para produção; SQLite continua insuficiente para comprovar locks/deadlocks.
-- Alinhar `RestorePocket` ao mesmo protocolo de serialização antes de declarar a corrida estrutural totalmente fechada.
 - Executar aceite visual dos modais, recorrência e revínculo.
 
 ### Critérios obrigatórios preservados
@@ -97,7 +100,7 @@ Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada
 - Vencido não muda de mês automaticamente.
 - Restauração do lançamento não reativa vínculo silenciosamente.
 
-## E3 — Cartões, faturas e parcelas
+## E3 — Cartões, faturas, parcelas, estorno e crédito
 
 ### Entregue
 
@@ -111,14 +114,18 @@ Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada
 - Antecipação seleciona parcelas de meses futuros, rateia o desconto proporcionalmente com centavos determinísticos, debita somente o líquido no presente e libera o bruto futuro sem alterar a compra nem os vencimentos originais.
 - O fluxo de antecipação possui prévia por parcela, proteção contra prévia obsoleta, contrato HTTP, isolamento, idempotência, auditoria e atualização imediata dos alertas.
 - O histórico da antecipação sobrevive ao expurgo da conta de origem; uma parcela possui no máximo uma alocação de antecipação e datas retroativas incompatíveis com pagamentos posteriores são recusadas.
-- Isolamento, idempotência, auditoria e atualização imediata dos alertas para compra, encargo, pagamento e antecipação.
+- Regra funcional de estorno e crédito fechada em `CARD_REVERSAL_CONTRACT.md`.
 
-### Pendente
+### Pendente — próximo incremento obrigatório
 
-- Estornar compra ainda não paga, removendo apenas a obrigação pendente.
-- Estornar compra já paga, removendo o pendente e criando crédito no cartão pelo valor pago.
-- Aplicar crédito a outra fatura somente mediante associação explícita.
-- Acrescentar telas, contratos HTTP e testes para estorno e aplicação explícita de crédito.
+1. Implementar estorno de compra não paga removendo apenas obrigações pendentes elegíveis.
+2. Para compra parcial ou totalmente paga, gerar crédito somente pela parte paga elegível e cancelar somente o residual pendente.
+3. Preservar compra, pagamentos e fechamentos históricos; correções posteriores usam revisão/proveniência.
+4. Persistir data real do estorno separada da competência corrigida.
+5. Implementar saldo de crédito de cartão sem classificá-lo como renda ou caixa.
+6. Aplicar crédito a outra obrigação somente por associação explícita, inclusive aplicação parcial com residual.
+7. Garantir idempotência, locks, auditoria, isolamento, rollback e ausência de consumo duplicado.
+8. Acrescentar contratos HTTP, UI e testes independentes para estorno e crédito.
 
 ### Critérios obrigatórios preservados
 
@@ -126,6 +133,11 @@ Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada
 - Encargo 15 transforma a obrigação restante em 215, sem duplicar os 200.
 - Antecipar obrigação 200 por 190 deve afetar 190 agora e liberar 200 futuros.
 - Nenhuma parcela pode ser liquidada duas vezes.
+- Compra 300 não paga estornada: pendência zero, crédito zero.
+- Compra 300 paga em 100 e estornada: pendência cancelada 200, crédito 100.
+- Compra 300 totalmente paga e estornada: pendência zero, crédito 300.
+- Crédito 300 aplicado em obrigação 180 deixa crédito 120.
+- Estorno em mês posterior corrige a competência de origem, registra o evento na data real e não cria receita sustentável.
 
 ## E4 — Calculadora matemática pura
 
@@ -133,12 +145,12 @@ Nenhuma mudança de código pode alterar silenciosamente uma decisão contratada
 
 - Cálculos sem consulta ao banco ou efeitos colaterais.
 - Strings decimais exatas com Brick Math, sem `float`.
-- Proteção fixa/percentual, progresso de recebimento, projeção ordinária, essenciais, margem livre, verba diária, déficit e situação financeira.
+- Proteção fixa/percentual, progresso de recebimentos, projeção ordinária, essenciais, margem livre, verba diária, déficit e situação financeira.
 - Relógio explícito, dias completos de Brasília, fronteiras 90/100%, centavos e divisão segura.
 
 ### Gate permanente
 
-Os adaptadores devem entregar conjuntos exclusivos. Pagamento de obrigação, reembolso, previsão realizada e estorno não podem aparecer duas vezes em uma mesma visão.
+Os adaptadores devem entregar conjuntos exclusivos. Pagamento de obrigação, reembolso, previsão realizada, estorno e crédito não podem aparecer duas vezes em uma mesma visão. Crédito de cartão não integra receita.
 
 ## E5 — Seleção de dados e indicadores
 
@@ -151,9 +163,9 @@ Os adaptadores devem entregar conjuntos exclusivos. Pagamento de obrigação, re
 
 ### Pendente
 
+- Integrar estorno de compra e crédito após o fechamento de E3 sem dupla contagem.
 - Reexecutar o cenário contratual completo pelos endpoints e ações reais.
 - Confirmar ausência de vazamento entre usuários em todos os consumidores.
-- Cobrir antecipação, estorno de compra e crédito depois do fechamento de E3.
 - Validar estados incompleto, zero, déficit, valores longos e distinção atual/projetado no Edge desktop/mobile.
 
 ## E6 — Histórico e alertas internos
@@ -172,19 +184,23 @@ Os adaptadores devem entregar conjuntos exclusivos. Pagamento de obrigação, re
 
 ### Pendente
 
+- Integrar os fatos de estorno/crédito de E3 ao fechamento/revisão e alertas.
 - Validar linguagem, leitura, filtros, teclado e responsividade da página de alertas no Edge desktop/mobile.
 
-### Evidência do incremento de alertas
+### Evidência de referência
 
-- Commit: `6ccadaf6bc8c5f69fccf6da2c355243b7404bef5`.
-- CI de referência: 346 testes e 1.873 assertions aprovados; Pint, build Vite e manifest aprovados.
-- Casos adicionais de hardening de cartões: encargo de outro cartão do mesmo usuário e seleção duplicada não geram escrita parcial.
+- CI de referência anterior às novas regras documentais: 378 testes PHPUnit e 2.049 asserções aprovados no run #47; Pint, build Vite e manifest aprovados.
+- A criação de `CARD_REVERSAL_CONTRACT.md` ainda não representa implementação nem nova evidência de CI.
 
 ## E7 — WhatsApp opcional
 
 Fora desta publicação. Quando retomado, deve possuir autorização, preferências, idempotência, tentativas limitadas e falha isolada do núcleo financeiro. Desligado deve enviar zero mensagens.
 
-## Gates para declarar o contrato fechado
+## V2 — Daily Financial Engine
+
+Fora do V1. A proposta está em `DAILY_FINANCIAL_ENGINE_PROPOSAL.md` e inclui múltiplas métricas diárias, folga diária/acumulada, capacidade, orçamento, custo estrutural, metas e evolução do indicador de eficiência. Não iniciar implementação enquanto os gates do V1 não estiverem fechados, salvo trabalho estritamente documental/analítico sem alterar comportamento vigente.
+
+## Gates para declarar o V1 fechado
 
 - E2, E3, E5 e E6 sem itens funcionais pendentes dentro do escopo aprovado.
 - Suíte completa, Pint e build aprovados no commit candidato.
@@ -193,7 +209,7 @@ Fora desta publicação. Quando retomado, deve possuir autorização, preferênc
 - Migrations ensaiadas com backup, rollback e preservação da `APP_KEY`.
 - OAuth, HTTPS, filas, scheduler, secrets e ausência de seeder de desenvolvimento validados.
 - Smoke test após a implantação.
-- Política contábil da data de estorno registrada como decisão final.
+- Documentação/handoff sincronizados com a evidência real do commit candidato.
 
 ## Registro obrigatório por incremento
 
