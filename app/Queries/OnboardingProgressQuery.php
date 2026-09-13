@@ -22,21 +22,62 @@ class OnboardingProgressQuery
     public function forUser(User $user): array
     {
         $month = now('America/Sao_Paulo')->format('Y-m');
-        $hasAccount = Account::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->exists();
-        $hasIncomeCategory = Category::query()->whereBelongsTo($user)->where('type', CategoryType::Income)->where('status', RecordStatus::Active)->exists();
-        $hasExpenseCategory = Category::query()->whereBelongsTo($user)->where('type', CategoryType::Expense)->where('status', RecordStatus::Active)->exists();
-        $hasReceivedIncome = LedgerEntry::query()->whereBelongsTo($user)->where('type', LedgerEntryType::Income)
-            ->whereNull('reversal_of_operation_id')->whereNotExists(fn ($query) => $query->selectRaw('1')->from('ledger_entries as reversals')
+
+        $hasAccount = Account::query()
+            ->whereBelongsTo($user)
+            ->where('status', RecordStatus::Active)
+            ->exists();
+
+        $hasIncomeCategory = Category::query()
+            ->whereBelongsTo($user)
+            ->where('type', CategoryType::Income)
+            ->where('status', RecordStatus::Active)
+            ->exists();
+
+        $hasExpenseCategory = Category::query()
+            ->whereBelongsTo($user)
+            ->where('type', CategoryType::Expense)
+            ->where('status', RecordStatus::Active)
+            ->exists();
+
+        $hasReceivedIncome = LedgerEntry::query()
+            ->whereBelongsTo($user)
+            ->where('type', LedgerEntryType::Income)
+            ->whereNull('reversal_of_operation_id')
+            ->whereNotExists(fn ($query) => $query
+                ->selectRaw('1')
+                ->from('ledger_entries as reversals')
                 ->whereColumn('reversals.user_id', 'ledger_entries.user_id')
                 ->whereColumn('reversals.reversal_of_operation_id', 'ledger_entries.operation_id')
-                ->whereNull('reversals.deleted_at'))->exists();
-        $hasReceiptForecast = ReceiptForecast::query()->whereBelongsTo($user)->where('status', '!=', ReceiptForecastStatus::Cancelled)->exists();
-        $hasFixedCommitment = LedgerEntry::query()->whereBelongsTo($user)->where('type', LedgerEntryType::Expense)
-            ->where('planning_type', ExpensePlanningType::Fixed)->whereNull('reversal_of_operation_id')->exists();
-        $hasPlanning = MonthlyFinancialSetting::query()->whereBelongsTo($user)->where('month', $month)->exists();
-        $hasEssentials = EssentialBudget::query()->whereBelongsTo($user)
-            ->whereHas('monthlyFinancialSetting', fn ($query) => $query->where('month', $month))->exists();
-        $hasCard = CreditCard::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->exists();
+                ->whereNull('reversals.deleted_at'))
+            ->exists();
+
+        $hasReceiptForecast = ReceiptForecast::query()
+            ->whereBelongsTo($user)
+            ->where('status', '!=', ReceiptForecastStatus::Cancelled)
+            ->exists();
+
+        $hasFixedCommitment = LedgerEntry::query()
+            ->whereBelongsTo($user)
+            ->where('type', LedgerEntryType::Expense)
+            ->where('planning_type', ExpensePlanningType::Fixed)
+            ->whereNull('reversal_of_operation_id')
+            ->exists();
+
+        $hasPlanning = MonthlyFinancialSetting::query()
+            ->whereBelongsTo($user)
+            ->where('month', $month)
+            ->exists();
+
+        $hasEssentials = EssentialBudget::query()
+            ->whereBelongsTo($user)
+            ->whereHas('monthlyFinancialSetting', fn ($query) => $query->where('month', $month))
+            ->exists();
+
+        $hasCard = CreditCard::query()
+            ->whereBelongsTo($user)
+            ->where('status', RecordStatus::Active)
+            ->exists();
 
         $essentialSteps = [
             $this->step('foundation', 'Base do sistema', 'Moeda BRL e calendário de Brasília já estão definidos.', true, null),
@@ -48,6 +89,7 @@ class OnboardingProgressQuery
                 $hasAccount ? null : ['label' => 'Criar primeira conta', 'href' => route('accounts.index', ['create' => 1, 'from' => 'onboarding'])],
             ),
         ];
+
         $recommendedSteps = [
             $this->step(
                 'income',
@@ -87,6 +129,7 @@ class OnboardingProgressQuery
                 $hasCard ? null : ['label' => 'Acessar cartões', 'href' => route('credit-cards.index', ['from' => 'onboarding'])],
             ),
         ];
+
         $allSteps = [...$essentialSteps, ...$recommendedSteps];
         $completed = count(array_filter($allSteps, fn (array $step): bool => $step['completed']));
 
@@ -115,6 +158,7 @@ class OnboardingProgressQuery
         if (! $hasAccount) {
             return ['label' => 'Criar conta primeiro', 'href' => route('accounts.index', ['create' => 1, 'from' => 'onboarding'])];
         }
+
         if (! $hasIncomeCategory) {
             return ['label' => 'Criar categoria de receita', 'href' => route('categories.index', ['create' => 'income', 'from' => 'onboarding'])];
         }
@@ -128,6 +172,7 @@ class OnboardingProgressQuery
         if (! $hasAccount) {
             return ['label' => 'Criar conta primeiro', 'href' => route('accounts.index', ['create' => 1, 'from' => 'onboarding'])];
         }
+
         if (! $hasExpenseCategory) {
             return ['label' => 'Criar categoria de despesa', 'href' => route('categories.index', ['create' => 'expense', 'from' => 'onboarding'])];
         }
