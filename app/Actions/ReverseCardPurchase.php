@@ -23,6 +23,7 @@ class ReverseCardPurchase
 {
     public function __construct(
         private AuditRecorder $auditRecorder,
+        private ReviseFinancialHistory $reviseHistory,
         private RefreshCurrentInternalAlert $refreshAlert,
     ) {}
 
@@ -88,6 +89,7 @@ class ReverseCardPurchase
                 $advanceByInstallment = CardAdvanceAllocation::query()
                     ->whereBelongsTo($user)
                     ->whereIn('card_installment_id', $installments->pluck('id'))
+                    ->with('advance')
                     ->orderBy('id')
                     ->lockForUpdate()
                     ->get()
@@ -148,10 +150,18 @@ class ReverseCardPurchase
                     $this->auditRecorder->record($user, AuditAction::Updated, $installment, $before);
                 }
 
+                $affectedMonths = $installments
+                    ->map(fn (CardInstallment $installment): string => $installment->original_due_on->format('Y-m'))
+                    ->merge($advanceByInstallment->map(fn (CardAdvanceAllocation $allocation): string => $allocation->advance->advanced_on->format('Y-m')))
+                    ->unique()
+                    ->values()
+                    ->all();
+
                 $purchaseBefore = $purchase->attributesToArray();
                 $purchase->delete();
                 $this->auditRecorder->record($user, AuditAction::Deleted, $purchase, $purchaseBefore);
 
+                $this->reviseHistory->handle($user, $affectedMonths);
                 $this->refreshAlert->handle($user);
 
                 return $reversal->setRelation('credit', $credit);
