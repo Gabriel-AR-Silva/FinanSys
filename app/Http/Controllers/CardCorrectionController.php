@@ -27,7 +27,7 @@ class CardCorrectionController extends Controller
 
         $purchases = CardPurchase::query()
             ->whereBelongsTo($user)
-            ->with(['creditCard:id,name', 'installments:id,card_purchase_id,gross_amount,paid_amount,status,due_on,original_due_on'])
+            ->with('creditCard:id,name')
             ->latest('purchased_on')
             ->latest('id')
             ->get()
@@ -38,10 +38,6 @@ class CardCorrectionController extends Controller
                 'description' => $purchase->description,
                 'gross_amount' => $purchase->gross_amount,
                 'purchased_on' => $purchase->purchased_on->toDateString(),
-                'paid_amount' => (string) $purchase->installments->reduce(
-                    fn (BigDecimal $total, CardInstallment $installment): BigDecimal => $total->plus($installment->paid_amount),
-                    BigDecimal::zero(),
-                ),
             ]);
 
         $credits = CardCredit::query()
