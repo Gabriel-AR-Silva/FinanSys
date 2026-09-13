@@ -8,10 +8,13 @@ use App\Models\CardAdvance;
 use App\Models\CardAdvanceAllocation;
 use App\Models\CardCharge;
 use App\Models\CardChargePaymentAllocation;
+use App\Models\CardCredit;
+use App\Models\CardCreditAllocation;
 use App\Models\CardInstallment;
 use App\Models\CardPayment;
 use App\Models\CardPaymentAllocation;
 use App\Models\CardPurchase;
+use App\Models\CardPurchaseReversal;
 use App\Models\Category;
 use App\Models\CreditCard;
 use App\Models\EssentialBudget;
@@ -84,6 +87,9 @@ class AppServiceProvider extends ServiceProvider
             'card_charge_payment_allocation' => CardChargePaymentAllocation::class,
             'card_payment' => CardPayment::class,
             'card_payment_allocation' => CardPaymentAllocation::class,
+            'card_purchase_reversal' => CardPurchaseReversal::class,
+            'card_credit' => CardCredit::class,
+            'card_credit_allocation' => CardCreditAllocation::class,
         ]);
 
         Vite::prefetch(concurrency: 3);
