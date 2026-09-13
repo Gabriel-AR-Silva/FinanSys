@@ -104,7 +104,9 @@ class FinancialPlanningOverviewQuery
             ->concat(
                 CardAdvanceAllocation::query()
                     ->whereBelongsTo($user)
-                    ->whereHas('advance', fn ($query) => $query->whereBetween('advanced_on', [$now->startOfMonth()->toDateString(), $now->toDateString()]))
+                    ->whereHas('advance', fn ($query) => $query
+                        ->whereDate('advanced_on', '>=', $now->startOfMonth()->toDateString())
+                        ->whereDate('advanced_on', '<=', $now->toDateString()))
                     ->whereHas('installment.purchase')
                     ->with('installment.purchase')
                     ->get()

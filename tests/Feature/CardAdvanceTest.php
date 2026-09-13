@@ -44,7 +44,7 @@ class CardAdvanceTest extends TestCase
         $this->assertSame([CardInstallmentStatus::Advanced, CardInstallmentStatus::Advanced], $purchase->installments()->orderBy('id')->get()->pluck('status')->all());
         $this->assertSame(['0.00', '0.00'], $purchase->installments()->orderBy('id')->get()->pluck('paid_amount')->all());
         $this->assertSame(LedgerEntryType::CardAdvance, $first->ledgerEntry->type);
-        $this->assertSame('310.00', (string) app(AccountBalanceQuery::class)->forUser($user)->sole()->balance);
+        $this->assertEquals(310, app(AccountBalanceQuery::class)->forUser($user)->sole()->balance);
         $this->assertDatabaseCount('card_advances', 1);
         $this->assertDatabaseCount('card_advance_allocations', 2);
         $this->assertDatabaseCount('ledger_entries', 2);
