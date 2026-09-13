@@ -1,6 +1,6 @@
 # Handoff do desenvolvimento — FinanSys
 
-Atualizado em: 2026-09-12  
+Atualizado em: 2026-09-13  
 Branch de origem: `copilot_mod_v1`  
 Branch de continuidade: `codex/copilot-mod-v1-hardening`  
 Base original: `main@182c06003663067d8b2292fb83a67ff8dd76f29a`  
@@ -8,112 +8,93 @@ Commit do Copilot analisado: `f7c192bed83cdf7bbfaafdffb5094672e2f3c4c1`
 
 ## Objetivo deste arquivo
 
-Este é o ponto único de continuidade para o próximo Codex. Ele substitui o diário `Modification_copilot.md`, que misturava etapas concluídas, observações intermediárias e pendências já superadas. Antes de continuar, leia também `AGENTS.md`, `.ai/rules/index.md` e os contratos financeiros aplicáveis.
+Este é o ponto único de continuidade para o próximo agente de desenvolvimento. Antes de continuar, leia também `AGENTS.md`, `.ai/rules/index.md`, `FINANCIAL_PLANNING_CONTRACT.md` e `FINANCIAL_PLANNING_STAGES.md`.
 
-## O que o Copilot entregou
+A ordem de autoridade é: contrato/regras aprovadas, código e migrations atuais, testes/evidências, instruções dos agentes e, por fim, este handoff. Este arquivo registra continuidade; não substitui o contrato.
 
-O commit `f7c192b` expandiu o FinanSys de um ledger financeiro básico para um primeiro domínio de planejamento financeiro. A entrega inclui:
+## Base funcional recebida do Copilot
 
-- configurações financeiras mensais, proteção de renda e orçamentos essenciais;
-- previsões de recebimento, recorrência, liquidação parcial, excedente informativo, desvínculo e revínculo explícito;
-- cartões de crédito, compras parceladas, parcelas, pagamentos e alocação determinística;
+O commit `f7c192b` expandiu o FinanSys de um ledger financeiro básico para o primeiro domínio de planejamento financeiro, incluindo:
+
+- configuração financeira mensal, proteção e essenciais;
+- previsões de recebimento com recorrência, parcial, residual, excedente, cancelamento e vínculo explícito;
+- cartões, compras parceladas, parcelas e pagamentos;
 - reembolsos ligados à despesa original;
-- cálculo das visões atual e projetada;
-- fechamento financeiro diário, reconstrução de lacunas, revisões e proveniência;
+- visões atual e projetada;
+- fechamento diário, reconstrução, revisões e proveniência;
 - alertas financeiros internos deduplicados;
-- novas telas Inertia para configurações, previsões, cartões, avaliações e alertas;
-- migrations, factories, Actions, Queries e testes para essas áreas;
-- contratos `FINANCIAL_PLANNING_CONTRACT.md`, `FINANCIAL_PLANNING_REVIEW.md` e `FINANCIAL_PLANNING_STAGES.md`.
+- telas Inertia para configuração, previsões, cartões, avaliações e alertas;
+- contratos P1–P6 que definem o fechamento da publicação.
 
 WhatsApp e importação OFX permanecem intencionalmente fora desta publicação.
 
-## Revisão realizada pelo Codex
-
-A revisão comparou `copilot_mod_v1` com `main`, inspecionou contratos, migrations, Actions, Queries, modelos, rotas, testes e artefatos de produção. A branch do Copilot foi preservada sem alterações; todo o trabalho posterior ficou na branch `codex/copilot-mod-v1-hardening`.
-
-### Correções aplicadas
+## Hardening realizado na branch Codex
 
 1. **Fronteira mensal no fuso da aplicação**
 
-   `FinancialPlanningOverviewQuery` convertia o início e o fim do mês de Brasília para UTC antes de consultar timestamps armazenados no padrão da aplicação. Isso excluía registros das primeiras três horas do primeiro dia e podia incluir registros das primeiras três horas do mês seguinte. A consulta agora mantém as fronteiras em `America/Sao_Paulo`, com teste cobrindo exatamente o primeiro e o último instante do mês.
+   `FinancialPlanningOverviewQuery` passou a manter as fronteiras mensais no fuso configurado em vez de deslocar indevidamente o começo/fim do mês.
 
-2. **Alertas imediatos após compras no cartão**
+2. **Alertas sincronizados com mutações financeiras relevantes**
 
-   Criar uma compra parcelada altera a projeção financeira. `CreateCardPurchase` agora recalcula os alertas depois de persistir e auditar a compra e suas parcelas. Replay idempotente continua retornando antes do recálculo.
+   Compra parcelada, pagamento de cartão, previsões, vínculos, reembolsos, estornos manuais e exclusões/restaurações cobertas atualizam os alertas no mesmo fluxo transacional aplicável. Replay idempotente não repete efeito.
 
-3. **Alertas imediatos após pagamento de cartão**
+3. **Reativação correta de alertas recuperados**
 
-   Pagar parcelas altera o realizado financeiro. `PayCreditCard` agora recalcula os alertas somente depois da criação completa do pagamento, lançamento, alocações e auditorias, dentro da mesma operação transacional. Replay não repete o efeito.
+   Reincidência adversa limpa `recovered_at`, preservando pior situação e déficit já observado.
 
-4. **Reativação correta de alerta recuperado**
+4. **Encargos de cartão entregues**
 
-   Um alerta recuperado mantinha `recovered_at` quando voltava a uma situação adversa. Isso fazia um alerta ativo continuar parecendo recuperado nos filtros. `UpdateInternalAlert` agora limpa `recovered_at` na reincidência, preservando `worst_situation` e `deficit_seen`.
+   Juros/multas confirmados são obrigações próprias, entram no planejamento sem duplicar principal e só são liquidados quando explicitamente selecionados. O fluxo possui controller/request/UI e integração com pagamento.
 
-5. **CI e gate de build**
+5. **Seleção de encargos endurecida**
 
-   Foi criado `.github/workflows/ci.yml` com PHP 8.4, Node.js 22, Composer, PHPUnit, Pint, build Vite, validação dos arquivos citados pelo manifest e upload do build como artefato.
+   Commit `b95ce50` adicionou regressões para encargo pertencente a outro cartão do mesmo usuário e seleção duplicada. Ambos abortam sem pagamento, alocação ou movimento parcial. Encargo de outro usuário já possuía cobertura.
 
-6. **Artefatos de produção restaurados**
+6. **CI e artefatos de frontend**
 
-   A branch do Copilot continha um `public/build/manifest.json` novo, mas quase todos os bundles referenciados estavam ausentes. O build produzido pelo CI foi baixado, validado e publicado: 44 arquivos em `public/build`. A regra `/public/build` saiu do `.gitignore` porque o fluxo atual de hospedagem depende de artefatos compilados versionados; novos hashes agora aparecem no Git em vez de serem silenciosamente ignorados.
+   `.github/workflows/ci.yml` executa Composer, Pint, PHPUnit, npm, build Vite, validação do manifest e upload de `public/build`. O build versionado foi restaurado porque o fluxo atual de hospedagem depende desses artefatos.
 
-7. **Alertas sincronizados com mutações de planejamento**
+7. **Concorrência transferência x estrutura parcialmente endurecida**
 
-   Criação, edição e cancelamento de previsões, vínculo de recebimentos, exclusão/restauração manual e cascatas de conta ou caixinha agora atualizam os alertas na mesma operação. Replay e edição sem alteração retornam antes do recálculo; cascatas formadas apenas por transferências continuam semanticamente neutras.
+   `TransferFunds` agora adquire `lockForUpdate()` no usuário antes de reler idempotência, bloquear referências, calcular saldo e gravar as duas pernas. `DeleteAccount` e `DeletePocket` já usam o mesmo lock. `RestoreAccount` também passou a bloquear o usuário e a restaurar relações bloqueadas em ordem determinística.
 
-8. **Roteiro de etapas consolidado**
+   Isso reduz a janela de corrida identificada pelo Nexo, mas **não fecha o gate de concorrência**: `RestorePocket` ainda não segue o mesmo protocolo completo e SQLite não comprova comportamento de locks/deadlocks do banco de produção.
 
-   `FINANCIAL_PLANNING_STAGES.md` deixou de funcionar como diário histórico e agora mostra o estado real de E0–E7, separando claramente o que foi entregue do que ainda bloqueia o contrato.
+8. **README sincronizado**
 
-### Testes adicionados
+   `README.md` deixou de afirmar que categorias e fluxo HTTP de transferências não existem. Agora descreve o estado real, os limites do CI e aponta para contrato/handoff.
 
-- fronteiras do mês respeitam o fuso configurado da aplicação;
-- compra parcelada cria/atualiza alerta projetado sem gerar snapshot;
-- pagamento do cartão atualiza alerta atual sem gerar snapshot;
-- alerta recuperado volta ao estado ativo quando a situação piora novamente.
-- ciclo criar/editar/cancelar previsão atualiza o alerta projetado;
-- vínculo com recebimento excedente evita dupla contagem na projeção;
-- exclusão/restauração manual e cascatas de conta/caixinha atualizam o alerta atual.
+9. **Roteiro de etapas corrigido**
 
-## Evidência de validação
+   `FINANCIAL_PLANNING_STAGES.md` agora reconhece encargos como entregues, registra o hardening de concorrência já feito e consolida a política P5 de preservar histórico/auditoria sem exclusão automática nesta publicação.
 
-A execução inicial do workflow **FinanSys CI** concluiu com sucesso no GitHub Actions:
+## Evidência recente
 
-- Composer instalado;
-- Pint aprovado;
-- suíte PHPUnit aprovada;
-- dependências frontend instaladas;
-- build Vite aprovado;
-- manifest e arquivos gerados consistentes;
-- artefato `finansys-public-build` produzido.
+Workflow **FinanSys CI** run #35, commit `057466afb1b9b4c61979586a56210deac5339147`, concluiu com sucesso em 2026-09-13 após a limpeza dos scaffolds experimentais: Pint, PHPUnit, frontend/build e validação do manifest passaram.
 
-Execução de referência: <https://github.com/Gabriel-AR-Silva/FinanSys/actions/runs/34701239413>.
-
-Incremento de alertas validado em <https://github.com/Gabriel-AR-Silva/FinanSys/actions/runs/34702296003>: 346 testes e 1.873 assertions, Pint, build Vite e validação do manifest aprovados.
+O commit documental seguinte deve manter o mesmo gate verde antes de qualquer merge.
 
 ## Pendências reais
 
-Estas pendências não devem ser confundidas com funcionalidades já entregues:
+Não confundir com itens já entregues:
 
-1. Completar o contrato de cartões: encargos, antecipação com desconto, estorno de compra e crédito explicitamente aplicado a outra fatura.
-2. Validar concorrência no mesmo banco usado em produção. SQLite comprova regras e atomicidade básica, mas não reproduz locks e deadlocks de MySQL/PostgreSQL.
-3. Revisar corrida entre transferência e exclusão/restauração de conta ou caixinha. As consultas atuais não bloqueiam todas as relações desde o início da operação.
-4. Atualizar o `README.md`, que ainda afirma que categorias e fluxo HTTP de transferências não existem.
-5. Fazer aceite visual no Microsoft Edge, desktop e mobile, principalmente nas novas páginas e modais.
-6. Configurar proteção da branch `main` no GitHub. Não há ruleset nem status check obrigatório; isso não é resolvido apenas por código.
-7. Planejar a migration de produção com backup e janela de recuperação. As novas tabelas são numerosas e carregam invariantes financeiras.
-8. Definir política contábil final para a data de estornos. Atualmente o estorno preserva `occurred_at` da operação original, alterando retroativamente relatórios do período original.
+1. **E3 — completar cartões:** antecipação de parcelas com desconto proporcional e distribuição determinística dos centavos; estorno de compra separando pendente de parte já paga; crédito do cartão e sua aplicação a outra obrigação somente por associação explícita; contratos HTTP, UI e testes desses fluxos.
+2. **Concorrência real:** alinhar `RestorePocket` ao lock de usuário e executar cenários concorrentes no mesmo mecanismo de banco adotado em produção. SQLite não é evidência suficiente.
+3. **E5:** reexecutar a jornada contratual integrada após o fechamento de E3 e revisar isolamento transversal dos consumidores.
+4. **Aceite visual:** Microsoft Edge desktop/mobile real, incluindo teclado, foco, zoom, valores longos, modais, previsões, cartões, histórico e alertas.
+5. **Deploy:** ensaiar migrations no banco compatível com produção, backup/retorno, preservação da `APP_KEY`, OAuth, HTTPS, filas, scheduler e smoke test.
+6. **Política contábil de estorno:** registrar decisão final de competência/data antes de liberar o novo estorno de compra.
+7. **Proteção da branch:** configuração administrativa continua externa ao código e deve exigir CI verde antes do merge.
 
-## Ordem recomendada para continuar
+## Ordem recomendada para concluir
 
-1. Confirmar CI verde no último commit.
-2. Revisar o diff `copilot_mod_v1...codex/copilot-mod-v1-hardening`.
-3. Implementar o ciclo restante de cartões em incrementos contratuais pequenos.
-4. Executar testes de concorrência no banco de produção escolhido.
-5. Realizar aceite visual das novas telas.
-6. Atualizar README e checklist de implantação.
-7. Abrir PR para `develop` ou `main`; não fazer push direto na `main`.
-8. Antes do deploy: backup, configuração segura do `.env`, preservação de `APP_KEY`, migrations, filas/agendador e verificação do build publicado.
+1. Fechar E3 em três incrementos verificáveis: antecipação; estorno; crédito explícito.
+2. Integrar os novos fatos em E5/alertas sem dupla contagem.
+3. Completar o protocolo de lock de `RestorePocket` e testar concorrência no banco escolhido para produção.
+4. Rodar suíte completa, Pint, build e revisão do diff.
+5. Fazer aceite visual Edge desktop/mobile.
+6. Ensaiar migration/deploy e executar smoke test.
+7. Só então abrir/mesclar PR para a branch de integração; não fazer push direto na `main`.
 
 ## Comandos de verificação local
 
@@ -127,7 +108,7 @@ php artisan test --compact
 npm run build
 ```
 
-Após `npm run build`, confirme que todos os arquivos de `public/build` estão incluídos no commit de entrega.
+Após `npm run build`, confirmar que os arquivos citados pelo `public/build/manifest.json` existem e que os artefatos necessários ao deploy estão versionados conforme o fluxo atual.
 
 ## Regras que não devem ser quebradas
 
@@ -135,7 +116,9 @@ Após `npm run build`, confirme que todos os arquivos de `public/build` estão i
 - todo dado financeiro permanece isolado por `user_id`;
 - operação mutável usa idempotência e rejeita a mesma chave com parâmetros diferentes;
 - escrita financeira, auditoria e efeitos internos obrigatórios permanecem atômicos;
+- transferência interna não vira receita ou despesa de planejamento;
 - previsão aceita vários recebimentos, mas uma receita real pertence integralmente a no máximo uma previsão ativa;
 - reembolso antigo afeta patrimônio, não renda sustentável do mês;
 - avaliações reconstruídas não fingem ter sido apresentadas ao usuário;
+- crédito de cartão não é renda nem caixa;
 - WhatsApp e OFX não bloqueiam a publicação atual.
