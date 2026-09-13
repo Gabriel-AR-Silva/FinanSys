@@ -78,7 +78,7 @@ WhatsApp e importação OFX permanecem intencionalmente fora desta publicação.
 
 ## Evidência recente
 
-Workflow **FinanSys CI** run #46, commit `35bd238b6c656f86e3e631344cc430bbe9e7b7c7`, concluiu com sucesso em 2026-09-13: Pint, 375 testes PHPUnit com 2.019 asserções, frontend/build e validação do manifest passaram. O run inclui as regressões de purge da antecipação e contraparte excluída na restauração de caixinha.
+Workflow **FinanSys CI** run #47, commit `b97a6e26ab321dcb1d2bad8f7dfe6ca8b46c00a3`, concluiu com sucesso em 2026-09-13: Pint, 378 testes PHPUnit com 2.049 asserções, frontend/build e validação do manifest passaram. O run inclui as regressões de purge e restauração, além de auditoria, rollback, validação HTTP e conflito entre antecipação retroativa e pagamento posterior.
 
 O commit documental seguinte deve manter o mesmo gate verde antes de qualquer merge.
 
