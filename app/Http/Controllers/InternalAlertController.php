@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Queries\InternalAlertQuery;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,8 +28,15 @@ class InternalAlertController extends Controller
             throw ValidationException::withMessages(['from' => 'O início não pode ser posterior ao fim.']);
         }
 
+        $schemaReady = Schema::hasTable('internal_alerts');
+
         return Inertia::render('InternalAlerts/Index', [
-            'alerts' => $alerts->paginate($request->user(), $data['view'] ?? 'current', $from, $to, $data['status'] ?? null, (bool) ($data['deficit_only'] ?? false)),
+            'alerts' => $schemaReady
+                ? $alerts->paginate($request->user(), $data['view'] ?? 'current', $from, $to, $data['status'] ?? null, (bool) ($data['deficit_only'] ?? false))
+                : $this->emptyPagination(),
+            'schemaWarning' => $schemaReady
+                ? null
+                : 'Os avisos financeiros ainda não foram sincronizados neste ambiente. Execute as migrations pendentes antes de validar este módulo.',
             'filters' => [
                 'view' => $data['view'] ?? 'current',
                 'from' => $from->toDateString(),
@@ -37,5 +45,19 @@ class InternalAlertController extends Controller
                 'deficit_only' => (bool) ($data['deficit_only'] ?? false),
             ],
         ]);
+    }
+
+    /** @return array{data:array<never>,current_page:int,last_page:int,per_page:int,total:int,prev_page_url:null,next_page_url:null} */
+    private function emptyPagination(): array
+    {
+        return [
+            'data' => [],
+            'current_page' => 1,
+            'last_page' => 1,
+            'per_page' => 20,
+            'total' => 0,
+            'prev_page_url' => null,
+            'next_page_url' => null,
+        ];
     }
 }
