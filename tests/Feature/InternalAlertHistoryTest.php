@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Actions\UpdateInternalAlert;
+use App\Models\FinancialEvaluation;
 use App\Models\InternalAlert;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,5 +62,21 @@ class InternalAlertHistoryTest extends TestCase
                 ->where('alerts.data', [])
                 ->where('alerts.current_page', 1)
                 ->where('schemaWarning', 'Os avisos financeiros ainda não foram sincronizados neste ambiente. Execute as migrations pendentes antes de validar este módulo.'));
+    }
+
+    public function test_alert_update_is_a_safe_noop_when_alert_migration_is_pending(): void
+    {
+        $user = User::factory()->create();
+        Schema::drop('internal_alerts');
+        $evaluation = new FinancialEvaluation([
+            'user_id' => $user->id,
+            'evaluation_date' => '2026-09-13',
+            'view' => 'current',
+            'source' => 'recorded',
+            'evaluated_at' => now(),
+            'result' => ['situation' => 'outside_plan', 'deficit' => '10.00'],
+        ]);
+
+        $this->assertNull(app(UpdateInternalAlert::class)->handle($user, $evaluation));
     }
 }
