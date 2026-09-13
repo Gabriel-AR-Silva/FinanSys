@@ -70,7 +70,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('lancamentos', LedgerEntryController::class)
         ->parameters(['lancamentos' => 'ledgerEntry'])
         ->only(['index', 'store', 'destroy'])
-        ->names('accounts');
+        ->names('ledger-entries');
     Route::resource('categorias', CategoryController::class)
         ->parameters(['categorias' => 'category'])
         ->only(['index', 'store', 'update'])
