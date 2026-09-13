@@ -3,8 +3,10 @@
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\CardAdvanceController;
 use App\Http\Controllers\CardChargeController;
+use App\Http\Controllers\CardCreditAllocationController;
 use App\Http\Controllers\CardPaymentController;
 use App\Http\Controllers\CardPurchaseController;
+use App\Http\Controllers\CardPurchaseReversalController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CreditCardController;
 use App\Http\Controllers\DashboardController;
@@ -39,6 +41,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/cartoes', [CreditCardController::class, 'index'])->name('credit-cards.index');
     Route::post('/cartoes', [CreditCardController::class, 'store'])->name('credit-cards.store');
     Route::post('/cartoes/compras', [CardPurchaseController::class, 'store'])->name('card-purchases.store');
+    Route::post('/cartoes/compras/estornos', [CardPurchaseReversalController::class, 'store'])->name('card-purchase-reversals.store');
+    Route::post('/cartoes/creditos/aplicacoes', [CardCreditAllocationController::class, 'store'])->name('card-credit-allocations.store');
     Route::post('/cartoes/encargos', [CardChargeController::class, 'store'])->name('card-charges.store');
     Route::post('/cartoes/pagamentos', [CardPaymentController::class, 'store'])->name('card-payments.store');
     Route::post('/cartoes/antecipacoes', [CardAdvanceController::class, 'store'])->name('card-advances.store');
@@ -66,7 +70,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('lancamentos', LedgerEntryController::class)
         ->parameters(['lancamentos' => 'ledgerEntry'])
         ->only(['index', 'store', 'destroy'])
-        ->names('ledger-entries');
+        ->names('accounts');
     Route::resource('categorias', CategoryController::class)
         ->parameters(['categorias' => 'category'])
         ->only(['index', 'store', 'update'])
