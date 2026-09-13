@@ -7,12 +7,13 @@ use App\Models\InternalAlert;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class UpdateInternalAlert
 {
     public function handle(User $user, FinancialEvaluation $evaluation): ?InternalAlert
     {
-        if ($evaluation->source === 'reconstructed') {
+        if ($evaluation->source === 'reconstructed' || ! Schema::hasTable('internal_alerts')) {
             return null;
         }
 
