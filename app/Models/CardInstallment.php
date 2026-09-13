@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['user_id', 'card_purchase_id', 'installment_number', 'gross_amount', 'paid_amount', 'reversed_amount', 'due_on', 'original_due_on', 'status'])]
+#[Fillable(['user_id', 'card_purchase_id', 'installment_number', 'gross_amount', 'paid_amount', 'due_on', 'original_due_on', 'status'])]
 class CardInstallment extends Model
 {
     /** @use HasFactory<CardInstallmentFactory> */
@@ -18,15 +18,7 @@ class CardInstallment extends Model
 
     protected function casts(): array
     {
-        return [
-            'installment_number' => 'integer',
-            'gross_amount' => 'decimal:2',
-            'paid_amount' => 'decimal:2',
-            'reversed_amount' => 'decimal:2',
-            'due_on' => 'immutable_date',
-            'original_due_on' => 'immutable_date',
-            'status' => CardInstallmentStatus::class,
-        ];
+        return ['installment_number' => 'integer', 'gross_amount' => 'decimal:2', 'paid_amount' => 'decimal:2', 'due_on' => 'immutable_date', 'original_due_on' => 'immutable_date', 'status' => CardInstallmentStatus::class];
     }
 
     public function user(): BelongsTo
@@ -42,10 +34,5 @@ class CardInstallment extends Model
     public function allocations(): HasMany
     {
         return $this->hasMany(CardPaymentAllocation::class);
-    }
-
-    public function advanceAllocations(): HasMany
-    {
-        return $this->hasMany(CardAdvanceAllocation::class);
     }
 }
