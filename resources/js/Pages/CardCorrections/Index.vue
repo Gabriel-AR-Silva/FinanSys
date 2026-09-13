@@ -1,7 +1,8 @@
 <script setup>
+import HelpTooltip from '@/Components/HelpTooltip.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, CircleDollarSign, Info, RotateCcw } from '@lucide/vue';
+import { ArrowLeft, CircleDollarSign, RotateCcw } from '@lucide/vue';
 import { computed, watch } from 'vue';
 
 const props = defineProps({
@@ -80,15 +81,25 @@ const submitAllocation = () => {
         <div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
             <header class="flex flex-col gap-3">
                 <Link :href="route('credit-cards.index')" class="inline-flex items-center gap-2 self-start text-sm font-medium text-emerald-700"><ArrowLeft :size="16" />Voltar aos cartões</Link>
-                <div>
+                <div class="flex items-start justify-between gap-4">
                     <h1 class="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Correções de cartão</h1>
-                    <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-500">Estorne compras e use créditos de forma explícita. Crédito de cartão reduz obrigações do cartão, mas não vira renda nem entrada na conta.</p>
+                    <HelpTooltip label="Entender correções de cartão">
+                        Estorne compras e use créditos de forma explícita. Crédito de cartão reduz obrigações do cartão, mas não vira renda nem entrada na conta.
+                    </HelpTooltip>
                 </div>
             </header>
 
             <div class="grid gap-5 lg:grid-cols-2">
                 <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="flex items-start gap-3"><span class="rounded-xl bg-rose-50 p-2 text-rose-700"><RotateCcw :size="19" /></span><div><h2 class="font-semibold text-slate-950">Estornar compra</h2><p class="mt-1 text-sm leading-5 text-slate-500">A parte pendente é cancelada. Valores efetivamente pagos viram crédito do cartão.</p></div></div>
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex min-w-0 items-center gap-3">
+                            <span class="rounded-xl bg-rose-50 p-2 text-rose-700"><RotateCcw :size="19" /></span>
+                            <h2 class="font-semibold text-slate-950">Estornar compra</h2>
+                        </div>
+                        <HelpTooltip label="Entender estorno de compra">
+                            A parte pendente é cancelada. Valores efetivamente pagos viram crédito do cartão.
+                        </HelpTooltip>
+                    </div>
                     <form class="mt-5 flex flex-col gap-4" @submit.prevent="submitReversal">
                         <div>
                             <label for="reversal-purchase" class="text-sm font-medium text-slate-700">Compra</label>
@@ -110,10 +121,14 @@ const submitAllocation = () => {
                 </section>
 
                 <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="flex items-start gap-3"><span class="rounded-xl bg-emerald-50 p-2 text-emerald-700"><CircleDollarSign :size="19" /></span><div><h2 class="font-semibold text-slate-950">Aplicar crédito</h2><p class="mt-1 text-sm leading-5 text-slate-500">Escolha exatamente qual obrigação será abatida. Nenhuma aplicação acontece automaticamente.</p></div></div>
-                    <div class="mt-4 flex gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-950">
-                        <Info :size="16" class="mt-0.5 shrink-0" aria-hidden="true" />
-                        <p><strong>De onde vem o crédito?</strong> Ele é gerado por um estorno elegível quando já existe valor efetivamente pago naquela compra. Não existe cadastro manual de crédito, e ele não é renda nem saldo da conta.</p>
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex min-w-0 items-center gap-3">
+                            <span class="rounded-xl bg-emerald-50 p-2 text-emerald-700"><CircleDollarSign :size="19" /></span>
+                            <h2 class="font-semibold text-slate-950">Aplicar crédito</h2>
+                        </div>
+                        <HelpTooltip label="Entender aplicação de crédito">
+                            <strong>Como funciona:</strong> escolha exatamente qual obrigação será abatida; nenhuma aplicação acontece automaticamente. O crédito nasce de um estorno elegível quando já existe valor efetivamente pago naquela compra. Não existe cadastro manual de crédito, e ele não é renda nem saldo da conta.
+                        </HelpTooltip>
                     </div>
                     <form class="mt-5 flex flex-col gap-4" @submit.prevent="submitAllocation">
                         <div>
