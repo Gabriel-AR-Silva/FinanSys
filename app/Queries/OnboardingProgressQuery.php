@@ -35,7 +35,7 @@ class OnboardingProgressQuery
             ->where('planning_type', ExpensePlanningType::Fixed)->whereNull('reversal_of_operation_id')->exists();
         $hasPlanning = MonthlyFinancialSetting::query()->whereBelongsTo($user)->where('month', $month)->exists();
         $hasEssentials = EssentialBudget::query()->whereBelongsTo($user)
-            ->whereHas('settings', fn ($query) => $query->where('month', $month))->exists();
+            ->whereHas('monthlyFinancialSetting', fn ($query) => $query->where('month', $month))->exists();
         $hasCard = CreditCard::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->exists();
 
         $essentialSteps = [
@@ -84,7 +84,7 @@ class OnboardingProgressQuery
                 'Cartão de crédito',
                 $hasCard ? 'Ao menos um cartão está pronto para registrar compras.' : 'Opcional: cadastre somente se você realmente usa cartão.',
                 $hasCard,
-                $hasCard ? null : ['label' => 'Cadastrar cartão', 'href' => route('credit-cards.index', ['create' => 'card', 'from' => 'onboarding'])],
+                $hasCard ? null : ['label' => 'Acessar cartões', 'href' => route('credit-cards.index', ['from' => 'onboarding'])],
             ),
         ];
         $allSteps = [...$essentialSteps, ...$recommendedSteps];
