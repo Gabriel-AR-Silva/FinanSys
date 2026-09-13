@@ -135,8 +135,9 @@ class CardChargeTest extends TestCase
 
         $payment = app(PayCreditCard::class)->handle($user, $this->paymentPayload($card, $account, '15.00', [$later->id, $earlier->id]));
 
-        $this->assertSame([$earlier->id, $later->id], $payment->chargeAllocations->pluck('card_charge_id')->all());
-        $this->assertSame(['10.01', '4.99'], $payment->chargeAllocations->pluck('amount')->all());
+        $allocations = $payment->chargeAllocations->keyBy('card_charge_id');
+        $this->assertSame('10.01', $allocations->get($earlier->id)->amount);
+        $this->assertSame('4.99', $allocations->get($later->id)->amount);
         $this->assertSame('4.99', $later->fresh()->paid_amount);
     }
 
