@@ -49,6 +49,18 @@ class CardAdvanceTest extends TestCase
         $this->assertDatabaseCount('card_advance_allocations', 2);
         $this->assertDatabaseCount('ledger_entries', 2);
         $this->assertDatabaseMissing('ledger_entries', ['type' => LedgerEntryType::Expense->value]);
+
+        try {
+            app(AdvanceCardInstallments::class)->handle($user, [...$payload,
+                'installment_ids' => [$payload['installment_ids'][0]],
+                'expected_gross_amount' => '100.00',
+            ]);
+            $this->fail('O replay com outra seleção deveria ser rejeitado.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('operation_id', $exception->errors());
+        }
+        $this->assertDatabaseCount('card_advances', 1);
+        $this->assertDatabaseCount('ledger_entries', 2);
     }
 
     public function test_full_discount_releases_the_obligation_without_artificial_cash_entry(): void
@@ -138,6 +150,41 @@ class CardAdvanceTest extends TestCase
         $this->assertDatabaseHas('card_advances', [
             'user_id' => $user->id, 'gross_amount' => 200, 'discount_amount' => 10, 'net_amount' => 190,
         ]);
+    }
+
+    public function test_rejects_current_month_cross_card_and_insufficient_balance_without_partial_writes(): void
+    {
+        [$user, $card, $category, $account] = $this->context();
+        $future = $this->purchase($user, $card, $category)->installments->first();
+        $current = app(CreateCardPurchase::class)->handle($user, [
+            'credit_card_id' => $card->id, 'category_id' => $category->id, 'description' => 'Compra atual',
+            'planning_type' => ExpensePlanningType::Ordinary->value, 'gross_amount' => '100.00',
+            'purchased_on' => '2026-09-01', 'installments_count' => 1, 'first_due_on' => '2026-09-20',
+            'operation_id' => (string) Str::uuid(),
+        ])->installments->first();
+        $otherCard = CreditCard::factory()->for($user)->create();
+        $otherCardInstallment = $this->purchase($user, $otherCard, $category)->installments->first();
+        LedgerEntry::query()->whereBelongsTo($user)->where('type', LedgerEntryType::OpeningBalance)->update(['amount' => '50.00']);
+
+        foreach ([
+            $this->payload($card, $account, [$current->id], ['expected_gross_amount' => '100.00', 'discount_amount' => '0.00']),
+            $this->payload($card, $account, [$otherCardInstallment->id], ['expected_gross_amount' => '100.00', 'discount_amount' => '0.00']),
+            $this->payload($card, $account, [$future->id], ['expected_gross_amount' => '100.00', 'discount_amount' => '0.00']),
+        ] as $payload) {
+            try {
+                app(AdvanceCardInstallments::class)->handle($user, $payload);
+                $this->fail('A antecipação inválida deveria ser rejeitada.');
+            } catch (ValidationException $exception) {
+                $this->assertNotEmpty($exception->errors());
+            }
+        }
+
+        $this->assertDatabaseCount('card_advances', 0);
+        $this->assertDatabaseCount('card_advance_allocations', 0);
+        $this->assertDatabaseCount('ledger_entries', 1);
+        $this->assertSame(CardInstallmentStatus::Pending, $future->fresh()->status);
+        $this->assertSame(CardInstallmentStatus::Pending, $current->fresh()->status);
+        $this->assertSame(CardInstallmentStatus::Pending, $otherCardInstallment->fresh()->status);
     }
 
     /** @return array{User,CreditCard,Category,Account} */
