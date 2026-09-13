@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\CardAdvanceController;
 use App\Http\Controllers\CardChargeController;
+use App\Http\Controllers\CardCorrectionController;
 use App\Http\Controllers\CardCreditAllocationController;
 use App\Http\Controllers\CardPaymentController;
 use App\Http\Controllers\CardPurchaseController;
@@ -39,6 +40,7 @@ Route::get('/dashboard', DashboardController::class)
 
 Route::middleware('auth')->group(function () {
     Route::get('/cartoes', [CreditCardController::class, 'index'])->name('credit-cards.index');
+    Route::get('/cartoes/correcoes', [CardCorrectionController::class, 'index'])->name('card-corrections.index');
     Route::post('/cartoes', [CreditCardController::class, 'store'])->name('credit-cards.store');
     Route::post('/cartoes/compras', [CardPurchaseController::class, 'store'])->name('card-purchases.store');
     Route::post('/cartoes/compras/estornos', [CardPurchaseReversalController::class, 'store'])->name('card-purchase-reversals.store');
