@@ -47,7 +47,8 @@ class PayCreditCard
         }
         $operationId = strtolower($data['operation_id']);
         $rawChargeIds = $data['card_charge_ids'] ?? [];
-        if (! is_array($rawChargeIds) || collect($rawChargeIds)->contains(fn ($id): bool => filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false)
+        if (! is_array($rawChargeIds) || count($rawChargeIds) > 200
+            || collect($rawChargeIds)->contains(fn ($id): bool => filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false)
             || count($rawChargeIds) !== count(array_unique($rawChargeIds, SORT_REGULAR))) {
             throw ValidationException::withMessages(['card_charge_ids' => 'Selecione encargos válidos, sem repetição.']);
         }
@@ -79,6 +80,9 @@ class PayCreditCard
                     ->orderBy('due_on')->orderBy('id')->lockForUpdate()->get();
                 if ($charges->count() !== count($selectedChargeIds)) {
                     throw ValidationException::withMessages(['card_charge_ids' => 'Selecione apenas encargos pendentes e disponíveis neste fechamento.']);
+                }
+                if ($charges->contains(fn (CardCharge $charge): bool => $charge->charged_on->isAfter($paidOn))) {
+                    throw ValidationException::withMessages(['card_charge_ids' => 'Um encargo não pode ser pago antes da data em que foi cobrado.']);
                 }
                 $installments = CardInstallment::query()->whereBelongsTo($user)
                     ->where('status', CardInstallmentStatus::Pending)

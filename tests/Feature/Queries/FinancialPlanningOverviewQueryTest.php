@@ -184,6 +184,43 @@ class FinancialPlanningOverviewQueryTest extends TestCase
         $this->assertSame('15.00', $after['variable']['projected']);
     }
 
+    public function test_partial_invoice_plus_confirmed_charge_adds_only_the_charge_to_planning(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => 'expense']);
+        $card = CreditCard::factory()->for($user)->create();
+        MonthlyFinancialSetting::factory()->for($user)->create(['month' => '2026-09', 'protection_value' => '0']);
+        LedgerEntry::factory()->openingBalance()->for($user)->for($account, 'reference')->create(['amount' => '1000.00']);
+        app(CreateCardPurchase::class)->handle($user, [
+            'credit_card_id' => $card->id, 'category_id' => $category->id, 'description' => 'Fatura contratual',
+            'planning_type' => ExpensePlanningType::Extraordinary->value, 'gross_amount' => '500.00',
+            'purchased_on' => '2026-09-01', 'installments_count' => 1, 'first_due_on' => '2026-09-12',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+        app(PayCreditCard::class)->handle($user, [
+            'credit_card_id' => $card->id, 'source_account_id' => $account->id, 'amount' => '300.00',
+            'paid_on' => '2026-09-09', 'operation_id' => (string) Str::uuid(),
+        ]);
+        $beforeCharge = app(FinancialPlanningOverviewQuery::class)->forUser($user, CarbonImmutable::parse('2026-09-09', 'America/Sao_Paulo'));
+        app(CreateCardCharge::class)->handle($user, [
+            'credit_card_id' => $card->id, 'category_id' => $category->id, 'type' => 'interest',
+            'description' => 'Juros confirmados', 'planning_type' => ExpensePlanningType::Extraordinary->value,
+            'amount' => '15.00', 'charged_on' => '2026-09-09', 'due_on' => '2026-09-12',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+        $afterCharge = app(FinancialPlanningOverviewQuery::class)->forUser($user, CarbonImmutable::parse('2026-09-09', 'America/Sao_Paulo'));
+
+        $this->assertSame('300.00', $beforeCharge['variable']['realized']);
+        $this->assertSame('500.00', $beforeCharge['variable']['projected']);
+        $this->assertSame('300.00', $afterCharge['variable']['realized']);
+        $this->assertSame('515.00', $afterCharge['variable']['projected']);
+        $this->assertSame('500.00', $card->purchases()->firstOrFail()->installments()->sole()->gross_amount);
+        $this->assertSame('300.00', $card->purchases()->firstOrFail()->installments()->sole()->paid_amount);
+        $this->assertSame('15.00', $card->charges()->sole()->amount);
+        $this->assertDatabaseMissing('ledger_entries', ['type' => 'expense']);
+    }
+
     public function test_overdue_card_debt_keeps_its_opening_commitment_after_a_partial_payment(): void
     {
         $user = User::factory()->create();

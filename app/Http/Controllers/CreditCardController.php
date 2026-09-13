@@ -51,10 +51,11 @@ class CreditCardController extends Controller
                         'gross_amount' => $purchase->gross_amount, 'purchased_on' => $purchase->purchased_on->toDateString(),
                         'installments_count' => $purchase->installments_count, 'planning_type' => $purchase->planning_type->value,
                         'installments' => $purchase->installments->sortBy('installment_number')->values()->map(fn ($installment): array => [
-                            'number' => $installment->installment_number, 'gross_amount' => $installment->gross_amount,
+                            'id' => $installment->id, 'number' => $installment->installment_number, 'gross_amount' => $installment->gross_amount,
                             'paid_amount' => $installment->paid_amount, 'due_on' => $installment->due_on->toDateString(), 'status' => $installment->status->value,
                         ]),
                     ])->values(),
+                    'may_have_unconfirmed_charges' => $installments->contains(fn ($installment): bool => $installment->status->value === 'pending' && $installment->due_on->isBefore(now('America/Sao_Paulo')->startOfDay())),
                 ];
             });
 

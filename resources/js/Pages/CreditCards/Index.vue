@@ -26,6 +26,50 @@ const purchaseForm = useForm({ credit_card_id: selectedCardId.value, category_id
 const chargeForm = useForm({ credit_card_id: selectedCardId.value, category_id: '', type: 'interest', description: '', planning_type: 'extraordinary', amount: '0,00', charged_on: props.today, due_on: props.today, operation_id: crypto.randomUUID() });
 const paymentForm = useForm({ credit_card_id: selectedCardId.value, source_account_id: '', amount: '0,00', paid_on: props.today, card_charge_ids: [], operation_id: crypto.randomUUID() });
 
+const decimalToCents = (value) => {
+    const normalized = String(value ?? '0').replace(',', '.');
+    const [whole = '0', fraction = ''] = normalized.split('.');
+    return BigInt(whole || '0') * 100n + BigInt(fraction.padEnd(2, '0').slice(0, 2) || '0');
+};
+const centsToDecimal = (value) => `${value / 100n}.${String(value % 100n).padStart(2, '0')}`;
+const eligibleInstallments = computed(() => (paymentCard.value?.purchases ?? [])
+    .flatMap((purchase) => purchase.installments.map((installment) => ({ ...installment, description: purchase.description })))
+    .filter((installment) => installment.status === 'pending' && installment.due_on.slice(0, 7) <= paymentForm.paid_on.slice(0, 7))
+    .sort((left, right) => left.due_on.localeCompare(right.due_on) || left.id - right.id));
+const paymentPreview = computed(() => {
+    let remaining = decimalToCents(normalizeMoneyInput(paymentForm.amount));
+    const selectedIds = new Set(paymentForm.card_charge_ids.map(Number));
+    const charges = eligibleCharges.value.filter((charge) => selectedIds.has(charge.id))
+        .sort((left, right) => left.due_on.localeCompare(right.due_on) || left.id - right.id);
+    const items = [];
+
+    for (const charge of charges) {
+        if (remaining <= 0n) break;
+        const pending = decimalToCents(charge.pending_amount);
+        const allocated = remaining < pending ? remaining : pending;
+        items.push({ key: `charge-${charge.id}`, label: charge.description, kind: 'Encargo', due_on: charge.due_on, allocated: centsToDecimal(allocated), after: centsToDecimal(pending - allocated) });
+        remaining -= allocated;
+    }
+    for (const installment of eligibleInstallments.value) {
+        if (remaining <= 0n) break;
+        const pending = decimalToCents(installment.gross_amount) - decimalToCents(installment.paid_amount);
+        const allocated = remaining < pending ? remaining : pending;
+        items.push({ key: `installment-${installment.id}`, label: `${installment.description} · parcela ${installment.number}`, kind: 'Parcela', due_on: installment.due_on, allocated: centsToDecimal(allocated), after: centsToDecimal(pending - allocated) });
+        remaining -= allocated;
+    }
+
+    return { items, remainder: remaining, valid: decimalToCents(normalizeMoneyInput(paymentForm.amount)) > 0n && remaining === 0n };
+});
+const eligibleDebt = (card) => {
+    const month = paymentForm.paid_on.slice(0, 7);
+    const installmentDebt = card.purchases.flatMap((purchase) => purchase.installments)
+        .filter((installment) => installment.status === 'pending' && installment.due_on.slice(0, 7) <= month)
+        .reduce((total, installment) => total + decimalToCents(installment.gross_amount) - decimalToCents(installment.paid_amount), 0n);
+    const chargeDebt = card.charges.filter((charge) => charge.status === 'pending' && charge.due_on.slice(0, 7) <= month)
+        .reduce((total, charge) => total + decimalToCents(charge.pending_amount), 0n);
+    return centsToDecimal(installmentDebt + chargeDebt);
+};
+
 function open(kind, cardId = selectedCardId.value) {
     selectedCardId.value = cardId;
     if (kind === 'purchase') purchaseForm.credit_card_id = cardId;
@@ -109,6 +153,7 @@ const date = (value) => value.split('-').reverse().join('/');
                         <div class="min-w-0"><p class="truncate text-lg font-semibold">{{ card.name }}</p><p class="mt-1 text-xs text-slate-400">Fecha dia {{ card.closing_day }} · vence dia {{ card.due_day }}</p></div>
                         <div class="text-right"><p class="text-xs text-slate-400">Dívida pendente</p><p class="mt-1 text-lg font-semibold">R$ {{ formatMoneyInput(card.pending) }}</p></div>
                     </div>
+                    <p v-if="card.may_have_unconfirmed_charges" class="border-b border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">Há obrigação vencida. A operadora pode ter lançado juros ou multa ainda não informados; confira a fatura antes de pagar. Nenhum valor foi estimado.</p>
                     <div class="flex gap-2 border-b border-slate-100 p-3">
                         <button class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700" type="button" @click="open('purchase', card.id)">Nova compra</button>
                         <button class="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800" type="button" @click="open('charge', card.id)">Confirmar encargo</button>
@@ -169,12 +214,14 @@ const date = (value) => value.split('-').reverse().join('/');
 
         <Modal :show="modal === 'payment'" max-width="md" @close="close"><form class="flex flex-col gap-4 p-5 sm:p-6" @submit.prevent="submitPayment">
             <h2 class="text-xl font-semibold">Pagar fatura</h2><p class="text-sm text-slate-500">O pagamento baixa primeiro as parcelas vencidas e atuais mais antigas. Antecipação futura será um fluxo separado.</p>
-            <div><InputLabel for="payment-card" value="Cartão" /><select id="payment-card" v-model="paymentForm.credit_card_id" class="mt-2 w-full rounded-xl border-slate-300" @change="paymentForm.card_charge_ids = []"><option v-for="card in cards" :key="card.id" :value="card.id">{{ card.name }} · R$ {{ formatMoneyInput(card.pending) }}</option></select><InputError :message="paymentForm.errors.credit_card_id" /></div>
+            <div><InputLabel for="payment-card" value="Cartão" /><select id="payment-card" v-model="paymentForm.credit_card_id" class="mt-2 w-full rounded-xl border-slate-300" @change="paymentForm.card_charge_ids = []"><option v-for="card in cards" :key="card.id" :value="card.id">{{ card.name }} · elegível R$ {{ formatMoneyInput(eligibleDebt(card)) }}</option></select><p v-if="paymentCard" class="mt-1 text-xs text-slate-500">Dívida total, incluindo meses futuros: R$ {{ formatMoneyInput(paymentCard.pending) }}</p><InputError :message="paymentForm.errors.credit_card_id" /></div>
             <div><InputLabel for="payment-account" value="Conta de pagamento" /><select id="payment-account" v-model="paymentForm.source_account_id" required class="mt-2 w-full rounded-xl border-slate-300"><option disabled value="">Selecione</option><option v-for="account in accounts" :key="account.id" :value="account.id">{{ account.name }} · R$ {{ formatMoneyInput(account.balance) }}</option></select><InputError :message="paymentForm.errors.source_account_id" /></div>
             <div><InputLabel for="payment-value" value="Valor" /><TextInput id="payment-value" :model-value="paymentForm.amount" inputmode="decimal" required class="mt-2 w-full" @update:model-value="paymentForm.amount = sanitizeMoneyInput($event)" /><InputError :message="paymentForm.errors.amount" /></div>
-            <div v-if="eligibleCharges.length" class="rounded-xl border border-amber-200 bg-amber-50 p-3"><p class="text-sm font-semibold text-amber-950">Encargos a quitar primeiro</p><p class="mt-1 text-xs text-amber-800">A prioridade só será aplicada aos itens que você selecionar.</p><label v-for="charge in eligibleCharges" :key="charge.id" class="mt-3 flex cursor-pointer items-center gap-3 text-sm"><input v-model="paymentForm.card_charge_ids" type="checkbox" :value="charge.id" class="rounded border-amber-300 text-amber-700" /><span class="flex min-w-0 flex-1 justify-between gap-2"><span class="truncate">{{ charge.description }}</span><span class="shrink-0 font-semibold">R$ {{ formatMoneyInput(charge.pending_amount) }}</span></span></label><InputError :message="paymentForm.errors.card_charge_ids" /></div>
+            <div v-if="eligibleCharges.length" class="rounded-xl border border-amber-200 bg-amber-50 p-3"><p class="text-sm font-semibold text-amber-950">Encargos priorizados</p><p class="mt-1 text-xs text-amber-800">Somente os itens selecionados entram antes das parcelas; a prévia abaixo mostra quitação total ou parcial.</p><label v-for="charge in eligibleCharges" :key="charge.id" class="mt-3 flex cursor-pointer items-center gap-3 text-sm"><input v-model="paymentForm.card_charge_ids" type="checkbox" :value="charge.id" class="rounded border-amber-300 text-amber-700" /><span class="flex min-w-0 flex-1 justify-between gap-2"><span class="truncate">{{ charge.description }}</span><span class="shrink-0 font-semibold">R$ {{ formatMoneyInput(charge.pending_amount) }}</span></span></label><InputError :message="paymentForm.errors.card_charge_ids" /></div>
+            <div v-if="paymentPreview.items.length" class="rounded-xl border border-slate-200 bg-slate-50 p-3"><p class="text-sm font-semibold text-slate-900">Distribuição deste pagamento</p><div class="mt-2 divide-y divide-slate-200"><div v-for="item in paymentPreview.items" :key="item.key" class="flex items-start justify-between gap-3 py-2 text-xs"><span class="min-w-0"><span class="block truncate font-semibold text-slate-800">{{ item.label }}</span><span class="text-slate-500">{{ item.kind }} · vence {{ date(item.due_on) }} · saldo depois R$ {{ formatMoneyInput(item.after) }}</span></span><span class="shrink-0 font-semibold text-emerald-700">R$ {{ formatMoneyInput(item.allocated) }}</span></div></div></div>
+            <p v-if="paymentPreview.remainder > 0n" class="rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700">O valor excede em R$ {{ formatMoneyInput(centsToDecimal(paymentPreview.remainder)) }} as obrigações selecionadas e elegíveis.</p>
             <div><InputLabel for="paid-on" value="Data" /><TextInput id="paid-on" v-model="paymentForm.paid_on" type="date" :max="today" required class="mt-2 w-full" @update:model-value="paymentForm.card_charge_ids = []" /><InputError :message="paymentForm.errors.paid_on" /></div>
-            <InputError :message="paymentForm.errors.operation_id" /><div class="flex justify-end gap-2"><button type="button" class="rounded-xl border px-4 py-3 text-sm font-semibold" @click="close">Cancelar</button><button :disabled="paymentForm.processing" class="rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Confirmar pagamento</button></div>
+            <InputError :message="paymentForm.errors.operation_id" /><div class="flex justify-end gap-2"><button type="button" class="rounded-xl border px-4 py-3 text-sm font-semibold" @click="close">Cancelar</button><button :disabled="paymentForm.processing || !paymentPreview.valid" class="rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Confirmar pagamento</button></div>
         </form></Modal>
     </AuthenticatedLayout>
 </template>

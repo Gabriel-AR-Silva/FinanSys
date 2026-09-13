@@ -94,6 +94,76 @@ class CardChargeTest extends TestCase
         $this->assertSame('50.00', $purchase->installments()->sole()->paid_amount);
     }
 
+    public function test_charge_can_be_paid_partially_and_replay_does_not_duplicate_cash_or_allocations(): void
+    {
+        [$user, $card, $category] = $this->context();
+        $account = $this->fundedAccount($user);
+        $charge = app(CreateCardCharge::class)->handle($user, $this->chargePayload($card, $category));
+        $payload = $this->paymentPayload($card, $account, '10.01', [$charge->id]);
+
+        $first = app(PayCreditCard::class)->handle($user, $payload);
+        $replayed = app(PayCreditCard::class)->handle($user, $payload);
+
+        $this->assertSame($first->id, $replayed->id);
+        $this->assertSame('10.01', $charge->fresh()->paid_amount);
+        $this->assertSame(CardInstallmentStatus::Pending, $charge->fresh()->status);
+        $this->assertDatabaseCount('card_payments', 1);
+        $this->assertDatabaseCount('card_charge_payment_allocations', 1);
+        $this->assertDatabaseCount('ledger_entries', 2);
+
+        try {
+            app(PayCreditCard::class)->handle($user, [...$payload, 'card_charge_ids' => []]);
+            $this->fail('O replay com seleção diferente deveria ser rejeitado.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('operation_id', $exception->errors());
+        }
+
+        $this->assertDatabaseCount('card_payments', 1);
+        $this->assertSame('10.01', $charge->fresh()->paid_amount);
+    }
+
+    public function test_multiple_selected_charges_preserve_cents_and_stable_order(): void
+    {
+        [$user, $card, $category] = $this->context();
+        $account = $this->fundedAccount($user);
+        $later = app(CreateCardCharge::class)->handle($user, [...$this->chargePayload($card, $category),
+            'amount' => '10.02', 'due_on' => '2026-09-13', 'operation_id' => (string) Str::uuid(),
+        ]);
+        $earlier = app(CreateCardCharge::class)->handle($user, [...$this->chargePayload($card, $category),
+            'amount' => '10.01', 'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $payment = app(PayCreditCard::class)->handle($user, $this->paymentPayload($card, $account, '15.00', [$later->id, $earlier->id]));
+
+        $this->assertSame([$earlier->id, $later->id], $payment->chargeAllocations->pluck('card_charge_id')->all());
+        $this->assertSame(['10.01', '4.99'], $payment->chargeAllocations->pluck('amount')->all());
+        $this->assertSame('4.99', $later->fresh()->paid_amount);
+    }
+
+    public function test_overpayment_and_payment_before_charge_leave_no_partial_financial_write(): void
+    {
+        [$user, $card, $category] = $this->context();
+        $account = $this->fundedAccount($user);
+        $charge = app(CreateCardCharge::class)->handle($user, $this->chargePayload($card, $category));
+
+        foreach ([
+            $this->paymentPayload($card, $account, '15.01', [$charge->id]),
+            [...$this->paymentPayload($card, $account, '10.00', [$charge->id]), 'paid_on' => '2026-09-08'],
+        ] as $payload) {
+            try {
+                app(PayCreditCard::class)->handle($user, $payload);
+                $this->fail('O pagamento inválido deveria ser rejeitado.');
+            } catch (ValidationException $exception) {
+                $this->assertNotEmpty($exception->errors());
+            }
+        }
+
+        $this->assertDatabaseCount('card_payments', 0);
+        $this->assertDatabaseCount('card_charge_payment_allocations', 0);
+        $this->assertDatabaseCount('ledger_entries', 1);
+        $this->assertSame('0.00', $charge->fresh()->paid_amount);
+    }
+
     public function test_payment_rejects_a_selected_charge_from_another_user_without_cash_movement(): void
     {
         [$user, $card, $category] = $this->context();

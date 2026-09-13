@@ -27,7 +27,7 @@ class StoreCardPaymentRequest extends FormRequest
             'source_account_id' => ['required', 'integer'],
             'amount' => ['required', 'regex:/^\d{1,17}(?:\.\d{1,2})?$/', 'decimal:0,2', 'gt:0'],
             'paid_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
-            'card_charge_ids' => ['sometimes', 'array'],
+            'card_charge_ids' => ['sometimes', 'array', 'max:200'],
             'card_charge_ids.*' => ['integer', 'distinct'],
             'operation_id' => ['required', 'uuid'],
         ];
