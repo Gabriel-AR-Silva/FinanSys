@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\CreateCreditCard;
+use App\Enums\CardInstallmentStatus;
 use App\Enums\CategoryType;
 use App\Enums\RecordStatus;
 use App\Http\Requests\StoreCreditCardRequest;
@@ -21,13 +22,13 @@ class CreditCardController extends Controller
     {
         $cards = CreditCard::query()->whereBelongsTo($request->user())
             ->with([
-                'purchases' => fn ($query) => $query->with(['category:id,name', 'installments'])->latest('purchased_on')->latest('id'),
+                'purchases' => fn ($query) => $query->with(['category:id,name', 'installments.advanceAllocations.advance'])->latest('purchased_on')->latest('id'),
                 'charges' => fn ($query) => $query->with('category:id,name')->latest('charged_on')->latest('id'),
             ])
             ->orderBy('name')->orderBy('id')->get()
             ->map(function (CreditCard $card): array {
                 $installments = $card->purchases->pluck('installments')->flatten();
-                $pending = $installments->reduce(
+                $pending = $installments->where('status', CardInstallmentStatus::Pending)->reduce(
                     fn (BigDecimal $total, $installment): BigDecimal => $total->plus(BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)),
                     BigDecimal::zero(),
                 )->plus($card->charges->reduce(
@@ -53,6 +54,13 @@ class CreditCardController extends Controller
                         'installments' => $purchase->installments->sortBy('installment_number')->values()->map(fn ($installment): array => [
                             'id' => $installment->id, 'number' => $installment->installment_number, 'gross_amount' => $installment->gross_amount,
                             'paid_amount' => $installment->paid_amount, 'due_on' => $installment->due_on->toDateString(), 'status' => $installment->status->value,
+                            'advance' => ($advanceAllocation = $installment->advanceAllocations->first()) ? [
+                                'gross_amount' => $advanceAllocation->gross_amount,
+                                'discount_amount' => $advanceAllocation->discount_amount,
+                                'net_amount' => $advanceAllocation->net_amount,
+                                'advanced_on' => $advanceAllocation->advance->advanced_on->toDateString(),
+                                'original_due_on' => $advanceAllocation->original_due_on->toDateString(),
+                            ] : null,
                         ]),
                     ])->values(),
                     'may_have_unconfirmed_charges' => $installments->contains(fn ($installment): bool => $installment->status->value === 'pending' && $installment->due_on->isBefore(now('America/Sao_Paulo')->startOfDay())),

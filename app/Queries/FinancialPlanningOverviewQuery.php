@@ -4,9 +4,11 @@ namespace App\Queries;
 
 use App\Actions\RecalculateReceiptForecast;
 use App\Enums\ExpensePlanningType;
+use App\Enums\CardInstallmentStatus;
 use App\Enums\LedgerEntryType;
 use App\Enums\ReceiptForecastStatus;
 use App\Models\CardCharge;
+use App\Models\CardAdvanceAllocation;
 use App\Models\CardInstallment;
 use App\Models\EssentialBudget;
 use App\Models\LedgerEntry;
@@ -74,6 +76,7 @@ class FinancialPlanningOverviewQuery
         $unclassified = $expenses->filter(fn (array $item): bool => $item['entry']->planning_type === null);
         $cardCommitments = CardInstallment::query()
             ->whereBelongsTo($user)
+            ->where('status', '!=', CardInstallmentStatus::Advanced)
             ->whereBetween('due_on', [$now->startOfMonth()->toDateString(), $now->endOfMonth()->toDateString()])
             ->whereHas('purchase')
             ->with('purchase')
@@ -96,6 +99,21 @@ class FinancialPlanningOverviewQuery
                         'gross' => $charge->amount,
                         'paid' => $charge->paid_amount,
                         'pending' => (string) BigDecimal::of($charge->amount)->minus($charge->paid_amount),
+                    ])
+            )
+            ->concat(
+                CardAdvanceAllocation::query()
+                    ->whereBelongsTo($user)
+                    ->whereHas('advance', fn ($query) => $query->whereBetween('advanced_on', [$now->startOfMonth()->toDateString(), $now->toDateString()]))
+                    ->whereHas('installment.purchase')
+                    ->with('installment.purchase')
+                    ->get()
+                    ->map(fn (CardAdvanceAllocation $allocation): array => [
+                        'category_id' => $allocation->installment->purchase->category_id,
+                        'planning_type' => $allocation->installment->purchase->planning_type,
+                        'gross' => $allocation->net_amount,
+                        'paid' => $allocation->net_amount,
+                        'pending' => '0.00',
                     ])
             );
         $previousCommitments = $this->previousCardCommitments($user, $now);
@@ -199,6 +217,7 @@ class FinancialPlanningOverviewQuery
         $end = $now->endOfMonth()->toDateString();
         $installments = CardInstallment::query()
             ->whereBelongsTo($user)
+            ->where('status', '!=', CardInstallmentStatus::Advanced)
             ->whereDate('due_on', '<', $start)
             ->whereHas('purchase')
             ->with(['allocations' => fn ($query) => $query->whereHas('payment', fn ($payment) => $payment->whereBetween('paid_on', [$start, $end]))])

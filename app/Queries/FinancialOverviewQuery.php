@@ -219,6 +219,7 @@ class FinancialOverviewQuery
             LedgerEntryType::TransferIn => 'Transferência recebida',
             LedgerEntryType::TransferOut => 'Transferência enviada',
             LedgerEntryType::CardPayment => 'Pagamento de cartão',
+            LedgerEntryType::CardAdvance => 'Antecipação de cartão',
         };
     }
 

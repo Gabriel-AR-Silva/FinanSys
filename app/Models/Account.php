@@ -35,4 +35,9 @@ class Account extends Model
     {
         return $this->morphMany(LedgerEntry::class, 'reference');
     }
+
+    public function cardAdvances(): HasMany
+    {
+        return $this->hasMany(CardAdvance::class, 'source_account_id');
+    }
 }

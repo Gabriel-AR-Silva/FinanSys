@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\CardAdvanceController;
 use App\Http\Controllers\CardChargeController;
 use App\Http\Controllers\CardPaymentController;
 use App\Http\Controllers\CardPurchaseController;
@@ -40,6 +41,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/cartoes/compras', [CardPurchaseController::class, 'store'])->name('card-purchases.store');
     Route::post('/cartoes/encargos', [CardChargeController::class, 'store'])->name('card-charges.store');
     Route::post('/cartoes/pagamentos', [CardPaymentController::class, 'store'])->name('card-payments.store');
+    Route::post('/cartoes/antecipacoes', [CardAdvanceController::class, 'store'])->name('card-advances.store');
     Route::get('/recebimentos-previstos', [ReceiptForecastController::class, 'index'])->name('receipt-forecasts.index');
     Route::post('/recebimentos-previstos', [ReceiptForecastController::class, 'store'])->name('receipt-forecasts.store');
     Route::put('/recebimentos-previstos/{forecast}', [ReceiptForecastController::class, 'update'])->whereNumber('forecast')->name('receipt-forecasts.update');

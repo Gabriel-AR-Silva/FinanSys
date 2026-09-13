@@ -35,4 +35,9 @@ class CardInstallment extends Model
     {
         return $this->hasMany(CardPaymentAllocation::class);
     }
+
+    public function advanceAllocations(): HasMany
+    {
+        return $this->hasMany(CardAdvanceAllocation::class);
+    }
 }

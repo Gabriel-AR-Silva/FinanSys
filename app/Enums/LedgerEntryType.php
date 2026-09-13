@@ -11,4 +11,5 @@ enum LedgerEntryType: string
     case TransferIn = 'transfer_in';
     case TransferOut = 'transfer_out';
     case CardPayment = 'card_payment';
+    case CardAdvance = 'card_advance';
 }
