@@ -70,6 +70,12 @@ class OfxImportController extends Controller
             return back()->withErrors(['file' => $exception->getMessage()]);
         }
 
+        if (strtoupper($statement->currency) !== 'BRL') {
+            return back()->withErrors([
+                'file' => 'Esta versão aceita somente extratos em BRL. Nenhum lançamento foi criado.',
+            ]);
+        }
+
         $groups = $relationships->fitIdGroups($statement->transactions);
         $suggestions = $classifier->classify($statement->transactions, $groups);
         $import = $prepare->handle($user, $account, $statement, $suggestions);
