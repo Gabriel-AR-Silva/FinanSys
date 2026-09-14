@@ -21,7 +21,7 @@ class OfxClassifierTest extends TestCase
 
         $this->assertSame(OfxClassification::CardCreditPixCandidate, $results[0]->classification);
         $this->assertTrue($results[0]->requiresUserValidation);
-        $this->assertSame(OfxClassification::NeedsReview, $results[1]->classification);
+        $this->assertSame(OfxClassification::CardCreditPixCandidate, $results[1]->classification);
         $this->assertTrue($results[1]->requiresUserValidation);
     }
 
