@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class OperationalDataResetController extends Controller
@@ -24,6 +25,7 @@ class OperationalDataResetController extends Controller
         $code = $this->generateCode();
 
         $request->session()->put(self::SESSION_KEY, [
+            'user_id' => $user->getKey(),
             'hash' => hash('sha256', $code),
             'expires_at' => now()->addSeconds(self::CHALLENGE_TTL_SECONDS)->timestamp,
         ]);
@@ -40,13 +42,21 @@ class OperationalDataResetController extends Controller
         /** @var User $user */
         $user = $request->user();
         $validated = $request->validate([
+            'password' => ['required', 'string'],
             'confirmation_code' => ['required', 'string', 'size:10', 'regex:/^[A-Z0-9]{10}$/'],
             'slider_confirmed' => ['required', 'accepted'],
         ]);
 
+        if (! Hash::check((string) $validated['password'], (string) $user->password)) {
+            throw ValidationException::withMessages([
+                'password' => 'A senha informada não corresponde à sua senha atual.',
+            ]);
+        }
+
         $challenge = $request->session()->get(self::SESSION_KEY);
         $expired = ! is_array($challenge)
-            || ! isset($challenge['hash'], $challenge['expires_at'])
+            || ! isset($challenge['user_id'], $challenge['hash'], $challenge['expires_at'])
+            || (int) $challenge['user_id'] !== (int) $user->getKey()
             || (int) $challenge['expires_at'] < now()->timestamp;
         $matches = ! $expired && hash_equals(
             (string) $challenge['hash'],
@@ -59,8 +69,8 @@ class OperationalDataResetController extends Controller
             ]);
         }
 
-        $reset->handle($user);
         $request->session()->forget(self::SESSION_KEY);
+        $reset->handle($user);
 
         return back()->with('success', 'Dados operacionais removidos. Sua estrutura básica foi preservada para um novo teste.');
     }
