@@ -70,7 +70,7 @@ class PrepareOfxImport
             'description' => $transaction->description,
             'external_id_hash' => $transaction->externalId === null ? null : hash('sha256', $transaction->externalId),
             'fingerprint' => $transaction->fingerprint,
-            'dedup_key' => $dedupKey,
+            'dedup_key' => $duplicate ? null : $dedupKey,
             'classification' => $duplicate ? OfxClassification::Duplicate : ($result?->classification ?? OfxClassification::NeedsReview),
             'review_status' => OfxReviewStatus::PendingReview,
         ]);
