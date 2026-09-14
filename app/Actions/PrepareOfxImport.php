@@ -17,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 class PrepareOfxImport
 {
     /**
-     * @param list<OfxClassificationResult> $classifications
+     * @param  list<OfxClassificationResult>  $classifications
      */
     public function handle(User $user, Account $account, OfxStatement $statement, array $classifications): BankStatementImport
     {
