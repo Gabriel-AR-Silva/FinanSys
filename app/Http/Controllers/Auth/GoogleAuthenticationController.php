@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SocialIdentity;
 use App\Models\User;
 use App\Support\AuditRecorder;
+use App\Support\TrustedDeviceCookie;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -46,7 +47,7 @@ class GoogleAuthenticationController extends Controller
         return Socialite::driver(SocialProvider::Google->value)->redirect();
     }
 
-    public function callback(Request $request, AuditRecorder $auditRecorder): RedirectResponse
+    public function callback(Request $request, AuditRecorder $auditRecorder, TrustedDeviceCookie $trustedDeviceCookie): RedirectResponse
     {
         $intent = $request->session()->pull('google_auth_intent');
 
@@ -67,8 +68,8 @@ class GoogleAuthenticationController extends Controller
         }
 
         return $intent === self::LINK_INTENT
-            ? $this->link($request, $googleUser, $auditRecorder)
-            : $this->login($request, $googleUser, $auditRecorder);
+            ? $this->link($request, $googleUser, $auditRecorder, $trustedDeviceCookie)
+            : $this->login($request, $googleUser, $auditRecorder, $trustedDeviceCookie);
     }
 
     public function destroy(Request $request, AuditRecorder $auditRecorder): RedirectResponse
@@ -89,7 +90,7 @@ class GoogleAuthenticationController extends Controller
         return redirect()->route('profile.edit')->with('success', 'Conta Google desvinculada com segurança.');
     }
 
-    private function login(Request $request, SocialiteUser $googleUser, AuditRecorder $auditRecorder): RedirectResponse
+    private function login(Request $request, SocialiteUser $googleUser, AuditRecorder $auditRecorder, TrustedDeviceCookie $trustedDeviceCookie): RedirectResponse
     {
         $identity = SocialIdentity::query()
             ->with('user')
@@ -108,7 +109,8 @@ class GoogleAuthenticationController extends Controller
         Auth::login($identity->user);
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        return redirect()->intended(route('dashboard', absolute: false))
+            ->withCookie($trustedDeviceCookie->make($identity->user));
     }
 
     private function bootstrapIdentity(SocialiteUser $googleUser, AuditRecorder $auditRecorder): ?SocialIdentity
@@ -148,7 +150,7 @@ class GoogleAuthenticationController extends Controller
         }
     }
 
-    private function link(Request $request, SocialiteUser $googleUser, AuditRecorder $auditRecorder): RedirectResponse
+    private function link(Request $request, SocialiteUser $googleUser, AuditRecorder $auditRecorder, TrustedDeviceCookie $trustedDeviceCookie): RedirectResponse
     {
         if (! Auth::check()) {
             return $this->authenticationFailed(self::LINK_INTENT);
@@ -174,7 +176,9 @@ class GoogleAuthenticationController extends Controller
             return redirect()->route('profile.edit')->with('error', 'Esta conta Google já está vinculada a outro usuário.');
         }
 
-        return redirect()->route('profile.edit')->with('success', 'Conta Google vinculada. Seu e-mail de acesso também foi atualizado.');
+        return redirect()->route('profile.edit')
+            ->with('success', 'Conta Google vinculada. Seu e-mail de acesso também foi atualizado.')
+            ->withCookie($trustedDeviceCookie->make($request->user()->refresh()));
     }
 
     private function isAllowedIdentity(SocialiteUser $googleUser): bool
