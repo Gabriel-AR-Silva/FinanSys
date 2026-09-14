@@ -56,12 +56,35 @@ class OperationalDataResetTest extends TestCase
         $this->actingAs($user)->postJson(route('operational-data-reset.challenge'))->assertOk();
 
         $this->actingAs($user)->delete(route('operational-data-reset.destroy'), [
+            'password' => 'password',
             'confirmation_code' => 'AAAAAAAAAA',
             'slider_confirmed' => true,
         ])->assertSessionHasErrors('confirmation_code');
 
         $this->assertDatabaseCount('ledger_entries', 1);
         $this->assertDatabaseHas('accounts', ['id' => $account->getKey(), 'user_id' => $user->getKey()]);
+    }
+
+    public function test_wrong_password_does_not_remove_anything(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        LedgerEntry::factory()->for($user)->create([
+            'reference_type' => $account->getMorphClass(),
+            'reference_id' => $account->getKey(),
+        ]);
+
+        $challenge = $this->actingAs($user)->postJson(route('operational-data-reset.challenge'));
+
+        $this->actingAs($user)->delete(route('operational-data-reset.destroy'), [
+            'password' => 'wrong-password',
+            'confirmation_code' => (string) $challenge->json('code'),
+            'slider_confirmed' => true,
+        ])->assertSessionHasErrors([
+            'password' => 'A senha informada não corresponde à sua senha atual.',
+        ]);
+
+        $this->assertDatabaseCount('ledger_entries', 1);
     }
 
     public function test_valid_reset_removes_operational_data_but_preserves_structure_and_other_users(): void
@@ -118,6 +141,7 @@ class OperationalDataResetTest extends TestCase
         $code = (string) $challenge->json('code');
 
         $this->actingAs($user)->delete(route('operational-data-reset.destroy'), [
+            'password' => 'password',
             'confirmation_code' => $code,
             'slider_confirmed' => true,
         ])->assertRedirect()->assertSessionHas('success');
@@ -146,7 +170,8 @@ class OperationalDataResetTest extends TestCase
         for ($attempt = 0; $attempt < 2; $attempt++) {
             $challenge = $this->actingAs($user)->postJson(route('operational-data-reset.challenge'));
             $this->actingAs($user)->delete(route('operational-data-reset.destroy'), [
-                'confirmation_code' => (string) $challenge->json('code'),
+                'password' => 'password',
+            'confirmation_code' => (string) $challenge->json('code'),
                 'slider_confirmed' => true,
             ])->assertRedirect()->assertSessionHas('success');
         }
