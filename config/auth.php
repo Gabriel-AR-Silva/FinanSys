@@ -20,6 +20,8 @@ return [
         'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),
     ],
 
+    'allowed_email' => env('AUTH_ALLOWED_EMAIL', env('GOOGLE_ALLOWED_EMAIL')),
+
     /*
     |--------------------------------------------------------------------------
     | Authentication Guards
