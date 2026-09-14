@@ -74,6 +74,87 @@ class OfxImportTest extends TestCase
         $this->assertSame('confirmed', $item->fresh()->review_status->value);
     }
 
+    public function test_confirmed_item_cannot_be_changed_by_a_replayed_review_request(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => CategoryType::Expense]);
+
+        $this->actingAs($user)->post(route('ofx-imports.store'), [
+            'account_id' => $account->getKey(),
+            'file' => UploadedFile::fake()->createWithContent('statement.ofx', $this->ofx([
+                $this->transaction('-12.50', 'Mercado', 'confirmed-expense'),
+            ])),
+        ])->assertSessionHasNoErrors();
+
+        $import = BankStatementImport::query()->sole();
+        $item = OfxImportItem::query()->sole();
+
+        $this->actingAs($user)->patch(route('ofx-imports.items.update', $item), [
+            'classification' => 'expense',
+            'category_id' => $category->getKey(),
+            'planning_type' => 'ordinary',
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($user)->post(route('ofx-imports.confirm', $import), [
+            'item_ids' => [$item->getKey()],
+        ])->assertSessionHasNoErrors();
+
+        $entry = LedgerEntry::query()->sole();
+
+        $this->actingAs($user)->patch(route('ofx-imports.items.update', $item), [
+            'classification' => 'needs_review',
+        ])->assertSessionHasErrors([
+            'classification' => 'Este item já foi conciliado e não pode mais ser alterado.',
+        ]);
+
+        $item->refresh();
+
+        $this->assertSame('confirmed', $item->review_status->value);
+        $this->assertSame('expense', $item->classification->value);
+        $this->assertSame($category->getKey(), $item->category_id);
+        $this->assertSame('ordinary', $item->planning_type->value);
+        $this->assertSame(LedgerEntry::class, $item->domain_type);
+        $this->assertSame($entry->getKey(), $item->domain_id);
+        $this->assertDatabaseCount('ledger_entries', 1);
+    }
+
+    public function test_compound_pix_candidate_cannot_be_reclassified_through_the_generic_review_endpoint(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => CategoryType::Expense]);
+
+        $this->actingAs($user)->post(route('ofx-imports.store'), [
+            'account_id' => $account->getKey(),
+            'file' => UploadedFile::fake()->createWithContent('nubank.ofx', $this->ofx([
+                $this->transaction('3.00', 'Valor adicionado por Pix no Crédito', 'tampered-pix'),
+                $this->transaction('-3.00', 'Transferência Pix', 'tampered-pix:reversal'),
+            ])),
+        ])->assertSessionHasNoErrors();
+
+        $item = OfxImportItem::query()->where('direction', 'debit')->sole();
+
+        $this->actingAs($user)->patch(route('ofx-imports.items.update', $item), [
+            'classification' => 'expense',
+            'category_id' => $category->getKey(),
+            'planning_type' => 'ordinary',
+        ])->assertSessionHasErrors([
+            'classification' => 'Este item exige o fluxo específico de conciliação.',
+        ]);
+
+        $item->refresh();
+
+        $this->assertSame('pending_review', $item->review_status->value);
+        $this->assertSame('card_credit_pix_candidate', $item->classification->value);
+        $this->assertNull($item->category_id);
+        $this->assertNull($item->planning_type);
+        $this->assertNull($item->domain_type);
+        $this->assertNull($item->domain_id);
+        $this->assertDatabaseCount('ledger_entries', 0);
+        $this->assertDatabaseCount('card_purchases', 0);
+    }
+
     public function test_pix_on_credit_pair_becomes_one_card_purchase_only_after_user_validation(): void
     {
         $user = User::factory()->create();
