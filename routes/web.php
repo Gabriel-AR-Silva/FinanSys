@@ -64,11 +64,20 @@ Route::middleware('auth')->group(function () {
     Route::put('/configuracao-financeira', [FinancialSettingsController::class, 'update'])->name('financial-settings.update');
     Route::post('/configuracao-financeira/categorias', [FinancialSettingsController::class, 'storeCategory'])->name('financial-settings.categories.store');
     Route::get('/importacoes/ofx', [OfxImportController::class, 'index'])->name('ofx-imports.index');
-    Route::post('/importacoes/ofx', [OfxImportController::class, 'store'])->name('ofx-imports.store');
-    Route::patch('/importacoes/ofx/itens/{item}', [OfxImportReviewController::class, 'update'])->whereNumber('item')->name('ofx-imports.items.update');
-    Route::post('/importacoes/ofx/{import}/confirmar', [OfxImportConfirmationController::class, 'store'])->whereNumber('import')->name('ofx-imports.confirm');
+    Route::post('/importacoes/ofx', [OfxImportController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('ofx-imports.store');
+    Route::patch('/importacoes/ofx/itens/{item}', [OfxImportReviewController::class, 'update'])
+        ->whereNumber('item')
+        ->middleware('throttle:30,1')
+        ->name('ofx-imports.items.update');
+    Route::post('/importacoes/ofx/{import}/confirmar', [OfxImportConfirmationController::class, 'store'])
+        ->whereNumber('import')
+        ->middleware('throttle:12,1')
+        ->name('ofx-imports.confirm');
     Route::post('/importacoes/ofx/{import}/pix-no-credito/{item}/confirmar', [OfxCardCreditPixConfirmationController::class, 'store'])
         ->whereNumber(['import', 'item'])
+        ->middleware('throttle:12,1')
         ->name('ofx-imports.pix-credit.confirm');
     Route::resource('contas', AccountController::class)
         ->parameters(['contas' => 'account'])
