@@ -17,6 +17,7 @@ use App\Http\Controllers\FinancialSettingsController;
 use App\Http\Controllers\InternalAlertController;
 use App\Http\Controllers\LedgerEntryController;
 use App\Http\Controllers\LedgerEntryReversalController;
+use App\Http\Controllers\OfxImportController;
 use App\Http\Controllers\PocketController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReceiptForecastController;
@@ -58,6 +59,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/avisos-financeiros', [InternalAlertController::class, 'index'])->name('internal-alerts.index');
     Route::put('/configuracao-financeira', [FinancialSettingsController::class, 'update'])->name('financial-settings.update');
     Route::post('/configuracao-financeira/categorias', [FinancialSettingsController::class, 'storeCategory'])->name('financial-settings.categories.store');
+    Route::get('/importacoes/ofx', [OfxImportController::class, 'index'])->name('ofx-imports.index');
+    Route::post('/importacoes/ofx', [OfxImportController::class, 'store'])->name('ofx-imports.store');
     Route::resource('contas', AccountController::class)
         ->parameters(['contas' => 'account'])
         ->only(['index', 'store', 'update', 'destroy'])
