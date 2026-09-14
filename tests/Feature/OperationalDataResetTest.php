@@ -171,7 +171,7 @@ class OperationalDataResetTest extends TestCase
             $challenge = $this->actingAs($user)->postJson(route('operational-data-reset.challenge'));
             $this->actingAs($user)->delete(route('operational-data-reset.destroy'), [
                 'password' => 'password',
-            'confirmation_code' => (string) $challenge->json('code'),
+                'confirmation_code' => (string) $challenge->json('code'),
                 'slider_confirmed' => true,
             ])->assertRedirect()->assertSessionHas('success');
         }
