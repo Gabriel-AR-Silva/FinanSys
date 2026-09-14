@@ -35,7 +35,13 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $response = redirect()->intended(route('dashboard', absolute: false));
+
+        if ($trustedDeviceCookie = $request->trustedDeviceCookie()) {
+            $response->withCookie($trustedDeviceCookie);
+        }
+
+        return $response;
     }
 
     /**
