@@ -29,14 +29,32 @@ class AuthenticationTest extends TestCase
     public function test_users_can_authenticate_using_the_login_screen(): void
     {
         $user = User::factory()->create();
+        config()->set('auth.allowed_email', $user->email);
 
         $response = $this->post('/login', [
             'email' => $user->email,
             'password' => 'password',
         ]);
 
-        $this->assertAuthenticated();
+        $this->assertAuthenticatedAs($user);
         $response->assertRedirect(route('dashboard', absolute: false));
+    }
+
+    public function test_valid_credentials_outside_the_private_allowlist_are_rejected(): void
+    {
+        $allowedUser = User::factory()->create();
+        $otherUser = User::factory()->create();
+        config()->set('auth.allowed_email', $allowedUser->email);
+
+        $response = $this->post('/login', [
+            'email' => $otherUser->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $response->assertSessionHasErrors([
+            'email' => 'E-mail ou senha incorretos.',
+        ]);
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void
