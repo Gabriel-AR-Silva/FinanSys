@@ -1,15 +1,19 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import GoogleLogo from '@/Components/GoogleLogo.vue';
+import OperationalDataResetModal from '@/Components/OperationalDataResetModal.vue';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue';
 import { Head, Link } from '@inertiajs/vue3';
-import { ShieldCheck, Unlink } from '@lucide/vue';
+import { ShieldCheck, Trash2, Unlink } from '@lucide/vue';
+import { ref } from 'vue';
 
 defineProps({
     googleAuthenticationEnabled: { type: Boolean },
     googleIdentity: { type: Object, default: null },
 });
+
+const resetModalOpen = ref(false);
 </script>
 
 <template>
@@ -17,24 +21,16 @@ defineProps({
 
     <AuthenticatedLayout>
         <template #header>
-            <h2
-                class="text-xl font-semibold leading-tight text-gray-800"
-            >
-                Meu perfil
-            </h2>
+            <h2 class="text-xl font-semibold leading-tight text-gray-800">Meu perfil</h2>
         </template>
 
         <div class="py-12">
             <div class="mx-auto max-w-7xl space-y-6 sm:px-6 lg:px-8">
-                <div
-                    class="bg-white p-4 shadow sm:rounded-lg sm:p-8"
-                >
+                <div class="bg-white p-4 shadow sm:rounded-lg sm:p-8">
                     <UpdateProfileInformationForm class="max-w-xl" />
                 </div>
 
-                <div
-                    class="bg-white p-4 shadow sm:rounded-lg sm:p-8"
-                >
+                <div class="bg-white p-4 shadow sm:rounded-lg sm:p-8">
                     <UpdatePasswordForm class="max-w-xl" />
                 </div>
 
@@ -60,9 +56,7 @@ defineProps({
 
                         <div v-else class="mt-6">
                             <a v-if="googleAuthenticationEnabled" :href="route('google.link')" class="group relative flex h-12 w-full max-w-sm items-center justify-center rounded-xl border border-[#747775] bg-white px-12 text-sm font-medium leading-5 text-[#1f1f1f] shadow-sm transition hover:bg-[#f8fafd] hover:shadow-md focus:outline-none focus:ring-4 focus:ring-blue-500/20 active:bg-[#f1f3f4]">
-                                <span class="absolute left-3 grid h-9 w-9 place-items-center rounded-lg transition group-hover:bg-white">
-                                    <GoogleLogo />
-                                </span>
+                                <span class="absolute left-3 grid h-9 w-9 place-items-center rounded-lg transition group-hover:bg-white"><GoogleLogo /></span>
                                 Continuar com Google
                             </a>
                             <p v-else class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Configure as credenciais do Google para habilitar o vínculo.</p>
@@ -70,7 +64,28 @@ defineProps({
                     </section>
                 </div>
 
+                <div class="border border-rose-200 bg-white p-4 shadow sm:rounded-lg sm:p-8">
+                    <section class="max-w-xl">
+                        <header class="flex items-start gap-3">
+                            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-50 text-rose-700"><Trash2 :size="20" /></span>
+                            <div>
+                                <h2 class="text-lg font-medium text-gray-900">Configurações avançadas</h2>
+                                <p class="mt-1 text-sm leading-6 text-gray-600">Limpe somente dados gerados durante uso e testes. Categorias, contas, caixinhas, cartões e configurações básicas permanecem.</p>
+                            </div>
+                        </header>
+
+                        <div class="mt-6 rounded-2xl border border-rose-200 bg-rose-50/60 p-4">
+                            <h3 class="text-sm font-semibold text-rose-950">Limpar dados de uso</h3>
+                            <p class="mt-1 text-sm leading-6 text-rose-900/80">Remove movimentações, operações de cartão, previsões, importações OFX e dados derivados. Use para voltar a um estado limpo de teste sem reconstruir sua configuração.</p>
+                            <button type="button" class="mt-4 inline-flex items-center gap-2 rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-600" @click="resetModalOpen = true">
+                                <Trash2 :size="17" />Preparar limpeza
+                            </button>
+                        </div>
+                    </section>
+                </div>
             </div>
         </div>
+
+        <OperationalDataResetModal :show="resetModalOpen" @close="resetModalOpen = false" />
     </AuthenticatedLayout>
 </template>
