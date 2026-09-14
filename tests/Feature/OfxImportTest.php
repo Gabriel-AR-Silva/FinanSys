@@ -24,8 +24,10 @@ class OfxImportTest extends TestCase
 
         $response = $this->actingAs($user)->post(route('ofx-imports.store'), [
             'account_id' => $account->getKey(),
-            'file' => UploadedFile::fake()->createWithContent('nubank.ofx', $this->ofx('3.00', 'Valor adicionado por Pix no Crédito', 'fake-id', false)
-                .$this->transaction('-3.00', 'Transferência Pix', 'fake-id:reversal')),
+            'file' => UploadedFile::fake()->createWithContent('nubank.ofx', $this->ofx([
+                $this->transaction('3.00', 'Valor adicionado por Pix no Crédito', 'fake-id'),
+                $this->transaction('-3.00', 'Transferência Pix', 'fake-id:reversal'),
+            ])),
         ]);
 
         $response->assertSessionHasNoErrors();
@@ -44,7 +46,9 @@ class OfxImportTest extends TestCase
 
         $this->actingAs($user)->post(route('ofx-imports.store'), [
             'account_id' => $account->getKey(),
-            'file' => UploadedFile::fake()->createWithContent('statement.ofx', $this->ofx('-12.50', 'Mercado', 'expense-1')),
+            'file' => UploadedFile::fake()->createWithContent('statement.ofx', $this->ofx([
+                $this->transaction('-12.50', 'Mercado', 'expense-1'),
+            ])),
         ])->assertSessionHasNoErrors();
 
         $import = BankStatementImport::query()->sole();
@@ -68,20 +72,18 @@ class OfxImportTest extends TestCase
         $this->assertSame('confirmed', $item->fresh()->review_status->value);
     }
 
-    private function ofx(string $amount, string $memo, string $fitId, bool $close = true): string
+    /** @param  list<string>  $transactions */
+    private function ofx(array $transactions): string
     {
-        $transactions = $this->transaction($amount, $memo, $fitId);
-        if (! $close) {
-            $transactions = rtrim($transactions, "\n");
-        }
+        $body = implode('', $transactions);
 
-        return "OFXHEADER:100\nDATA:OFXSGML\nVERSION:102\nSECURITY:NONE\nENCODING:UTF-8\n<OFX><SIGNONMSGSRSV1><SONRS><FI><ORG>NU PAGAMENTOS S.A.</ORG><FID>260</FID></FI></SONRS></SIGNONMSGSRSV1><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>BRL</CURDEF><BANKACCTFROM><BANKID>0260</BANKID><ACCTID>00012345</ACCTID><ACCTTYPE>CHECKING</ACCTTYPE></BANKACCTFROM><BANKTRANLIST><DTSTART>20260901000000[-3:BRT]</DTSTART><DTEND>20260902000000[-3:BRT]</DTEND>{$transactions}";
+        return "OFXHEADER:100\nDATA:OFXSGML\nVERSION:102\nSECURITY:NONE\nENCODING:UTF-8\n<OFX><SIGNONMSGSRSV1><SONRS><FI><ORG>NU PAGAMENTOS S.A.</ORG><FID>260</FID></FI></SONRS></SIGNONMSGSRSV1><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>BRL</CURDEF><BANKACCTFROM><BANKID>0260</BANKID><ACCTID>00012345</ACCTID><ACCTTYPE>CHECKING</ACCTTYPE></BANKACCTFROM><BANKTRANLIST><DTSTART>20260901000000[-3:BRT]</DTSTART><DTEND>20260902000000[-3:BRT]</DTEND>{$body}</BANKTRANLIST><LEDGERBAL><BALAMT>1.00</BALAMT><DTASOF>20260902000000[-3:BRT]</DTASOF></LEDGERBAL></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>\n";
     }
 
     private function transaction(string $amount, string $memo, string $fitId): string
     {
         $type = str_starts_with($amount, '-') ? 'DEBIT' : 'CREDIT';
 
-        return "<STMTTRN><TRNTYPE>{$type}</TRNTYPE><DTPOSTED>20260901120000[-3:BRT]</DTPOSTED><TRNAMT>{$amount}</TRNAMT><FITID>{$fitId}</FITID><MEMO>{$memo}</MEMO></STMTTRN></BANKTRANLIST><LEDGERBAL><BALAMT>1.00</BALAMT><DTASOF>20260902000000[-3:BRT]</DTASOF></LEDGERBAL></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>\n";
+        return "<STMTTRN><TRNTYPE>{$type}</TRNTYPE><DTPOSTED>20260901120000[-3:BRT]</DTPOSTED><TRNAMT>{$amount}</TRNAMT><FITID>{$fitId}</FITID><MEMO>{$memo}</MEMO></STMTTRN>";
     }
 }
