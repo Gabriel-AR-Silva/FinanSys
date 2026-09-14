@@ -69,12 +69,24 @@ class PrepareOfxImport
             'direction' => $transaction->direction,
             'description' => $transaction->description,
             'external_id_hash' => $transaction->externalId === null ? null : hash('sha256', $transaction->externalId),
+            'relationship_key' => $this->relationshipKey($transaction),
             'fingerprint' => $transaction->fingerprint,
             'dedup_key' => $duplicate ? null : $dedupKey,
             'classification' => $duplicate ? OfxClassification::Duplicate : ($result?->classification ?? OfxClassification::NeedsReview),
             'review_status' => OfxReviewStatus::PendingReview,
         ]);
         $item->save();
+    }
+
+    private function relationshipKey(OfxTransaction $transaction): ?string
+    {
+        if ($transaction->externalId === null) {
+            return null;
+        }
+
+        $baseExternalId = preg_replace('/:(?:reversal|estorno)$/i', '', $transaction->externalId);
+
+        return hash('sha256', $baseExternalId ?? $transaction->externalId);
     }
 
     private function dedupKey(User $user, Account $account, OfxStatement $statement, OfxTransaction $transaction): string
