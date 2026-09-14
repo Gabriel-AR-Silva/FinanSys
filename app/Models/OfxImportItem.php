@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\OfxClassification;
 use App\Enums\OfxReviewStatus;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OfxImportItem extends Model
 {
@@ -17,5 +18,10 @@ class OfxImportItem extends Model
             'classification' => OfxClassification::class,
             'review_status' => OfxReviewStatus::class,
         ];
+    }
+
+    public function import(): BelongsTo
+    {
+        return $this->belongsTo(BankStatementImport::class, 'bank_statement_import_id');
     }
 }
