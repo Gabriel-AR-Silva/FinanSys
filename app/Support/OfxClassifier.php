@@ -7,8 +7,8 @@ use App\Enums\OfxClassification;
 class OfxClassifier
 {
     /**
-     * @param list<OfxTransaction> $transactions
-     * @param array<string, list<int>> $relatedGroups
+     * @param  list<OfxTransaction>  $transactions
+     * @param  array<string, list<int>>  $relatedGroups
      * @return list<OfxClassificationResult>
      */
     public function classify(array $transactions, array $relatedGroups = []): array
