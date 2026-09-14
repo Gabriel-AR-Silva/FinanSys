@@ -42,7 +42,7 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        if (! $this->emailIsAllowed() || ! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -74,6 +74,19 @@ class LoginRequest extends FormRequest
                 'minutes' => ceil($seconds / 60),
             ]),
         ]);
+    }
+
+    private function emailIsAllowed(): bool
+    {
+        $allowedEmail = mb_strtolower(trim((string) config('auth.allowed_email')));
+
+        if ($allowedEmail === '') {
+            return true;
+        }
+
+        $submittedEmail = mb_strtolower(trim((string) $this->string('email')));
+
+        return hash_equals($allowedEmail, $submittedEmail);
     }
 
     /**
