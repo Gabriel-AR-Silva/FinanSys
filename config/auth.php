@@ -24,6 +24,7 @@ return [
 
     'trusted_device' => [
         'required' => env('AUTH_TRUSTED_DEVICE_REQUIRED', env('APP_ENV') === 'production'),
+        'maximum' => (int) env('AUTH_TRUSTED_DEVICE_MAXIMUM', 2),
     ],
 
     /*
