@@ -108,6 +108,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/reembolsos', [ExpenseRefundController::class, 'store'])->name('expense-refunds.store');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile/dispositivos/{device}', [ProfileController::class, 'destroyTrustedDevice'])
+        ->whereNumber('device')
+        ->middleware('throttle:6,1')
+        ->name('profile.trusted-devices.destroy');
     Route::post('/configuracoes-avancadas/limpeza/desafio', [OperationalDataResetController::class, 'challenge'])
         ->middleware('throttle:6,1')
         ->name('operational-data-reset.challenge');
