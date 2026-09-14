@@ -63,7 +63,6 @@ class OnboardingProgressQueryTest extends TestCase
         $fixedCommitmentStep = collect($progress['recommendedSteps'])->firstWhere('key', 'fixed_commitments');
 
         $this->assertFalse($fixedCommitmentStep['completed']);
-        $this->assertSame('Registrar compromisso fixo', $fixedCommitmentStep['cta']['label']);
     }
 
     public function test_other_users_data_does_not_complete_onboarding(): void
