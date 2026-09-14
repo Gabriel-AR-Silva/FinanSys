@@ -22,6 +22,10 @@ return [
 
     'allowed_email' => env('AUTH_ALLOWED_EMAIL', env('GOOGLE_ALLOWED_EMAIL')),
 
+    'trusted_device' => [
+        'required' => env('AUTH_TRUSTED_DEVICE_REQUIRED', env('APP_ENV') === 'production'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Authentication Guards
