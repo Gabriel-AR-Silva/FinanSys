@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Enums\CategoryType;
 use App\Models\Account;
 use App\Models\BankStatementImport;
+use App\Models\CardPurchase;
 use App\Models\Category;
+use App\Models\CreditCard;
 use App\Models\LedgerEntry;
 use App\Models\OfxImportItem;
 use App\Models\User;
@@ -70,6 +72,47 @@ class OfxImportTest extends TestCase
         $this->assertSame('12.50', $entry->amount);
         $this->assertSame('expense', $entry->type->value);
         $this->assertSame('confirmed', $item->fresh()->review_status->value);
+    }
+
+    public function test_pix_on_credit_pair_becomes_one_card_purchase_only_after_user_validation(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $card = CreditCard::factory()->for($user)->create(['closing_day' => 5, 'due_day' => 12]);
+        $category = Category::factory()->for($user)->create(['type' => CategoryType::Expense]);
+
+        $this->actingAs($user)->post(route('ofx-imports.store'), [
+            'account_id' => $account->getKey(),
+            'file' => UploadedFile::fake()->createWithContent('nubank.ofx', $this->ofx([
+                $this->transaction('3.00', 'Valor adicionado por Pix no Crédito', 'pix-credit-1'),
+                $this->transaction('-3.00', 'Transferência Pix', 'pix-credit-1:reversal'),
+            ])),
+        ])->assertSessionHasNoErrors();
+
+        $import = BankStatementImport::query()->sole();
+        $debit = OfxImportItem::query()->where('direction', 'debit')->sole();
+
+        $this->assertDatabaseCount('card_purchases', 0);
+        $this->assertDatabaseCount('ledger_entries', 0);
+
+        $this->actingAs($user)->post(route('ofx-imports.pix-credit.confirm', [
+            'import' => $import,
+            'item' => $debit,
+        ]), [
+            'credit_card_id' => $card->getKey(),
+            'category_id' => $category->getKey(),
+            'planning_type' => 'ordinary',
+            'installments_count' => 1,
+            'first_due_on' => '2026-09-12',
+        ])->assertSessionHasNoErrors();
+
+        $purchase = CardPurchase::query()->sole();
+        $this->assertSame('3.00', $purchase->gross_amount);
+        $this->assertSame($card->getKey(), $purchase->credit_card_id);
+        $this->assertDatabaseCount('ledger_entries', 0);
+        $this->assertSame(2, OfxImportItem::query()->where('review_status', 'confirmed')->count());
+        $this->assertSame(CardPurchase::class, $debit->fresh()->domain_type);
+        $this->assertSame($purchase->getKey(), $debit->fresh()->domain_id);
     }
 
     /** @param  list<string>  $transactions */
