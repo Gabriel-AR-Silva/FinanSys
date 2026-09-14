@@ -40,6 +40,26 @@ class OfxImportTest extends TestCase
         $this->assertSame('card_credit_pix_candidate', $import->items->first()->classification->value);
     }
 
+    public function test_non_brl_statement_is_rejected_without_creating_import_or_financial_fact(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $contents = str_replace('<CURDEF>BRL</CURDEF>', '<CURDEF>USD</CURDEF>', $this->ofx([
+            $this->transaction('-12.50', 'Mercado', 'usd-expense'),
+        ]));
+
+        $this->actingAs($user)->post(route('ofx-imports.store'), [
+            'account_id' => $account->getKey(),
+            'file' => UploadedFile::fake()->createWithContent('statement.ofx', $contents),
+        ])->assertSessionHasErrors([
+            'file' => 'Esta versão aceita somente extratos em BRL. Nenhum lançamento foi criado.',
+        ]);
+
+        $this->assertDatabaseCount('bank_statement_imports', 0);
+        $this->assertDatabaseCount('bank_statement_import_items', 0);
+        $this->assertDatabaseCount('ledger_entries', 0);
+    }
+
     public function test_reviewed_ordinary_item_is_only_posted_after_explicit_confirmation(): void
     {
         $user = User::factory()->create();
