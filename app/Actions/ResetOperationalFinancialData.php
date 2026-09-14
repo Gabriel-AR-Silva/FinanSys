@@ -37,7 +37,16 @@ class ResetOperationalFinancialData
                 DB::table($table)->where('user_id', $userId)->delete();
             }
 
-            DB::table('audit_logs')->where('user_id', $userId)->delete();
+            DB::table('audit_logs')
+                ->where('user_id', $userId)
+                ->whereIn('auditable_type', $this->operationalAuditTypes())
+                ->delete();
+            DB::table('audit_logs')
+                ->where('user_id', $userId)
+                ->where('auditable_type', 'user')
+                ->where('auditable_id', $userId)
+                ->where('action', AuditAction::Purged->value)
+                ->delete();
 
             AuditLog::query()->create([
                 'user_id' => $userId,
@@ -71,6 +80,28 @@ class ResetOperationalFinancialData
             'card_credits',
             'card_credit_allocations',
         ])->sum(fn (string $table): int => DB::table($table)->where('user_id', $userId)->count());
+    }
+
+    /** @return list<string> */
+    private function operationalAuditTypes(): array
+    {
+        return [
+            'ledger_entry',
+            'expense_refund',
+            'receipt_forecast',
+            'receipt_forecast_link',
+            'card_purchase',
+            'card_installment',
+            'card_advance',
+            'card_advance_allocation',
+            'card_charge',
+            'card_charge_payment_allocation',
+            'card_payment',
+            'card_payment_allocation',
+            'card_purchase_reversal',
+            'card_credit',
+            'card_credit_allocation',
+        ];
     }
 
     /** @return list<string> */
