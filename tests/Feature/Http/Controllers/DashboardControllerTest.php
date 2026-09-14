@@ -43,7 +43,7 @@ class DashboardControllerTest extends TestCase
             ->where('overview.accounts_balance', '975')
             ->where('overview.pockets_balance', '200')
             ->where('overview.monthly_income', 300)
-            ->where('overview.monthly_expense', 125)
+            ->where('overview.monthly_expense', '125.00')
             ->where('overview.period_summary.income', '300')
             ->where('overview.period_summary.expense', '125')
             ->where('overview.period_summary.net', '175')

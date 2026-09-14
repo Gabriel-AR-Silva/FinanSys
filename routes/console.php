@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('finansys:purge-expired')->daily()->withoutOverlapping();
+Schedule::command('finansys:close-financial-day')->dailyAt('00:05')->timezone('America/Sao_Paulo')->withoutOverlapping();

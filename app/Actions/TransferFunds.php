@@ -50,6 +50,11 @@ class TransferFunds
 
         try {
             return DB::transaction(function () use ($user, $source, $destination, $amount, $operationId): array {
+                // Todas as mutações estruturais de conta/caixinha também bloqueiam o usuário.
+                // O mesmo lock aqui fecha a corrida transferência x exclusão/restauração antes
+                // de qualquer leitura de saldo ou escrita parcial.
+                User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+
                 $existingEntries = LedgerEntry::query()
                     ->withTrashed()
                     ->whereBelongsTo($user)
@@ -125,6 +130,7 @@ class TransferFunds
         $positiveTypes = [
             LedgerEntryType::OpeningBalance->value,
             LedgerEntryType::Income->value,
+            LedgerEntryType::Refund->value,
             LedgerEntryType::TransferIn->value,
         ];
         $placeholders = implode(', ', array_fill(0, count($positiveTypes), '?'));

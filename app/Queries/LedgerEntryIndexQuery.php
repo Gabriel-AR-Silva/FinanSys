@@ -8,6 +8,7 @@ use App\Models\Account;
 use App\Models\LedgerEntry;
 use App\Models\Pocket;
 use App\Models\User;
+use Brick\Math\BigDecimal;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -24,7 +25,7 @@ class LedgerEntryIndexQuery
             ->flip();
 
         return $this->filteredQuery($user, $filters)
-            ->with(['reference', 'category:id,name'])
+            ->with(['reference', 'category:id,name', 'expenseRefunds.refundEntry'])
             ->orderByDesc('occurred_at')
             ->orderByDesc('id')
             ->paginate(15)
@@ -77,6 +78,7 @@ class LedgerEntryIndexQuery
         return [
             'id' => $entry->id,
             'type' => $entry->type->value,
+            'planning_type' => $entry->planning_type?->value,
             'amount' => $entry->amount,
             'description' => $entry->description,
             'category' => $entry->category === null ? null : ['id' => $entry->category->id, 'name' => $entry->category->name],
@@ -88,7 +90,26 @@ class LedgerEntryIndexQuery
             'is_reversal' => $entry->reversal_of_operation_id !== null,
             'can_reverse' => $entry->reversal_of_operation_id === null
                 && ! ($reversedOperationIds?->has($entry->operation_id) ?? false)
-                && in_array($entry->type, [LedgerEntryType::Income, LedgerEntryType::Expense, LedgerEntryType::TransferOut], true),
+                && in_array($entry->type, [LedgerEntryType::Income, LedgerEntryType::Expense, LedgerEntryType::Refund, LedgerEntryType::TransferOut], true),
+            'can_refund' => $entry->type === LedgerEntryType::Expense
+                && $entry->reversal_of_operation_id === null
+                && ! ($reversedOperationIds?->has($entry->operation_id) ?? false)
+                && $this->refundableAmount($entry, $reversedOperationIds) !== '0.00',
+            'refundable_amount' => $this->refundableAmount($entry, $reversedOperationIds),
         ];
+    }
+
+    private function refundableAmount(LedgerEntry $entry, ?Collection $reversedOperationIds): string
+    {
+        if ($entry->type !== LedgerEntryType::Expense) {
+            return '0.00';
+        }
+
+        $refunded = $entry->expenseRefunds->pluck('refundEntry')->filter()
+            ->reject(fn (LedgerEntry $refund): bool => $reversedOperationIds?->has($refund->operation_id) ?? false)
+            ->reduce(fn (BigDecimal $total, LedgerEntry $refund): BigDecimal => $total->plus($refund->amount), BigDecimal::zero());
+        $remaining = BigDecimal::of($entry->amount)->minus($refunded);
+
+        return (string) ($remaining->isNegative() ? BigDecimal::zero() : $remaining);
     }
 }

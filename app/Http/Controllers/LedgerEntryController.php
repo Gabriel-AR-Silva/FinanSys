@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateManualLedgerEntry;
 use App\Actions\DeleteManualLedgerEntry;
+use App\Enums\ExpensePlanningType;
 use App\Enums\LedgerEntryType;
 use App\Enums\RecordStatus;
 use App\Http\Requests\IndexLedgerEntryRequest;
@@ -74,7 +75,7 @@ class LedgerEntryController extends Controller
     public function store(StoreLedgerEntryRequest $request, CreateManualLedgerEntry $createEntry): RedirectResponse
     {
         $data = $request->validated();
-        $createEntry->handle($request->user(), (int) $data['account_id'], (int) $data['category_id'], LedgerEntryType::from($data['type']), $data['amount'], $data['occurred_at'], $data['description'] ?? null, $data['operation_id']);
+        $createEntry->handle($request->user(), (int) $data['account_id'], (int) $data['category_id'], LedgerEntryType::from($data['type']), $data['amount'], $data['occurred_at'], $data['description'] ?? null, $data['operation_id'], isset($data['planning_type']) ? ExpensePlanningType::from($data['planning_type']) : null);
 
         return to_route('ledger-entries.index')->with('success', 'Lançamento registrado com sucesso.');
     }

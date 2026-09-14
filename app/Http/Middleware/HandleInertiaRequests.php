@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Queries\OnboardingProgressQuery;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -34,6 +35,9 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'onboarding' => fn (): ?array => $request->user()
+                ? app(OnboardingProgressQuery::class)->forUser($request->user())
+                : null,
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Enums\AuditAction;
 use App\Models\Account;
+use App\Models\CardAdvance;
 use App\Models\LedgerEntry;
 use App\Models\Pocket;
 use App\Support\AuditRecorder;
@@ -59,6 +60,13 @@ class PurgeExpiredFinancialRecords extends Command
         $entries = LedgerEntry::onlyTrashed()->where('user_id', $account->user_id)->where('deletion_batch_id', $batchId)->lockForUpdate()->get();
         $pockets = Pocket::onlyTrashed()->where('user_id', $account->user_id)->where('deletion_batch_id', $batchId)->lockForUpdate()->get();
         $count = 1 + $entries->count() + $pockets->count();
+
+        CardAdvance::query()->whereBelongsTo($account->user)
+            ->whereIn('ledger_entry_id', $entries->modelKeys())
+            ->update(['ledger_entry_id' => null]);
+        CardAdvance::query()->whereBelongsTo($account->user)
+            ->where('source_account_id', $account->id)
+            ->update(['source_account_id' => null]);
 
         foreach ($entries as $entry) {
             $this->purge($entry);

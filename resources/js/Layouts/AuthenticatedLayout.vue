@@ -1,8 +1,9 @@
 <script setup>
 import QuickActionModal from '@/Components/QuickActionModal.vue';
 import ToastHost from '@/Components/ToastHost.vue';
+import TsukiOnboarding from '@/Components/TsukiOnboarding.vue';
 import { Link, router } from '@inertiajs/vue3';
-import { ArrowDownCircle, ArrowLeftRight, ArrowRightLeft, ArrowUpCircle, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, Tags, UserRound, WalletCards, X } from '@lucide/vue';
+import { ArrowDownCircle, ArrowLeftRight, ArrowRightLeft, ArrowUpCircle, BellRing, CreditCard, FileUp, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, RotateCcw, Settings, Tags, UserRound, WalletCards, X } from '@lucide/vue';
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const mobileNavigationOpen = ref(false);
@@ -14,7 +15,12 @@ const navigation = [
     { label: 'Contas', route: 'accounts.index', icon: WalletCards },
     { label: 'Caixinhas', route: 'pockets.index', icon: PiggyBank },
     { label: 'Lançamentos', route: 'ledger-entries.index', icon: ReceiptText },
+    { label: 'Importar OFX', route: 'ofx-imports.index', icon: FileUp },
+    { label: 'Cartões', route: 'credit-cards.index', icon: CreditCard },
+    { label: 'Correções de cartão', route: 'card-corrections.index', icon: RotateCcw },
     { label: 'Categorias', route: 'categories.index', icon: Tags },
+    { label: 'Configuração financeira', route: 'financial-settings.edit', icon: Settings },
+    { label: 'Avisos financeiros', route: 'internal-alerts.index', icon: BellRing },
 ];
 const isActive = (routeName) => route().current(routeName);
 let previousBodyOverflow = '';
@@ -138,6 +144,13 @@ watch(mobileNavigationOpen, (open) => {
         </div>
 
         <QuickActionModal :show="quickActionOpen" @close="quickActionOpen = false" />
+        <TsukiOnboarding
+            v-if="$page.props.onboarding"
+            :essential-steps="$page.props.onboarding.essentialSteps"
+            :recommended-steps="$page.props.onboarding.recommendedSteps"
+            :progress="$page.props.onboarding.progress"
+            :initially-open="$page.props.onboarding.initiallyOpen"
+        />
         <ToastHost />
     </div>
 </template>

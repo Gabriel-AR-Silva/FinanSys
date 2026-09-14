@@ -4,11 +4,12 @@ import CategoryBreakdownChart from '@/Components/CategoryBreakdownChart.vue';
 import GeneralBalanceChart from '@/Components/GeneralBalanceChart.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowDownLeft, ArrowRight, ArrowUpRight, CalendarDays, Filter, Landmark, ReceiptText, Tags, WalletCards } from '@lucide/vue';
+import { ArrowDownLeft, ArrowRight, ArrowUpRight, CalendarDays, CircleGauge, Filter, Landmark, ReceiptText, Settings2, Tags, WalletCards } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
     overview: { type: Object, required: true },
+    planning: { type: Object, required: true },
     categories: { type: Array, required: true },
     filters: { type: Object, required: true },
 });
@@ -19,6 +20,23 @@ const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: '
 const formatMoney = (value) => currency.format(Number(value));
 const formatDate = (value) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(value));
 const formatPercent = (value) => `${Number(value).toFixed(1)}%`;
+const situationDetails = {
+    no_basis: { label: 'Sem base para comparar', message: 'Ainda falta chão pra fazer essa conta, Chefe 🤝', tone: 'text-slate-700', bar: 'bg-slate-400' },
+    insufficient: { label: 'Verba insuficiente', message: 'A conta apertou. Bora ajustar sem drama 😅', tone: 'text-rose-700', bar: 'bg-rose-500' },
+    under_control: { label: 'Sob controle', message: 'Tá redondo por enquanto, meu parceiro 😎', tone: 'text-emerald-700', bar: 'bg-emerald-500' },
+    balanced: { label: 'Em equilíbrio', message: 'Tá no limite saudável. Só não mete o louco 👀', tone: 'text-amber-700', bar: 'bg-amber-500' },
+    outside_plan: { label: 'Fora do planejado', message: 'Passou da faixa. Respira e bora recalcular essa bagaça 🧭', tone: 'text-rose-700', bar: 'bg-rose-500' },
+};
+const planningSituation = (view) => {
+    if (view.diagnostic_available || view.situation === 'insufficient') {
+        return situationDetails[view.situation];
+    }
+
+    return situationDetails.no_basis;
+};
+const planningCurrent = computed(() => props.planning.configured ? planningSituation(props.planning.current) : null);
+const planningProjected = computed(() => props.planning.configured ? planningSituation(props.planning.projected) : null);
+const progressWidth = (percentage) => `${Math.min(Math.max(Number(percentage ?? 0), 0), 100)}%`;
 
 const selectedCategoryName = computed(() => {
     if (selectedCategory.value === 'all') {
@@ -70,6 +88,21 @@ const periodCards = computed(() => [
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Movimentações</p><p class="mt-1 font-semibold text-slate-900">{{ overview.period_summary.transaction_count }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Maior despesa</p><p class="mt-1 truncate font-semibold text-rose-700" :title="formatMoney(overview.period_summary.largest_expense)">{{ formatMoney(overview.period_summary.largest_expense) }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Categoria ativa</p><p class="mt-1 truncate font-semibold text-slate-900" :title="selectedCategoryName">{{ selectedCategoryName }}</p></article>
+        </section>
+
+        <section class="mt-4 min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="planning-heading">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div class="flex min-w-0 gap-3"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700"><CircleGauge :size="18" /></span><div><h2 id="planning-heading" class="font-semibold text-slate-950">Ritmo financeiro do mês</h2><p class="mt-0.5 text-xs leading-5 text-slate-500">Verba disponível, não saldo bancário. Atualizado em Brasília.</p></div></div>
+                <div class="flex flex-wrap items-center gap-3"><Link :href="route('financial-evaluations.index')" class="inline-flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-600 hover:text-slate-800"><CalendarDays :size="15" />Histórico</Link><Link :href="route('financial-settings.edit', { month: planning.month })" class="inline-flex shrink-0 items-center gap-2 text-xs font-semibold text-emerald-700 hover:text-emerald-800"><Settings2 :size="15" />Configurar mês</Link></div>
+            </div>
+
+            <div v-if="!planning.configured" class="mt-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">Sem chute: configure proteção e essenciais para o FinanSys calcular direito. 🧮</div>
+            <div v-else class="mt-4 grid min-w-0 gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-center">
+                <article class="min-w-0 rounded-xl bg-slate-50 p-3.5"><div class="flex items-center justify-between gap-3"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Uso da verba até hoje</p><p class="text-sm font-semibold" :class="planningCurrent.tone">{{ planningCurrent.label }}</p></div><div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><div class="h-full rounded-full transition-[width]" :class="planningCurrent.bar" :style="{ width: progressWidth(planning.current.percentage) }" /></div><div class="mt-2 flex items-end justify-between gap-3"><p class="text-xs text-slate-500">{{ planningCurrent.message }}</p><p class="shrink-0 text-lg font-semibold text-slate-950">{{ planning.current.percentage === null ? '—' : formatPercent(planning.current.percentage) }}</p></div></article>
+                <article class="min-w-0 rounded-xl bg-slate-50 p-3.5"><div class="flex items-center justify-between gap-3"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Estimativa de uso até o fim do mês</p><p class="text-sm font-semibold" :class="planningProjected.tone">{{ planningProjected.label }}</p></div><div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><div class="h-full rounded-full transition-[width]" :class="planningProjected.bar" :style="{ width: progressWidth(planning.projected.percentage) }" /></div><div class="mt-2 flex items-end justify-between gap-3"><p class="text-xs text-slate-500">{{ planningProjected.message }}</p><p class="shrink-0 text-lg font-semibold text-slate-950">{{ planning.projected.percentage === null ? '—' : formatPercent(planning.projected.percentage) }}</p></div></article>
+                <dl class="grid grid-cols-2 gap-x-5 gap-y-2 text-xs lg:min-w-48 lg:grid-cols-1"><div><dt class="text-slate-500">Margem livre agora</dt><dd class="mt-0.5 truncate font-semibold text-slate-900" :title="formatMoney(planning.free_margin)">{{ formatMoney(planning.free_margin) }}</dd></div><div><dt class="text-slate-500">Média livre por dia</dt><dd class="mt-0.5 truncate font-semibold text-slate-900" :title="formatMoney(planning.daily.amount)">{{ formatMoney(planning.daily.amount) }}</dd><p class="mt-0.5 text-[11px] leading-4 text-slate-400">{{ planning.daily.remaining_days }} dias, após essenciais</p></div><div><dt class="text-slate-500">Variáveis projetadas</dt><dd class="mt-0.5 truncate font-semibold text-slate-900" :title="formatMoney(planning.variable.projected)">{{ formatMoney(planning.variable.projected) }}</dd></div></dl>
+                <p v-if="planning.reasons.length" class="text-xs leading-5 text-amber-700 lg:col-span-3">⚠️ {{ planning.reasons.join(' ') }}</p>
+            </div>
         </section>
 
         <section class="mt-6 min-w-0"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Evolução financeira</h2><p class="text-sm text-slate-500">Saldo acumulado e entradas versus saídas no período.</p></div><div class="grid min-w-0 gap-4 xl:grid-cols-2"><GeneralBalanceChart :chart="overview.chart" /><CashFlowChart :cash-flow="overview.cash_flow" /></div></section>
