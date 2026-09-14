@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\TrustedDevice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -38,6 +39,49 @@ class AuthenticationTest extends TestCase
 
         $this->assertAuthenticatedAs($user);
         $response->assertRedirect(route('dashboard', absolute: false));
+    }
+
+    public function test_first_valid_login_registers_the_device_when_private_mode_is_enabled(): void
+    {
+        $user = User::factory()->create();
+        config()->set('auth.allowed_email', $user->email);
+        config()->set('auth.trusted_device.required', true);
+        config()->set('auth.trusted_device.maximum', 2);
+
+        $response = $this->withHeader('User-Agent', 'Mozilla/5.0 (Linux; Android 13) Chrome/140.0')
+            ->post('/login', [
+                'email' => $user->email,
+                'password' => 'password',
+            ]);
+
+        $this->assertAuthenticatedAs($user);
+        $response->assertRedirect(route('dashboard', absolute: false))
+            ->assertCookie('finansys_trusted_device');
+        $this->assertDatabaseHas('trusted_devices', [
+            'user_id' => $user->getKey(),
+            'name' => 'Chrome · Android',
+            'last_ip_address' => '127.0.0.1',
+        ]);
+    }
+
+    public function test_third_device_is_rejected_even_with_valid_credentials(): void
+    {
+        $user = User::factory()->create();
+        TrustedDevice::factory()->count(2)->for($user)->create();
+        config()->set('auth.allowed_email', $user->email);
+        config()->set('auth.trusted_device.required', true);
+        config()->set('auth.trusted_device.maximum', 2);
+
+        $response = $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $response->assertSessionHasErrors([
+            'email' => 'E-mail ou senha incorretos.',
+        ]);
+        $this->assertSame(2, $user->trustedDevices()->count());
     }
 
     public function test_valid_credentials_outside_the_private_allowlist_are_rejected(): void
