@@ -2,353 +2,381 @@
 
 ## Estado do documento
 
-- **Status:** rascunho técnico e funcional, aguardando aprovação do Chefe.
-- **Autorização atual:** documentação e planejamento somente.
-- **Implementação:** não iniciada. Nenhuma etapa deste documento autoriza alteração de código, banco, dependências ou produção.
-- **Fonte de referência:** especificação compartilhada sobre importação OFX para Laravel e Vue.
-- **Prioridade inicial:** arquivos OFX exportados pelo Nubank, preservando uma fronteira extensível para outros bancos.
+- **Status:** arquitetura funcional aprovada para implementação pelo Chefe em 2026-09-13.
+- **Branch autorizada para continuidade:** `codex/v1-onboarding` enquanto a criação de uma branch dedicada estiver bloqueada pela integração.
+- **Prioridade:** arquivos OFX reais exportados pelo Nubank, com fronteira extensível para outros bancos somente após fixture e validação próprias.
+- **Amostra real validada:** OFX 1.02/SGML do Nubank, UTF-8, BRL, conta corrente, datas com offset BRT, `FITID`, `TRNTYPE`, `DTPOSTED`, `TRNAMT`, `MEMO` e `LEDGERBAL`.
+- **Deploy:** somente depois de implementação, testes, CI, revisão e autorização explícita do Chefe para promoção.
 
 ## Objetivo
 
-Permitir que o usuário autenticado selecione uma conta própria, envie um extrato OFX, revise as movimentações reconhecidas e confirme quais serão convertidas em lançamentos do FinanSys, sem duplicidade e sem modificar saldos diretamente.
+Permitir que o usuário autenticado envie um extrato OFX real, revise a interpretação do FinanSys e confirme somente operações corretamente classificadas, categorizadas e vinculadas ao domínio financeiro, sem duplicidade, sem inventar renda/despesa e sem sobrescrever saldo oficial.
 
-## Resultado esperado
+## Princípio central
 
-O processo possui duas operações distintas:
+`CREDIT` e `DEBIT` são sinais bancários, não regras de negócio suficientes.
 
-1. **Pré-visualização:** valida e interpreta o arquivo, normaliza os dados e informa duplicidades, sem criar lançamentos.
-2. **Confirmação:** recebe uma referência segura da pré-visualização e a seleção do usuário, revalida tudo e cria os lançamentos permitidos de forma transacional e idempotente.
+Antes de persistir qualquer efeito financeiro, o FinanSys deve executar:
 
-## Invariantes já aprovadas do FinanSys
+`OFX -> validação -> parser -> normalização -> relações -> classificação -> deduplicação -> preview -> categoria/regra de planejamento -> confirmação -> domínio -> auditoria/conciliação`
 
-Estas regras não ficam pendentes de decisão:
+A interface nunca possui autoridade para alterar valor, data, direção ou identidade bancária retornados pelo parser.
 
-- Toda consulta e alteração é isolada pelo usuário autenticado.
-- Contas e caixinhas são entidades diferentes; uma caixinha pertence a uma conta.
-- Lançamentos utilizam referência polimórfica `account` ou `pocket`, com `morphMap`, enum e resolução centralizada dentro do usuário autenticado.
-- Saldos são derivados dos lançamentos. O importador nunca grava ou corrige saldo diretamente.
-- Valores persistidos usam `DECIMAL`; cálculos financeiros não usam `float`.
-- O tipo do lançamento determina receita ou despesa. O domínio não exige valor negativo para despesas.
-- Alterações financeiras são transacionais, idempotentes e auditadas.
-- Exclusões financeiras relevantes respeitam `deleted_at` e a política de restauração vigente.
-- Tipos e estados são representados por enums.
-- Regras críticas permanecem no backend; o Vue conduz apenas a experiência.
+## Evidência da amostra real do Nubank
 
-## Escopo da primeira versão
+A amostra recebida demonstrou um caso de **Pix no Crédito** composto por:
 
-Incluído:
+- entrada `CREDIT` com memo de valor adicionado por cartão de crédito;
+- saída `DEBIT` correspondente ao Pix enviado;
+- `FITID` relacionado, sendo o segundo derivado do primeiro com sufixo `:reversal`;
+- mesmo valor e mesma data.
 
-- seleção de uma conta pertencente ao usuário;
-- upload temporário de um arquivo OFX dentro do limite configurado;
-- suporte validado contra um arquivo real e anonimizado do Nubank;
-- detecção de versão, estrutura e encoding do OFX;
-- normalização de data, descrição, identificador externo, tipo bancário e valor;
-- prévia paginada ou limitada, com status individual;
-- seleção das movimentações importáveis;
-- associação a categorias existentes compatíveis;
-- confirmação transacional;
-- proteção contra repetição da mesma movimentação e da mesma requisição;
-- resumo de importadas, duplicadas, ignoradas e rejeitadas;
-- auditoria sem conteúdo integral do extrato;
-- testes automatizados e fixture anonimizada.
+Esses dois itens **não podem virar automaticamente uma receita e uma despesa comuns**. Devem ser correlacionados e apresentados como operação composta sujeita à classificação apropriada do domínio, preferencialmente cartão quando os dados necessários puderem ser confirmados pelo usuário.
 
-Fora do primeiro ciclo:
+## Invariantes do FinanSys
 
-- sincronização direta por API bancária;
-- categorização inteligente ou aprendizagem automática;
-- conciliação automática de transferências;
-- suporte genérico declarado sem fixture real do banco correspondente;
-- alteração do saldo a partir do saldo informado no extrato;
-- armazenamento permanente do arquivo original;
-- importação diretamente para caixinhas, até decisão explícita;
-- desfazer uma importação completa, até definição de produto e auditoria.
+- Toda leitura e escrita é isolada por `user_id`.
+- Contas e caixinhas continuam entidades distintas.
+- O OFX V1 importa para conta, não diretamente para caixinha.
+- Saldos permanecem derivados das operações do FinanSys.
+- `LEDGERBAL` é somente evidência de conciliação; nunca sobrescreve saldo.
+- Valores financeiros usam decimal exato; nunca `float`.
+- Categoria deve pertencer ao usuário, estar ativa e ser compatível com o tipo.
+- Despesa deve respeitar a classificação de planejamento exigida pelo domínio.
+- Transferência interna não vira renda ou despesa.
+- Crédito/cartão não vira renda ou caixa fictício.
+- Escritas financeiras permanecem transacionais, idempotentes e auditadas.
+- O importador reutiliza as Actions/serviços financeiros existentes ou extrai núcleo compartilhado; não duplica regra de negócio.
 
-## Jornada funcional
+## Componentes arquiteturais
 
-1. O usuário abre **Importar extrato**.
-2. Seleciona uma conta ativa que lhe pertence.
-3. Seleciona um arquivo `.ofx`.
-4. O backend valida tamanho, conteúdo, estrutura e autorização da conta.
-5. O parser converte o conteúdo externo para itens normalizados, sem persistir lançamentos.
-6. O backend classifica cada item como novo, duplicado, inválido ou dependente de decisão.
-7. A interface apresenta a prévia e seleciona por padrão somente itens novos e válidos.
-8. O usuário revisa categorias e desmarca o que não deseja importar.
-9. Ao confirmar, o backend revalida usuário, conta, prévia, seleção e duplicidade.
-10. Uma transação de banco cria todos os lançamentos aceitos e sua auditoria.
-11. A interface mostra um resumo verificável e oferece acesso aos lançamentos criados.
+### `OfxParser`
 
-## Contrato de normalização
+Responsabilidade pura: receber bytes e devolver estrutura neutra, sem acessar banco.
 
-O parser recebe bytes do arquivo e retorna dados internos neutros. Ele não consulta nem grava o banco.
+Deve suportar inicialmente o formato observado do Nubank:
 
-Cada item normalizado deve conter conceitualmente:
+- `OFXHEADER:100`;
+- `DATA:OFXSGML`;
+- `VERSION:102`;
+- UTF-8;
+- `BANKMSGSRSV1` / `STMTRS`;
+- `BANKTRANLIST` / `STMTTRN`;
+- datas com timezone/offset;
+- `LEDGERBAL` apenas como metadado de conciliação.
 
-| Campo | Tipo lógico | Regra |
-| --- | --- | --- |
-| `external_id` | string nula | Origina-se preferencialmente de `FITID`; nunca é confiado sem validação. |
-| `bank_type` | enum/string | Valor original normalizado de `TRNTYPE`, preservado para diagnóstico. |
-| `occurred_at` | data/hora imutável | Derivada de `DTPOSTED`, com timezone tratado explicitamente. |
-| `amount` | decimal em string | Magnitude monetária exata; nunca `float`. |
-| `direction` | `income` ou `expense` | Derivada do sinal e dos dados bancários; será convertida para o enum do domínio. |
-| `description` | string | Derivada de `NAME`/`MEMO`, normalizada e limitada. |
-| `memo` | string nula | Informação auxiliar limitada; não é regra financeira. |
-| `document` | string nula | Origina-se de `CHECKNUM`/`REFNUM`, quando existente. |
-| `source_balance` | decimal em string nula | Apenas conferência da importação; nunca vira saldo oficial. |
-| `source_index` | inteiro | Posição estável no arquivo para diagnóstico e seleção. |
-| `fingerprint` | string | Hash determinístico de fallback para deduplicação quando não houver identificador confiável. |
+### `OfxNormalizer`
 
-O contrato PHP definitivo deverá usar objetos imutáveis, enums existentes e representação decimal compatível com o projeto. Os nomes acima são conceituais e podem ser adaptados às convenções encontradas durante a implementação.
+Produz itens imutáveis conceituais com:
 
-## Contrato da pré-visualização
+- `external_id` derivado de `FITID` quando disponível;
+- `bank_type`;
+- `occurred_at` normalizado para calendário coerente com Brasília;
+- `amount` como string decimal de magnitude;
+- `direction` bancária normalizada;
+- `description`/`memo` limitados;
+- `source_index` estável;
+- `fingerprint` determinístico de fallback;
+- identificadores bancários somente na forma mínima necessária e, quando persistidos, preferencialmente hash.
 
-### Entrada
+### `OfxRelationshipDetector`
 
-- usuário autenticado pela sessão;
-- `account_id` pertencente ao usuário e com estado permitido;
-- arquivo obrigatório, temporário e dentro do limite configurado;
-- chave de idempotência da requisição, quando adotada pelo contrato HTTP definitivo.
+Analisa relações entre itens antes de classificá-los individualmente.
 
-### Saída
+Casos iniciais:
 
-- identificador opaco e temporário da prévia;
-- validade da prévia;
-- metadados mínimos: instituição detectada, conta selecionada e período encontrado;
-- totais: encontrados, novos, duplicados, inválidos e dependentes de decisão;
-- itens normalizados, cada um com identificador opaco, dados de exibição, status e motivo;
-- categorias compatíveis pertencentes ao usuário.
+- `FITID` derivado, como `id` e `id:reversal`;
+- mesmo valor/data com descrição que indique operação composta;
+- pares candidatos a transferência;
+- itens que não podem ser classificados com segurança de forma isolada.
 
-### Garantias
+A detecção de relação não cria efeitos financeiros.
 
-- Nenhum `LedgerEntry` é criado.
-- O arquivo não fica acessível publicamente.
-- A resposta não contém caminhos internos, stack trace ou conteúdo integral do OFX.
-- Itens duplicados e inválidos não são selecionáveis.
-- A prévia pertence exclusivamente ao usuário e expira.
-- O cliente não recebe autoridade para redefinir valor, tipo, data ou destino após o parsing.
+### `OfxTransactionClassifier`
 
-## Contrato da confirmação
+Classificações iniciais conceituais:
 
-### Entrada
+- `income`;
+- `expense`;
+- `transfer_candidate`;
+- `card_credit_pix_candidate`;
+- `duplicate`;
+- `unsupported`;
+- `needs_review`.
 
-- identificador opaco da prévia;
-- identificadores opacos dos itens selecionados;
-- categoria do próprio usuário, compatível com receita ou despesa, para cada item que exigir categoria;
-- chave de idempotência da confirmação.
+O classificador pode sugerir, mas não inventa categoria, cartão, origem/destino ou regra de planejamento.
 
-### Revalidação obrigatória
+### Deduplicação
 
-- sessão e usuário;
-- propriedade e estado da conta;
-- propriedade, integridade e validade da prévia;
-- correspondência exata entre itens selecionados e itens normalizados no servidor;
-- categoria pertencente ao usuário e compatível com o tipo;
-- duplicidade no momento da gravação;
-- regras vigentes de criação de `LedgerEntry`.
+Deduplicação bancária e idempotência de requisição são proteções diferentes.
 
-### Persistência
+Chave preferencial:
 
-- Reutilizar a ação/serviço de criação de lançamento ou extrair um núcleo compartilhado; não duplicar regras.
-- O destino inicial é uma referência polimórfica `account` resolvida dentro do usuário autenticado.
-- A magnitude de `amount` permanece não negativa; `LedgerEntryType` representa a direção.
-- Cada lançamento recebe `operation_id` e dados suficientes para auditoria e rastreabilidade da importação.
-- A operação usa `DB::transaction` e índice único no banco para sustentar a idempotência sob concorrência.
+`user + account + institution + external_id`
 
-### Saída
+Fallback quando `FITID` estiver ausente ou não puder ser usado:
 
-- estado geral: concluída, concluída com ressalvas ou rejeitada;
-- quantidades importadas, duplicadas, ignoradas e rejeitadas;
-- referências dos lançamentos criados, quando seguro e útil;
-- erros por item em linguagem amigável, sem detalhes internos.
+`hash(institution + account_source + occurred_at + amount + direction + normalized_description)`
 
-## Deduplicação e idempotência
+A garantia final deve existir em índice/constraint de banco, não somente em consulta prévia.
 
-São proteções diferentes:
+## Persistência proposta
 
-- **Idempotência da requisição:** repetir a mesma confirmação não produz uma segunda operação.
-- **Deduplicação bancária:** a mesma movimentação de origem não produz outro lançamento em uma importação diferente.
+### `bank_statement_imports`
 
-A chave bancária candidata é composta por usuário, conta de destino, instituição/origem e `external_id`. Quando `FITID` estiver ausente ou não for confiável, deverá existir uma estratégia de fingerprint documentada e testada. A decisão final do índice depende da análise do OFX real e do esquema vigente.
+Representa a operação de importação e seus metadados:
 
-A verificação em código melhora a mensagem ao usuário, mas a garantia contra concorrência deve existir no banco de dados.
+- usuário;
+- conta FinanSys;
+- instituição detectada;
+- período;
+- status;
+- totais por resultado;
+- hash do arquivo ou identificador técnico seguro quando útil;
+- início/conclusão;
+- saldo de origem somente para conciliação.
+
+O arquivo OFX original não deve ser armazenado permanentemente.
+
+### `bank_statement_import_items`
+
+Representa cada item normalizado/importado:
+
+- importação;
+- identidade externa/fingerprint;
+- índice de origem;
+- data;
+- valor;
+- direção bancária;
+- classificação;
+- status;
+- categoria escolhida quando aplicável;
+- regra de planejamento quando aplicável;
+- referência ao objeto do domínio criado;
+- vínculo com item relacionado quando houver.
+
+Não persistir CPF, número completo de conta ou memo sensível além do necessário para a experiência e auditoria. Logs jamais recebem o conteúdo integral do extrato.
+
+### `bank_account_sources` (opcional no primeiro incremento, recomendado)
+
+Vínculo seguro entre conta FinanSys e origem bancária conhecida para sugerir automaticamente a conta nas importações futuras.
+
+Persistir apenas dados mínimos, preferencialmente hash dos identificadores externos.
+
+## Preview obrigatório
+
+Nenhum efeito financeiro ocorre durante o preview.
+
+A tela deve exibir, para cada item ou grupo relacionado:
+
+- data;
+- descrição sanitizada;
+- valor;
+- classificação sugerida;
+- status de duplicidade;
+- categoria quando obrigatória;
+- planejamento para despesa quando obrigatório;
+- motivo quando exigir revisão.
+
+No desktop pode existir tabela. No mobile, usar cards responsivos.
+
+Itens inválidos, duplicados ou sem decisão obrigatória não podem ser confirmados.
+
+## Categorias e planejamento
+
+A primeira versão não usa IA para categorização.
+
+- Receita: categoria ativa de receita do próprio usuário.
+- Despesa: categoria ativa de despesa + `planning_type` permitido pelo domínio.
+- Sem categoria válida, o item permanece pendente e não é importado.
+- Sugestões automáticas futuras podem usar regras determinísticas por descrição, mas nunca ignoram a validação final do backend.
+
+## Operações compostas e cartão
+
+Quando o detector reconhecer uma operação como candidata a Pix no Crédito, o preview deve tratá-la como uma unidade lógica.
+
+Se os dados necessários estiverem disponíveis/confirmados, a persistência deve reutilizar o domínio de cartão, incluindo cartão, categoria, classificação de planejamento, valor e datas exigidas.
+
+Se não houver informação suficiente para persistir corretamente no domínio de cartão, o grupo permanece `needs_review`; o FinanSys não cria receita/despesa fictícia como fallback.
+
+## Transferências
+
+Transferências detectadas pelo OFX entram inicialmente como `transfer_candidate`.
+
+- Não são convertidas automaticamente em renda/despesa.
+- Se o outro lado puder ser identificado com segurança dentro do FinanSys, a evolução poderá reutilizar o domínio de transferência.
+- Caso contrário, ficam para revisão explícita do usuário.
+
+## Conciliação
+
+`LEDGERBAL` é usado para informar ao usuário uma conferência, nunca para corrigir o banco.
+
+Após a seleção/importação, a interface pode apresentar:
+
+- saldo informado pelo banco na data do extrato;
+- saldo calculado pelo FinanSys para a mesma referência;
+- diferença;
+- indicação de itens ignorados ou pendentes quando houver divergência.
+
+Uma diferença de conciliação não autoriza escrita automática de ajuste.
+
+## Jornada V1
+
+1. Abrir **Importar extrato**.
+2. Selecionar conta ativa própria; uma origem conhecida pode sugerir a conta.
+3. Enviar `.ofx`.
+4. Validar tamanho, conteúdo, estrutura, encoding e autorização.
+5. Parsear e normalizar.
+6. Detectar relações entre itens.
+7. Classificar e deduplicar.
+8. Exibir preview responsivo.
+9. Resolver categoria/planejamento e decisões pendentes.
+10. Confirmar somente itens/grupos válidos.
+11. Revalidar tudo no backend.
+12. Persistir em transação, usando o domínio correto.
+13. Registrar auditoria e resultado da importação.
+14. Exibir resumo e conciliação.
+15. Remover temporários.
+
+## Regras de confirmação
+
+A confirmação deve receber somente:
+
+- token opaco da prévia;
+- itens/grupos escolhidos;
+- IDs de decisões permitidas (categoria, cartão, planejamento etc.);
+- chave de idempotência.
+
+O backend revalida:
+
+- usuário;
+- conta;
+- validade e integridade da prévia;
+- item normalizado original;
+- categoria/cartão pertencente ao usuário;
+- compatibilidade de tipo;
+- duplicidade;
+- regras financeiras vigentes.
+
+Valor, data, sinal e identidade bancária não são reconstruídos do navegador.
+
+## Falha parcial
+
+Um item inválido não impede o preview dos demais.
+
+Na confirmação, somente itens integralmente válidos e selecionados participam da transação. Dentro de uma confirmação, falha inesperada antes do commit deve produzir rollback do lote selecionado, evitando estado parcial silencioso.
+
+Itens rejeitados permanecem no resumo com motivo amigável.
+
+## Período repetido
+
+Importar um arquivo que cobre período já processado gera aviso e deduplicação item a item. O período por si só não bloqueia a importação, pois um extrato posterior pode conter operações novas do mesmo intervalo.
 
 ## Segurança e privacidade
 
-- Autorizar a conta sempre a partir do usuário autenticado; nunca buscar apenas pelo ID recebido.
-- Validar conteúdo real, não somente extensão ou MIME informado.
-- Definir limites de bytes, itens, profundidade, tempo e memória.
-- Desabilitar resolução de entidades externas e acessos de rede durante o parsing.
-- Processar o arquivo em armazenamento privado/temporário e removê-lo ao finalizar ou expirar.
-- Não registrar conteúdo integral, valores individuais, CPF, número de conta ou tokens de prévia.
-- Não aceitar na confirmação valores financeiros reconstruídos pelo navegador.
-- Aplicar proteção CSRF, rate limiting e mensagens de erro não reveladoras nas rotas autenticadas.
-- Anonimizar fixtures sem destruir a estrutura necessária ao teste.
+- validar conteúdo real, não somente extensão/MIME informado;
+- limites explícitos de bytes, quantidade de itens, profundidade e tempo;
+- parser sem resolução de entidades externas, includes ou rede;
+- armazenamento temporário privado e expiração curta;
+- proteção CSRF/rate limit nas rotas;
+- nenhum stack trace/caminho interno na UI;
+- nenhum OFX integral em logs/auditoria;
+- nenhum CPF/número de conta completo em logs;
+- fixtures de teste anonimizadas preservando estrutura técnica;
+- isolamento por usuário em todas as queries/mutações.
 
-## Falhas e consistência
+## Safe Data Reset relacionado
 
-- Falha na prévia não altera o domínio financeiro.
-- Prévia expirada exige novo processamento do arquivo.
-- Falha antes do commit reverte todos os lançamentos daquela confirmação.
-- Conflito de duplicidade detectado no commit é convertido em resultado seguro, nunca em duplicação.
-- O resumo distingue erro de arquivo, item inválido, duplicidade e falha interna.
-- Processamento assíncrono somente será introduzido se tamanho ou tempo medidos justificarem; o contrato deve permitir evolução sem exigir fila agora.
+A limpeza de dados operacionais é contrato separado em `SAFE_DATA_RESET_CONTRACT.md`.
 
-## Auditoria mínima
+O reset deve remover importações OFX e seus itens juntamente com demais fatos financeiros do usuário, sem deixar snapshots sensíveis antigos acessíveis, preservando identidade e estruturas explicitamente protegidas pelo contrato de reset.
 
-Registrar:
+## Decisões aprovadas nesta revisão
 
-- usuário e conta envolvidos;
-- identificador da operação/importação;
-- instituição/formato detectado;
-- horário de início e conclusão;
-- quantidades encontradas, importadas, duplicadas, ignoradas e rejeitadas;
-- resultado e categoria geral do erro, quando houver.
+1. **Transferências:** classificar como candidato e exigir revisão; nunca renda/despesa automática.
+2. **Categoria ausente:** categoria é obrigatória para operação que vira receita/despesa.
+3. **Destino:** OFX V1 importa para conta; caixinha fica fora.
+4. **Falha parcial:** preview continua; confirmação grava apenas seleção válida e faz rollback do lote em falha inesperada.
+5. **Período duplicado:** alertar e deduplicar por item; não bloquear apenas pelo intervalo.
+6. **Desfazer importação:** não será um recurso próprio do primeiro incremento; limpeza controlada é tratada pelo Safe Data Reset.
+7. **Pix no Crédito/operações compostas:** correlacionar antes de classificar; sem fallback que invente renda/despesa.
+8. **Saldo do OFX:** somente conciliação.
 
-Não registrar nome completo do arquivo se ele puder conter dados pessoais, conteúdo do extrato ou detalhes financeiros linha a linha.
+## Plano de execução
 
-## Decisões pendentes do Chefe
+### Fase 1 — Fixture e parser
 
-Estas escolhas bloqueiam partes específicas da implementação, mas não impedem a análise inicial do OFX:
+- gerar fixture anonimizada estruturalmente equivalente à amostra real;
+- parser puro;
+- normalização de datas/decimais/texto;
+- testes de formato válido/inválido, timezone, encoding, ausência de `FITID`, limites e acentos.
 
-1. **Transferências:** ignorar, importar como lançamento comum ou encaminhar para conciliação manual?
-2. **Categoria ausente:** exigir escolha durante a prévia ou permitir lançamento histórico sem categoria?
-3. **Destino:** primeira versão importa somente para conta ou também permite escolher uma caixinha?
-4. **Falha parcial:** uma linha inválida cancela tudo ou as válidas são importadas com ressalvas?
-5. **Período duplicado:** apenas alertar quando o arquivo cobre um período já importado ou impedir até revisão?
-6. **Desfazer importação:** ficará fora do MVP ou deverá existir restauração em lote desde a primeira versão?
+### Fase 2 — Relações, classificação e deduplicação
 
-Até essas respostas serem aprovadas, nenhuma hipótese será transformada silenciosamente em regra de negócio.
+- detector de pares/grupos;
+- caso real de Pix no Crédito;
+- fingerprint fallback;
+- constraints de deduplicação;
+- testes de repetição e relações.
 
-## Plano de execução em partes
+### Fase 3 — Preview seguro
 
-### Parte 0 — Aprovação do contrato
+- requests/autorização;
+- armazenamento temporário privado;
+- token opaco/expiração;
+- preview sem efeitos financeiros;
+- categorias/cartões próprios do usuário.
 
-**Responsáveis:** Lia e Atlas; decisão final do Chefe.
+### Fase 4 — UI responsiva
 
-- responder às decisões pendentes;
-- ajustar jornada e invariantes;
-- marcar este documento como aprovado.
+- upload e conta;
+- tabela desktop/cards mobile;
+- filtros/status;
+- categoria/planejamento;
+- estados de revisão/duplicidade/erro;
+- resumo e conciliação.
 
-**Gate:** nenhuma implementação começa enquanto o contrato estiver em rascunho.
+### Fase 5 — Persistência
 
-### Parte 1 — Descoberta técnica e amostra real
+- integração com Actions existentes;
+- operação composta para domínio correto;
+- transação/idempotência/auditoria;
+- rollback e concorrência.
 
-**Responsáveis:** Atlas e Nilo; revisão de Íris.
+### Fase 6 — Safe Data Reset
 
-- mapear ações, modelos, enums, rotas e componentes existentes;
-- obter um OFX real do Nubank devidamente anonimizado;
-- identificar versão, encoding, timezone, tags e irregularidades;
-- avaliar uma biblioteca somente depois de confirmar versões e formato;
-- propor o contrato PHP e as alterações mínimas de banco.
+Implementar conforme `SAFE_DATA_RESET_CONTRACT.md`, com confirmação forte, mapeamento explícito de dependências e teste de preservação.
 
-**Entrega:** relatório de compatibilidade e fixture anonimizada.
+### Fase 7 — Validação e produção
 
-**Gate:** nenhum parser é declarado pronto sem a amostra real.
+- Pint;
+- testes afetados;
+- suíte completa;
+- build/manifest;
+- testes de isolamento e repetição;
+- migração em banco compatível com produção;
+- teste manual desktop/mobile;
+- smoke após deploy;
+- promoção somente após autorização explícita do Chefe.
 
-### Parte 2 — Parser puro
+## Critérios de conclusão
 
-**Responsável:** Nilo; revisão de Bento e Íris.
-
-- implementar parser encapsulado e DTO imutável;
-- normalizar datas, decimais, texto e identificadores;
-- limitar recursos e rejeitar conteúdo inseguro ou inválido;
-- não acessar o banco.
-
-**Testes:** arquivo válido, inválido, variações de encoding, acentos, datas, entradas/saídas, ausência de `FITID` e limites.
-
-**Gate:** testes do parser aprovados com fixture real anonimizada.
-
-### Parte 3 — Pré-visualização segura
-
-**Responsáveis:** Nilo e Íris; revisão de Bento.
-
-- criar Form Request e autorização da conta;
-- armazenar estado temporário privado com expiração;
-- classificar itens e duplicidades sem persistir lançamentos;
-- retornar contrato adequado ao Inertia.
-
-**Testes:** isolamento entre usuários, conta alheia, arquivo inválido, expiração, nenhum efeito financeiro e mensagens seguras.
-
-**Gate:** provar que a prévia não cria nem altera lançamentos.
-
-### Parte 4 — Interface responsiva de revisão
-
-**Responsável:** Nilo; revisão de Lia e Bento.
-
-- seleção de conta e arquivo;
-- progresso, estado vazio e erros junto aos campos;
-- tabela no desktop e apresentação adequada no mobile;
-- filtros de status, seleção somente de itens permitidos e escolha de categoria;
-- confirmação explícita com resumo.
-
-**Testes:** navegação por teclado, estados de carregamento/erro, larguras mobile reais e prevenção de seleção inválida.
-
-**Gate:** jornada completa de prévia validada sem quebra de layout.
-
-### Parte 5 — Importação transacional e idempotente
-
-**Responsáveis:** Nilo e Nexo; revisão de Atlas, Íris e Bento.
-
-- implementar persistência reutilizando contratos financeiros existentes;
-- criar proteção de idempotência e índice de deduplicação;
-- auditar a operação;
-- tratar corrida e repetição da requisição;
-- retornar resumo por estado.
-
-**Testes:** mesma confirmação repetida, mesmo arquivo repetido, concorrência, rollback, categoria incompatível, conta alheia e dados adulterados no frontend.
-
-**Gate:** nenhuma duplicidade ou estado parcial após falhas simuladas.
-
-### Parte 6 — Integração, desempenho e operação
-
-**Responsáveis:** Maia coordena; Fluxo mede; Bento executa regressão.
-
-- executar testes afetados e suíte completa;
-- medir arquivo pequeno e arquivo no limite;
-- revisar consultas e índices com evidência;
-- verificar logs, limpeza dos temporários e comportamento em produção;
-- decidir, a partir das medições, se filas são necessárias.
-
-**Gate:** build, testes, revisão de segurança e checklist funcional aprovados por papéis diferentes dos implementadores.
-
-### Parte 7 — Publicação controlada
-
-**Responsáveis:** Maia e Nexo; autorização do Chefe.
-
-- versionar primeiro na branch de desenvolvimento;
-- executar migration e build conforme o processo de deploy vigente;
-- validar com arquivo anonimizado;
-- observar erros sem registrar dados financeiros;
-- promover para produção somente com autorização explícita.
-
-**Gate:** plano de retorno definido e validação pós-deploy concluída.
-
-## Critérios de conclusão da funcionalidade
-
-- contrato aprovado pelo Chefe;
-- OFX real anonimizado coberto por testes;
-- parser isolado e sem `float` monetário;
-- prévia sem efeitos financeiros;
-- confirmação revalidada no backend;
-- isolamento integral por usuário;
-- conta e categorias resolvidas dentro do usuário;
-- saldos continuam derivados dos lançamentos;
-- importação repetida não duplica registros;
-- concorrência protegida pelo banco;
-- operação transacional e auditada;
+- fixture Nubank anonimizada coberta por testes;
+- parser puro e determinístico;
+- Pix no Crédito não vira renda fictícia;
+- preview não produz efeitos;
+- categorias e planejamento respeitam o domínio;
+- importação repetida não duplica dados;
+- período repetido pode adicionar apenas operações novas;
+- saldos continuam derivados do FinanSys;
+- `LEDGERBAL` somente concilia;
+- segurança/privacidade verificadas;
 - arquivo temporário eliminado;
-- interface responsiva e acessível nos estados essenciais;
-- mensagens amigáveis sem vazamento de detalhes internos;
-- testes afetados, regressão e build aprovados;
-- deploy realizado somente após autorização do Chefe.
+- mobile/desktop validados;
+- CI verde no último HEAD;
+- migrations/deploy validados antes da produção.
 
 ## Registro de aprovação
 
-Quando o Chefe autorizar alterações, registrar aqui:
-
-- decisões pendentes respondidas;
-- versão aprovada do contrato;
-- partes autorizadas para implementação;
-- data da aprovação;
-- mudanças posteriores e seus impactos.
-
-Enquanto este registro estiver vazio, o documento permanece exclusivamente como proposta.
+- **2026-09-13:** Chefe enviou amostra real do Nubank, autorizou o avanço da arquitetura e determinou continuidade na branch já existente enquanto a criação de branch dedicada permanece bloqueada.
+- **2026-09-13:** decisões acima consolidadas com base na amostra real e nas invariantes existentes do FinanSys.
