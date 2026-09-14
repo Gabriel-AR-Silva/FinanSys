@@ -7,7 +7,7 @@ use Carbon\CarbonImmutable;
 readonly class OfxStatement
 {
     /**
-     * @param list<OfxTransaction> $transactions
+     * @param  list<OfxTransaction>  $transactions
      */
     public function __construct(
         public string $institution,
