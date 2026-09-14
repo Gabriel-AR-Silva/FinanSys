@@ -37,6 +37,6 @@ class BankStatementImport extends Model
 
     public function items(): HasMany
     {
-        return $this->hasMany(BankStatementImportItem::class);
+        return $this->hasMany(OfxImportItem::class, 'bank_statement_import_id');
     }
 }
