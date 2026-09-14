@@ -58,7 +58,11 @@ class OfxImportController extends Controller
             ->findOrFail($validated['account_id']);
 
         try {
-            $contents = $validated['file']->get();
+            $contents = file_get_contents($validated['file']->getPathname());
+            if ($contents === false) {
+                throw new InvalidArgumentException('Não foi possível ler o arquivo OFX enviado.');
+            }
+
             $statement = $parser->parse($contents);
         } catch (InvalidArgumentException $exception) {
             return back()->withErrors(['file' => $exception->getMessage()]);
