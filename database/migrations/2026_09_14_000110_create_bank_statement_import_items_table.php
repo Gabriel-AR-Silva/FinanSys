@@ -21,7 +21,7 @@ return new class extends Migration
             $table->text('description');
             $table->char('external_id_hash', 64)->nullable();
             $table->char('fingerprint', 64);
-            $table->char('dedup_key', 64)->unique();
+            $table->char('dedup_key', 64)->nullable()->unique();
             $table->string('classification', 40)->default('needs_review');
             $table->string('review_status', 32)->default('pending_review');
             $table->foreignId('category_id')->nullable()->constrained()->nullOnDelete();
