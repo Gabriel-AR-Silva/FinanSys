@@ -6,6 +6,7 @@ use App\Actions\PrepareOfxImport;
 use App\Enums\RecordStatus;
 use App\Models\Account;
 use App\Models\BankStatementImport;
+use App\Models\Category;
 use App\Models\User;
 use App\Support\OfxClassifier;
 use App\Support\OfxParser;
@@ -36,6 +37,7 @@ class OfxImportController extends Controller
 
         return Inertia::render('OfxImports/Index', [
             'accounts' => Account::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->orderBy('name')->get(['id', 'name']),
+            'categories' => Category::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->orderBy('name')->get(['id', 'name', 'type']),
             'imports' => $imports,
             'review' => $review,
         ]);
