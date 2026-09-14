@@ -103,35 +103,40 @@ class ConfirmOfxCardCreditPix
     /** @return Collection<int, OfxImportItem> */
     private function pairFor(User $user, BankStatementImport $import, OfxImportItem $selected): Collection
     {
-        $minimumIndex = max(0, (int) $selected->source_index - 1);
-        $maximumIndex = (int) $selected->source_index + 1;
-        $selectedDate = $selected->occurred_at->setTimezone('America/Sao_Paulo')->toDateString();
-        $oppositeDirection = $selected->direction === 'debit' ? 'credit' : 'debit';
+        if ($selected->relationship_key === null) {
+            throw ValidationException::withMessages([
+                'item' => 'Não foi possível identificar o vínculo bancário do Pix no Crédito.',
+            ]);
+        }
 
-        $candidates = OfxImportItem::query()
+        $pair = OfxImportItem::query()
             ->where('user_id', $user->getKey())
             ->where('bank_statement_import_id', $import->getKey())
+            ->where('relationship_key', $selected->relationship_key)
             ->where('classification', OfxClassification::CardCreditPixCandidate)
-            ->whereBetween('source_index', [$minimumIndex, $maximumIndex])
+            ->where('review_status', OfxReviewStatus::PendingReview)
             ->lockForUpdate()
             ->get();
 
-        $companions = $candidates->filter(function (OfxImportItem $candidate) use ($selected, $selectedDate, $oppositeDirection): bool {
-            return (int) $candidate->getKey() !== (int) $selected->getKey()
-                && $candidate->review_status === OfxReviewStatus::PendingReview
-                && $candidate->direction === $oppositeDirection
-                && (string) $candidate->amount === (string) $selected->amount
-                && $candidate->occurred_at->setTimezone('America/Sao_Paulo')->toDateString() === $selectedDate;
-        })->values();
-
-        if ($companions->count() !== 1) {
+        if ($pair->count() !== 2) {
             throw ValidationException::withMessages([
                 'item' => 'O par bancário do Pix no Crédito ficou ambíguo. Revise este extrato manualmente.',
             ]);
         }
 
-        return collect([$selected, $companions->first()])
-            ->sortBy('source_index')
-            ->values();
+        $credit = $pair->first(fn (OfxImportItem $candidate): bool => $candidate->direction === 'credit');
+        $debit = $pair->first(fn (OfxImportItem $candidate): bool => $candidate->direction === 'debit');
+        $sameAmount = $credit !== null && $debit !== null && (string) $credit->amount === (string) $debit->amount;
+        $sameDate = $credit !== null && $debit !== null
+            && $credit->occurred_at->setTimezone('America/Sao_Paulo')->toDateString()
+            === $debit->occurred_at->setTimezone('America/Sao_Paulo')->toDateString();
+
+        if (! $sameAmount || ! $sameDate) {
+            throw ValidationException::withMessages([
+                'item' => 'O par bancário do Pix no Crédito não é consistente. Revise este extrato manualmente.',
+            ]);
+        }
+
+        return $pair->sortBy('source_index')->values();
     }
 }
