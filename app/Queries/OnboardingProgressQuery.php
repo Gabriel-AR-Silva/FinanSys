@@ -62,6 +62,12 @@ class OnboardingProgressQuery
             ->where('type', LedgerEntryType::Expense)
             ->where('planning_type', ExpensePlanningType::Fixed)
             ->whereNull('reversal_of_operation_id')
+            ->whereNotExists(fn ($query) => $query
+                ->selectRaw('1')
+                ->from('ledger_entries as reversals')
+                ->whereColumn('reversals.user_id', 'ledger_entries.user_id')
+                ->whereColumn('reversals.reversal_of_operation_id', 'ledger_entries.operation_id')
+                ->whereNull('reversals.deleted_at'))
             ->exists();
 
         $hasPlanning = MonthlyFinancialSetting::query()
