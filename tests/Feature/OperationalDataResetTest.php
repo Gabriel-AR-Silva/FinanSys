@@ -113,7 +113,7 @@ class OperationalDataResetTest extends TestCase
         $this->actingAs($user)->delete(route('operational-data-reset.destroy'), [
             'confirmation_code' => $code,
             'slider_confirmed' => true,
-        ])->assertSessionHasNoErrors();
+        ])->assertRedirect()->assertSessionHas('success');
 
         $this->assertDatabaseMissing('ledger_entries', ['id' => $entry->getKey()]);
         $this->assertDatabaseMissing('bank_statement_imports', ['id' => $import->getKey()]);
@@ -141,7 +141,7 @@ class OperationalDataResetTest extends TestCase
             $this->actingAs($user)->delete(route('operational-data-reset.destroy'), [
                 'confirmation_code' => (string) $challenge->json('code'),
                 'slider_confirmed' => true,
-            ])->assertSessionHasNoErrors();
+            ])->assertRedirect()->assertSessionHas('success');
         }
 
         $this->assertDatabaseHas('users', ['id' => $user->getKey()]);
