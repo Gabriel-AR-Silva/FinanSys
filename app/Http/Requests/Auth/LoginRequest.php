@@ -10,9 +10,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\Cookie;
 
 class LoginRequest extends FormRequest
 {
+    private ?Cookie $trustedDeviceCookie = null;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -45,12 +48,13 @@ class LoginRequest extends FormRequest
 
         $authenticated = Auth::attempt($this->only('email', 'password'), $this->boolean('remember'));
         $user = Auth::user();
-        $accessAllowed = $authenticated
-            && $user !== null
-            && $this->emailIsAllowed()
-            && app(TrustedDeviceCookie::class)->allowsPasswordLogin($this, $user);
+        $deviceDecision = ['allowed' => false, 'cookie' => null];
 
-        if (! $accessAllowed) {
+        if ($authenticated && $user !== null && $this->emailIsAllowed()) {
+            $deviceDecision = app(TrustedDeviceCookie::class)->authorize($this, $user);
+        }
+
+        if (! $deviceDecision['allowed']) {
             if ($authenticated) {
                 Auth::logout();
             }
@@ -62,7 +66,13 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        $this->trustedDeviceCookie = $deviceDecision['cookie'];
         RateLimiter::clear($this->throttleKey());
+    }
+
+    public function trustedDeviceCookie(): ?Cookie
+    {
+        return $this->trustedDeviceCookie;
     }
 
     /**
