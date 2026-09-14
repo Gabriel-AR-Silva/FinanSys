@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Support\TrustedDeviceCookie;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -43,8 +44,13 @@ class LoginRequest extends FormRequest
         $this->ensureIsNotRateLimited();
 
         $authenticated = Auth::attempt($this->only('email', 'password'), $this->boolean('remember'));
+        $user = Auth::user();
+        $accessAllowed = $authenticated
+            && $user !== null
+            && $this->emailIsAllowed()
+            && app(TrustedDeviceCookie::class)->allowsPasswordLogin($this, $user);
 
-        if (! $authenticated || ! $this->emailIsAllowed()) {
+        if (! $accessAllowed) {
             if ($authenticated) {
                 Auth::logout();
             }
