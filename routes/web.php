@@ -17,6 +17,7 @@ use App\Http\Controllers\FinancialSettingsController;
 use App\Http\Controllers\InternalAlertController;
 use App\Http\Controllers\LedgerEntryController;
 use App\Http\Controllers\LedgerEntryReversalController;
+use App\Http\Controllers\OfxImportConfirmationController;
 use App\Http\Controllers\OfxImportController;
 use App\Http\Controllers\OfxImportReviewController;
 use App\Http\Controllers\PocketController;
@@ -63,6 +64,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/importacoes/ofx', [OfxImportController::class, 'index'])->name('ofx-imports.index');
     Route::post('/importacoes/ofx', [OfxImportController::class, 'store'])->name('ofx-imports.store');
     Route::patch('/importacoes/ofx/itens/{item}', [OfxImportReviewController::class, 'update'])->whereNumber('item')->name('ofx-imports.items.update');
+    Route::post('/importacoes/ofx/{import}/confirmar', [OfxImportConfirmationController::class, 'store'])->whereNumber('import')->name('ofx-imports.confirm');
     Route::resource('contas', AccountController::class)
         ->parameters(['contas' => 'account'])
         ->only(['index', 'store', 'update', 'destroy'])
