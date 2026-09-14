@@ -133,7 +133,7 @@ class OfxImportTest extends TestCase
         $this->assertSame('confirmed', $item->review_status->value);
         $this->assertSame('expense', $item->classification->value);
         $this->assertSame($category->getKey(), $item->category_id);
-        $this->assertSame('ordinary', $item->planning_type->value);
+        $this->assertSame('ordinary', $item->planning_type);
         $this->assertSame(LedgerEntry::class, $item->domain_type);
         $this->assertSame($entry->getKey(), $item->domain_id);
         $this->assertDatabaseCount('ledger_entries', 1);
