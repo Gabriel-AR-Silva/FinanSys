@@ -12,7 +12,9 @@ use Illuminate\Validation\ValidationException;
 class OperationalDataResetController extends Controller
 {
     private const SESSION_KEY = 'operational_data_reset.challenge';
+
     private const CHALLENGE_TTL_SECONDS = 300;
+
     private const CHALLENGE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
     public function challenge(Request $request, ResetOperationalFinancialData $reset): JsonResponse
