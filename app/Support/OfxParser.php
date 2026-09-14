@@ -7,6 +7,7 @@ use InvalidArgumentException;
 class OfxParser
 {
     public const MAX_BYTES = 2097152;
+
     public const MAX_TRANSACTIONS = 5000;
 
     public function __construct(
