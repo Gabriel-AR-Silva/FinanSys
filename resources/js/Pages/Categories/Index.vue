@@ -8,7 +8,7 @@ import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { CircleMinus, CirclePlus, Pencil, Plus, Tags } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 const props = defineProps({ categories: { type: Array, required: true } });
 const createModalOpen = ref(false);
@@ -28,6 +28,14 @@ const toggleStatus = (category) => {
     statusForm.status = category.status === 'active' ? 'inactive' : 'active';
     statusForm.patch(route('categories.status.update', category.id), { preserveScroll: true });
 };
+
+onMounted(() => {
+    const requestedType = new URLSearchParams(window.location.search).get('create');
+    if (['income', 'expense'].includes(requestedType)) {
+        createForm.type = requestedType;
+        createModalOpen.value = true;
+    }
+});
 </script>
 
 <template>

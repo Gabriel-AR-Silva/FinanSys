@@ -25,6 +25,7 @@ use App\Models\Pocket;
 use App\Models\ReceiptForecast;
 use App\Models\ReceiptForecastLink;
 use App\Models\SocialIdentity;
+use App\Models\User;
 use App\Services\MailtrapApiSandboxSender;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -68,6 +69,7 @@ class AppServiceProvider extends ServiceProvider
         DevCommands::artisan('queue:work --sleep=1 --tries=3 --timeout=60 --max-jobs=100', 'queue');
 
         Relation::enforceMorphMap([
+            'user' => User::class,
             'account' => Account::class,
             'category' => Category::class,
             'pocket' => Pocket::class,

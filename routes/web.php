@@ -17,6 +17,11 @@ use App\Http\Controllers\FinancialSettingsController;
 use App\Http\Controllers\InternalAlertController;
 use App\Http\Controllers\LedgerEntryController;
 use App\Http\Controllers\LedgerEntryReversalController;
+use App\Http\Controllers\OfxCardCreditPixConfirmationController;
+use App\Http\Controllers\OfxImportConfirmationController;
+use App\Http\Controllers\OfxImportController;
+use App\Http\Controllers\OfxImportReviewController;
+use App\Http\Controllers\OperationalDataResetController;
 use App\Http\Controllers\PocketController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReceiptForecastController;
@@ -58,6 +63,22 @@ Route::middleware('auth')->group(function () {
     Route::get('/avisos-financeiros', [InternalAlertController::class, 'index'])->name('internal-alerts.index');
     Route::put('/configuracao-financeira', [FinancialSettingsController::class, 'update'])->name('financial-settings.update');
     Route::post('/configuracao-financeira/categorias', [FinancialSettingsController::class, 'storeCategory'])->name('financial-settings.categories.store');
+    Route::get('/importacoes/ofx', [OfxImportController::class, 'index'])->name('ofx-imports.index');
+    Route::post('/importacoes/ofx', [OfxImportController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('ofx-imports.store');
+    Route::patch('/importacoes/ofx/itens/{item}', [OfxImportReviewController::class, 'update'])
+        ->whereNumber('item')
+        ->middleware('throttle:30,1')
+        ->name('ofx-imports.items.update');
+    Route::post('/importacoes/ofx/{import}/confirmar', [OfxImportConfirmationController::class, 'store'])
+        ->whereNumber('import')
+        ->middleware('throttle:12,1')
+        ->name('ofx-imports.confirm');
+    Route::post('/importacoes/ofx/{import}/pix-no-credito/{item}/confirmar', [OfxCardCreditPixConfirmationController::class, 'store'])
+        ->whereNumber(['import', 'item'])
+        ->middleware('throttle:12,1')
+        ->name('ofx-imports.pix-credit.confirm');
     Route::resource('contas', AccountController::class)
         ->parameters(['contas' => 'account'])
         ->only(['index', 'store', 'update', 'destroy'])
@@ -87,6 +108,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/reembolsos', [ExpenseRefundController::class, 'store'])->name('expense-refunds.store');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::post('/configuracoes-avancadas/limpeza/desafio', [OperationalDataResetController::class, 'challenge'])
+        ->middleware('throttle:6,1')
+        ->name('operational-data-reset.challenge');
+    Route::delete('/configuracoes-avancadas/limpeza', [OperationalDataResetController::class, 'destroy'])
+        ->middleware('throttle:3,1')
+        ->name('operational-data-reset.destroy');
 });
 
 require __DIR__.'/auth.php';
