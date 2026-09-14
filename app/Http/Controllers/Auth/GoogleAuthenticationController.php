@@ -107,10 +107,24 @@ class GoogleAuthenticationController extends Controller
         }
 
         Auth::login($identity->user);
-        $request->session()->regenerate();
+        $deviceDecision = $trustedDeviceCookie->authorize($request, $identity->user);
 
-        return redirect()->intended(route('dashboard', absolute: false))
-            ->withCookie($trustedDeviceCookie->make($identity->user));
+        if (! $deviceDecision['allowed']) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return $this->authenticationFailed(self::LOGIN_INTENT);
+        }
+
+        $request->session()->regenerate();
+        $response = redirect()->intended(route('dashboard', absolute: false));
+
+        if ($deviceDecision['cookie'] !== null) {
+            $response->withCookie($deviceDecision['cookie']);
+        }
+
+        return $response;
     }
 
     private function bootstrapIdentity(SocialiteUser $googleUser, AuditRecorder $auditRecorder): ?SocialIdentity
@@ -176,9 +190,15 @@ class GoogleAuthenticationController extends Controller
             return redirect()->route('profile.edit')->with('error', 'Esta conta Google já está vinculada a outro usuário.');
         }
 
-        return redirect()->route('profile.edit')
-            ->with('success', 'Conta Google vinculada. Seu e-mail de acesso também foi atualizado.')
-            ->withCookie($trustedDeviceCookie->make($request->user()->refresh()));
+        $deviceDecision = $trustedDeviceCookie->authorize($request, $request->user()->refresh());
+        $response = redirect()->route('profile.edit')
+            ->with('success', 'Conta Google vinculada. Seu e-mail de acesso também foi atualizado.');
+
+        if ($deviceDecision['cookie'] !== null) {
+            $response->withCookie($deviceDecision['cookie']);
+        }
+
+        return $response;
     }
 
     private function isAllowedIdentity(SocialiteUser $googleUser): bool
