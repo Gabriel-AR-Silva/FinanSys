@@ -2,7 +2,10 @@
 
 namespace Tests\Feature\Queries;
 
+use App\Enums\ExpensePlanningType;
+use App\Enums\LedgerEntryType;
 use App\Models\Account;
+use App\Models\LedgerEntry;
 use App\Models\User;
 use App\Queries\OnboardingProgressQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -37,6 +40,30 @@ class OnboardingProgressQueryTest extends TestCase
         $this->assertFalse($progress['initiallyOpen']);
         $this->assertTrue($accountStep['completed']);
         $this->assertNull($accountStep['cta']);
+    }
+
+    public function test_reversed_fixed_expense_does_not_complete_fixed_commitment_step(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $expense = LedgerEntry::factory()->for($user)->create([
+            'reference_type' => $account->getMorphClass(),
+            'reference_id' => $account->getKey(),
+            'type' => LedgerEntryType::Expense,
+            'planning_type' => ExpensePlanningType::Fixed,
+        ]);
+        LedgerEntry::factory()->for($user)->create([
+            'reference_type' => $account->getMorphClass(),
+            'reference_id' => $account->getKey(),
+            'type' => LedgerEntryType::Income,
+            'reversal_of_operation_id' => $expense->operation_id,
+        ]);
+
+        $progress = app(OnboardingProgressQuery::class)->forUser($user);
+        $fixedCommitmentStep = collect($progress['recommendedSteps'])->firstWhere('key', 'fixed_commitments');
+
+        $this->assertFalse($fixedCommitmentStep['completed']);
+        $this->assertSame('Registrar compromisso fixo', $fixedCommitmentStep['cta']['label']);
     }
 
     public function test_other_users_data_does_not_complete_onboarding(): void
