@@ -28,6 +28,8 @@ class PrepareOfxImport
         $byIndex = collect($classifications)->keyBy('sourceIndex');
 
         return DB::transaction(function () use ($user, $account, $statement, $byIndex): BankStatementImport {
+            User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+
             $import = BankStatementImport::query()->create([
                 'user_id' => $user->getKey(),
                 'account_id' => $account->getKey(),
@@ -49,7 +51,7 @@ class PrepareOfxImport
             }
 
             return $import->load('items');
-        });
+        }, 3);
     }
 
     private function storeItem(BankStatementImport $import, User $user, Account $account, OfxStatement $statement, OfxTransaction $transaction, ?OfxClassificationResult $result): void
