@@ -5,7 +5,7 @@ namespace App\Support;
 class OfxRelationshipDetector
 {
     /**
-     * @param list<OfxTransaction> $transactions
+     * @param  list<OfxTransaction>  $transactions
      * @return array<string, list<int>>
      */
     public function fitIdGroups(array $transactions): array
