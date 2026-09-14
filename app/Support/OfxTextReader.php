@@ -23,4 +23,16 @@ class OfxTextReader
 
         return $value === '' ? null : $value;
     }
+
+    /** @return list<string> */
+    public function blocks(string $contents, string $tag): array
+    {
+        $pattern = '/<'.preg_quote($tag, '/').'\b[^>]*>(.*?)<\/'.preg_quote($tag, '/').'>/si';
+
+        if (! preg_match_all($pattern, $contents, $matches)) {
+            return [];
+        }
+
+        return array_values($matches[1]);
+    }
 }
