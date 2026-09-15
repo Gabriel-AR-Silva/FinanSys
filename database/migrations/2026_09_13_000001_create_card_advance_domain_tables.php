@@ -42,7 +42,10 @@ return new class extends Migration
             $table->timestamps();
             $table->foreign(['card_advance_id', 'user_id'])->references(['id', 'user_id'])->on('card_advances')->cascadeOnDelete();
             $table->foreign(['card_installment_id', 'user_id'])->references(['id', 'user_id'])->on('card_installments')->restrictOnDelete();
-            $table->unique(['card_advance_id', 'card_installment_id']);
+            $table->unique(
+                ['card_advance_id', 'card_installment_id'],
+                'card_advance_installment_unique'
+            );
             $table->unique(['user_id', 'card_installment_id']);
             $table->index(['user_id', 'card_installment_id']);
         });
