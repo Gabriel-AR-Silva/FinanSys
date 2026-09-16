@@ -40,11 +40,11 @@ return new class extends Migration
             $table->decimal('net_amount', 19, 2);
             $table->date('original_due_on');
             $table->timestamps();
-            $table->foreign(['card_advance_id', 'user_id'])->references(['id', 'user_id'])->on('card_advances')->cascadeOnDelete();
-            $table->foreign(['card_installment_id', 'user_id'])->references(['id', 'user_id'])->on('card_installments')->restrictOnDelete();
-            $table->unique(['card_advance_id', 'card_installment_id']);
-            $table->unique(['user_id', 'card_installment_id']);
-            $table->index(['user_id', 'card_installment_id']);
+            $table->foreign(['card_advance_id', 'user_id'], 'ca_alloc_advance_user_fk')->references(['id', 'user_id'])->on('card_advances')->cascadeOnDelete();
+            $table->foreign(['card_installment_id', 'user_id'], 'ca_alloc_installment_user_fk')->references(['id', 'user_id'])->on('card_installments')->restrictOnDelete();
+            $table->unique(['card_advance_id', 'card_installment_id'], 'ca_alloc_advance_installment_uq');
+            $table->unique(['user_id', 'card_installment_id'], 'ca_alloc_user_installment_uq');
+            $table->index(['user_id', 'card_installment_id'], 'ca_alloc_user_installment_idx');
         });
     }
 
