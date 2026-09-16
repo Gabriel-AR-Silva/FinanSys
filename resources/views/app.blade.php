@@ -6,9 +6,7 @@
         <meta name="theme-color" content="#0b0f0e">
         <meta name="application-name" content="FinanSys">
         <meta name="apple-mobile-web-app-title" content="FinanSys">
-        <meta name="apple-mobile-web-app-capable" content="yes">
         <link rel="icon" type="image/svg+xml" href="{{ asset('finansys-icon.svg') }}">
-        <link rel="apple-touch-icon" href="{{ asset('finansys-icon-180.png') }}">
         <link rel="manifest" href="{{ asset('site.webmanifest') }}">
         <title inertia>{{ config('app.name', 'FinanSys') }}</title>
         <link rel="preconnect" href="https://fonts.bunny.net">
