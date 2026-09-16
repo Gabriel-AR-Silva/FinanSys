@@ -11,13 +11,38 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('financial_evaluations', function (Blueprint $table) {
-            $table->unsignedInteger('revision')->default(1)->after('rules_version');
-            $table->foreignId('supersedes_id')->nullable()->after('revision')->constrained('financial_evaluations')->nullOnDelete();
-            $table->dropUnique('financial_evaluations_identity');
-            $table->unique(['user_id', 'evaluation_date', 'view', 'rules_version', 'revision'], 'financial_evaluations_revision_identity');
-            $table->index(['user_id', 'evaluation_date', 'view', 'rules_version']);
-        });
+        if (! Schema::hasColumn('financial_evaluations', 'revision')) {
+            Schema::table('financial_evaluations', function (Blueprint $table) {
+                $table->unsignedInteger('revision')->default(1)->after('rules_version');
+            });
+        }
+
+        if (! Schema::hasColumn('financial_evaluations', 'supersedes_id')) {
+            Schema::table('financial_evaluations', function (Blueprint $table) {
+                $table->foreignId('supersedes_id')->nullable()->after('revision')->constrained('financial_evaluations')->nullOnDelete();
+            });
+        }
+
+        if (Schema::hasIndex('financial_evaluations', 'financial_evaluations_identity')) {
+            Schema::table('financial_evaluations', function (Blueprint $table) {
+                $table->dropUnique('financial_evaluations_identity');
+            });
+        }
+
+        if (! Schema::hasIndex('financial_evaluations', 'financial_evaluations_revision_identity')) {
+            Schema::table('financial_evaluations', function (Blueprint $table) {
+                $table->unique(['user_id', 'evaluation_date', 'view', 'rules_version', 'revision'], 'financial_evaluations_revision_identity');
+            });
+        }
+
+        if (! Schema::hasIndex('financial_evaluations', 'financial_evaluations_scope_index')) {
+            Schema::table('financial_evaluations', function (Blueprint $table) {
+                $table->index(
+                    ['user_id', 'evaluation_date', 'view', 'rules_version'],
+                    'financial_evaluations_scope_index'
+                );
+            });
+        }
     }
 
     /**
@@ -28,7 +53,7 @@ return new class extends Migration
         Schema::table('financial_evaluations', function (Blueprint $table) {
             $table->dropForeign(['supersedes_id']);
             $table->dropUnique('financial_evaluations_revision_identity');
-            $table->dropIndex('financial_evaluations_user_id_evaluation_date_view_rules_version_index');
+            $table->dropIndex('financial_evaluations_scope_index');
             $table->unique(['user_id', 'evaluation_date', 'view', 'rules_version'], 'financial_evaluations_identity');
             $table->dropColumn(['revision', 'supersedes_id']);
         });
