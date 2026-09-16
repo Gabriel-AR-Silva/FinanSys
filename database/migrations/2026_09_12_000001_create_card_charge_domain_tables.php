@@ -40,9 +40,9 @@ return new class extends Migration
             $table->unsignedBigInteger('card_charge_id');
             $table->decimal('amount', 19, 2);
             $table->timestamps();
-            $table->foreign(['card_payment_id', 'user_id'])->references(['id', 'user_id'])->on('card_payments')->cascadeOnDelete();
-            $table->foreign(['card_charge_id', 'user_id'])->references(['id', 'user_id'])->on('card_charges')->restrictOnDelete();
-            $table->unique(['card_payment_id', 'card_charge_id']);
+            $table->foreign(['card_payment_id', 'user_id'], 'cc_alloc_payment_user_fk')->references(['id', 'user_id'])->on('card_payments')->cascadeOnDelete();
+            $table->foreign(['card_charge_id', 'user_id'], 'cc_alloc_charge_user_fk')->references(['id', 'user_id'])->on('card_charges')->restrictOnDelete();
+            $table->unique(['card_payment_id', 'card_charge_id'], 'cc_alloc_payment_charge_uq');
         });
     }
 
