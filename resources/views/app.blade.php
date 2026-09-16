@@ -7,6 +7,8 @@
         <meta name="application-name" content="FinanSys">
         <meta name="apple-mobile-web-app-title" content="FinanSys">
         <link rel="icon" type="image/svg+xml" href="{{ asset('finansys-icon.svg') }}">
+        <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('finansys-32.png') }}">
+        <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}">
         <link rel="manifest" href="{{ asset('site.webmanifest') }}">
         <title inertia>{{ config('app.name', 'FinanSys') }}</title>
         <link rel="preconnect" href="https://fonts.bunny.net">
