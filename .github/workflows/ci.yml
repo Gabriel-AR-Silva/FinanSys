@@ -5,12 +5,14 @@ on:
     branches:
       - main
       - develop
+      - build
       - copilot_mod_v1
       - 'codex/**'
   pull_request:
     branches:
       - main
       - develop
+      - build
   workflow_dispatch:
 
 permissions:
