@@ -1,13 +1,10 @@
 name: FinanSys Release Build
-
 on:
   push:
     branches: [build]
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   build:
     if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message != 'build: compile production frontend [skip ci]'
@@ -15,18 +12,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: build
-          fetch-depth: 0
+        with: { ref: build, fetch-depth: 0 }
       - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          coverage: none
+        with: { php-version: '8.4', coverage: none }
       - run: composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
+        with: { node-version: '22', cache: npm }
       - run: npm ci
       - run: npm run build
       - name: Verify Vite manifest assets
@@ -35,11 +26,7 @@ jobs:
           import fs from 'node:fs';
           const manifest = JSON.parse(fs.readFileSync('public/build/manifest.json', 'utf8'));
           const missing = new Set();
-          for (const entry of Object.values(manifest)) {
-            for (const path of [entry.file, ...(entry.css ?? []), ...(entry.assets ?? [])]) {
-              if (path && !fs.existsSync(`public/build/${path}`)) missing.add(path);
-            }
-          }
+          for (const entry of Object.values(manifest)) for (const path of [entry.file, ...(entry.css ?? []), ...(entry.assets ?? [])]) if (path && !fs.existsSync(`public/build/${path}`)) missing.add(path);
           if (missing.size) throw new Error(`Missing Vite assets:\n${[...missing].join('\n')}`);
           NODE
       - name: Commit compiled production assets
