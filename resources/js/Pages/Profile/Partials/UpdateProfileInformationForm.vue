@@ -9,7 +9,7 @@ import { computed, onBeforeUnmount, ref } from 'vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
-const savedAvatar = () => user.value.avatar_path ? route('profile.avatar') : null;
+const savedAvatar = () => user.value.avatar_path ? `${route('profile.avatar')}?v=${encodeURIComponent(user.value.avatar_path)}` : null;
 const preview = ref(savedAvatar());
 const temporaryPreview = ref(null);
 const fileInput = ref(null);
@@ -55,7 +55,7 @@ const submit = () => form.post(route('profile.update'), {
     onSuccess: () => {
         form.avatar = null;
         form.remove_avatar = false;
-        // Não deixar o elemento apontando para um blob URL que acabou de ser revogado.
+        // Use a URL com versão nova antes de revogar o blob temporário.
         preview.value = savedAvatar();
         clearTemporaryPreview();
         if (fileInput.value) fileInput.value.value = '';
