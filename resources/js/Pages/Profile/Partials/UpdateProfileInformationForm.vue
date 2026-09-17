@@ -7,12 +7,14 @@ import { useForm, usePage } from '@inertiajs/vue3';
 import { Camera, Trash2 } from '@lucide/vue';
 import { computed, onBeforeUnmount, ref } from 'vue';
 
-const user = usePage().props.auth.user;
-const preview = ref(user.avatar_path ? `/storage/${user.avatar_path}` : null);
+const page = usePage();
+const user = computed(() => page.props.auth.user);
+const savedAvatar = () => user.value.avatar_path ? route('profile.avatar') : null;
+const preview = ref(savedAvatar());
 const temporaryPreview = ref(null);
 const fileInput = ref(null);
-const form = useForm({ _method: 'patch', name: user.name, email: user.email, avatar: null, remove_avatar: false });
-const initials = computed(() => (user.name || 'Usuário').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join(''));
+const form = useForm({ _method: 'patch', name: user.value.name, email: user.value.email, avatar: null, remove_avatar: false });
+const initials = computed(() => (form.name || 'Usuário').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join(''));
 
 const clearTemporaryPreview = () => {
     if (temporaryPreview.value) URL.revokeObjectURL(temporaryPreview.value);
@@ -22,6 +24,17 @@ const openFilePicker = () => fileInput.value?.click();
 const chooseAvatar = (event) => {
     const file = event.target.files?.[0] ?? null;
     if (!file) return;
+    form.clearErrors('avatar');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        form.setError('avatar', 'Selecione uma imagem JPG, PNG ou WebP.');
+        event.target.value = '';
+        return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+        form.setError('avatar', 'A imagem deve ter no máximo 2 MB.');
+        event.target.value = '';
+        return;
+    }
     clearTemporaryPreview();
     temporaryPreview.value = URL.createObjectURL(file);
     preview.value = temporaryPreview.value;
@@ -30,12 +43,24 @@ const chooseAvatar = (event) => {
 };
 const removeAvatar = () => {
     clearTemporaryPreview();
+    form.clearErrors('avatar');
     form.avatar = null;
     form.remove_avatar = true;
     preview.value = null;
     if (fileInput.value) fileInput.value.value = '';
 };
-const submit = () => form.post(route('profile.update'), { forceFormData: true, preserveScroll: true, onSuccess: () => { form.avatar = null; clearTemporaryPreview(); } });
+const submit = () => form.post(route('profile.update'), {
+    forceFormData: true,
+    preserveScroll: true,
+    onSuccess: () => {
+        form.avatar = null;
+        form.remove_avatar = false;
+        // Não deixar o elemento apontando para um blob URL que acabou de ser revogado.
+        preview.value = savedAvatar();
+        clearTemporaryPreview();
+        if (fileInput.value) fileInput.value.value = '';
+    },
+});
 onBeforeUnmount(clearTemporaryPreview);
 </script>
 
@@ -47,7 +72,7 @@ onBeforeUnmount(clearTemporaryPreview);
                 <div class="flex flex-col gap-5 sm:flex-row sm:items-center">
                     <div class="relative w-fit shrink-0">
                         <button type="button" class="group relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-slate-950 text-xl font-bold text-emerald-200 ring-4 ring-white shadow-md outline-none transition focus-visible:ring-emerald-400" aria-label="Alterar foto de perfil" @click="openFilePicker">
-                            <img v-if="preview" :src="preview" alt="Foto de perfil" class="h-full w-full object-cover" /><span v-else>{{ initials }}</span>
+                            <img v-if="preview" :src="preview" alt="Foto de perfil" class="h-full w-full object-cover" @error="preview = null" /><span v-else>{{ initials }}</span>
                             <span class="absolute inset-0 grid place-items-center bg-slate-950/55 text-white opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"><Camera :size="23" /></span>
                         </button>
                         <span class="pointer-events-none absolute bottom-0 right-0 grid h-8 w-8 place-items-center rounded-full border-2 border-white bg-emerald-500 text-slate-950 shadow-sm"><Camera :size="15" /></span>
