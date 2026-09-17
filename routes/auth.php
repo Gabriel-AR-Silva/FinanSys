@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\GoogleAuthenticationController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -33,6 +34,9 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
+    Route::get('profile/avatar', [ProfileController::class, 'avatar'])
+        ->name('profile.avatar');
+
     Route::get('profile/google', [GoogleAuthenticationController::class, 'redirectForLink'])
         ->middleware(['password.confirm', 'throttle:google-auth'])
         ->name('google.link');
