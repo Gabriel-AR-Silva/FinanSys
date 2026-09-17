@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message != 'build: compile production frontend [skip ci]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
