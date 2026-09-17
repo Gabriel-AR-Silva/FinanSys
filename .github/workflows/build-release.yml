@@ -2,8 +2,7 @@ name: FinanSys Release Build
 
 on:
   push:
-    branches:
-      - build
+    branches: [build]
   workflow_dispatch:
 
 permissions:
