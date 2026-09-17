@@ -52,7 +52,7 @@ class ProfileController extends Controller
                 report($exception);
             }
 
-            if (!$newAvatarPath) {
+            if (! $newAvatarPath) {
                 throw ValidationException::withMessages([
                     'avatar' => 'Não foi possível gravar a foto. Verifique as permissões de storage/app/public no servidor.',
                 ]);
@@ -68,7 +68,10 @@ class ProfileController extends Controller
         try {
             $user->save();
         } catch (Throwable $exception) {
-            if ($newAvatarPath) Storage::disk('public')->delete($newAvatarPath);
+            if ($newAvatarPath) {
+                Storage::disk('public')->delete($newAvatarPath);
+            }
+
             throw $exception;
         }
 
