@@ -32,7 +32,11 @@ jobs:
           import fs from 'node:fs';
           const manifest = JSON.parse(fs.readFileSync('public/build/manifest.json', 'utf8'));
           const missing = new Set();
-          for (const entry of Object.values(manifest)) for (const path of [entry.file, ...(entry.css ?? []), ...(entry.assets ?? [])]) if (path && !fs.existsSync(`public/build/${path}`)) missing.add(path);
+          for (const entry of Object.values(manifest)) {
+            for (const path of [entry.file, ...(entry.css ?? []), ...(entry.assets ?? [])]) {
+              if (path && !fs.existsSync(`public/build/${path}`)) missing.add(path);
+            }
+          }
           if (missing.size) throw new Error(`Missing Vite assets:\n${[...missing].join('\n')}`);
           NODE
       - name: Commit compiled production assets
