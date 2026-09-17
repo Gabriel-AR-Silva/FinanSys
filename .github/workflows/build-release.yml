@@ -1,0 +1,67 @@
+name: FinanSys Release Build
+
+on:
+  push:
+    branches:
+      - build
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout build branch
+        uses: actions/checkout@v4
+        with:
+          ref: build
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build production frontend
+        run: npm run build
+
+      - name: Verify Vite manifest assets
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+
+          const manifest = JSON.parse(fs.readFileSync('public/build/manifest.json', 'utf8'));
+          const missing = new Set();
+
+          for (const entry of Object.values(manifest)) {
+            for (const relativePath of [entry.file, ...(entry.css ?? []), ...(entry.assets ?? [])]) {
+              if (relativePath && !fs.existsSync(`public/build/${relativePath}`)) {
+                missing.add(relativePath);
+              }
+            }
+          }
+
+          if (missing.size > 0) {
+            throw new Error(`Vite manifest references missing files:\n${[...missing].join('\n')}`);
+          }
+          NODE
+
+      - name: Commit compiled production assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f public/build
+          if git diff --cached --quiet; then
+            echo "Production build is already current."
+            exit 0
+          fi
+          git commit -m "build: compile production frontend [skip ci]"
+          git push origin HEAD:build
