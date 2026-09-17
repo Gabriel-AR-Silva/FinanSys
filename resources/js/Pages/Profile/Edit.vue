@@ -113,7 +113,7 @@ watch(() => page.props.errors, selectErrorTab);
                     <div class="max-w-xl">
                         <header class="flex items-start gap-3">
                             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-50 text-rose-700"><Trash2 :size="20" /></span>
-                            <div><h2 class="text-lg font-medium text-gray-900">Configurações avançadas</h2><p class="mt-1 text-sm leading-6 text-gray-600">Limpe somente dados gerados durante uso e testes. Categorias, contas, caixinhas, cartões e configurações básicas permanec.</p></div>
+                            <div><h2 class="text-lg font-medium text-gray-900">Configurações avançadas</h2><p class="mt-1 text-sm leading-6 text-gray-600">Limpe somente dados gerados durante uso e testes. Categorias, contas, caixinhas, cartões e configurações básicas permanecem.</p></div>
                         </header>
                         <div class="mt-6 rounded-2xl border border-rose-200 bg-rose-50/60 p-4">
                             <h3 class="text-sm font-semibold text-rose-950">Limpar dados de uso</h3>
