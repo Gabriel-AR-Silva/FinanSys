@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\BrandAssetController;
 use App\Http\Controllers\CardAdvanceController;
 use App\Http\Controllers\CardChargeController;
 use App\Http\Controllers\CardCorrectionController;
@@ -32,6 +33,9 @@ use App\Http\Controllers\RestoredPocketController;
 use App\Http\Controllers\TransferController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+
+Route::get('/brand/favicon', [BrandAssetController::class, 'favicon'])->name('brand.favicon');
+Route::get('/brand/social', [BrandAssetController::class, 'social'])->name('brand.social');
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
