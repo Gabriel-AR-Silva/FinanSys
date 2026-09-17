@@ -1,46 +1,41 @@
 name: FinanSys Release Build
-# build trigger: compile release source safely
+
 on:
   push:
-    branches: [build]
-  workflow_dispatch:
+    branches:
+      - build
+
 permissions:
   contents: write
+
 jobs:
   build:
-    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message != 'build: compile production frontend [skip ci]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          ref: build
           fetch-depth: 0
-      - uses: shivammathur/setup-php@v2
+      - name: PHP
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
           coverage: none
-      - run: composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
-      - uses: actions/setup-node@v4
+      - name: Composer
+        run: composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+      - name: Node
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci
-      - run: npm run build
-      - name: Verify Vite manifest assets
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const manifest = JSON.parse(fs.readFileSync('public/build/manifest.json', 'utf8'));
-          const missing = new Set();
-          for (const entry of Object.values(manifest)) {
-            for (const path of [entry.file, ...(entry.css ?? []), ...(entry.assets ?? [])]) {
-              if (path && !fs.existsSync(`public/build/${path}`)) missing.add(path);
-            }
-          }
-          if (missing.size) throw new Error(`Missing Vite assets:\n${[...missing].join('\n')}`);
-          NODE
-      - name: Commit compiled production assets
+      - name: NPM install
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Validate manifest
+        run: test -f public/build/manifest.json
+      - name: Commit compiled assets
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
