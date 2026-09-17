@@ -8,8 +8,11 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class ProfileController extends Controller
 {
@@ -27,26 +30,55 @@ class ProfileController extends Controller
         ]);
     }
 
+    public function avatar(Request $request): StreamedResponse
+    {
+        $path = $request->user()->avatar_path;
+        abort_unless($path && Storage::disk('public')->exists($path), 404);
+
+        // A foto pertence somente ao usuário autenticado e não depende de public/storage.
+        return Storage::disk('public')->response($path, null, ['Cache-Control' => 'private, no-store']);
+    }
+
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
         $user = $request->user();
-        $data = $request->safe()->only(['name', 'email']);
+        $oldAvatarPath = $user->avatar_path;
+        $newAvatarPath = null;
 
-        if ($request->boolean('remove_avatar') && $user->avatar_path) {
-            Storage::disk('public')->delete($user->avatar_path);
+        if ($request->hasFile('avatar')) {
+            try {
+                $newAvatarPath = $request->file('avatar')->store('avatars', 'public');
+            } catch (Throwable $exception) {
+                report($exception);
+            }
+
+            if (! $newAvatarPath) {
+                throw ValidationException::withMessages([
+                    'avatar' => 'Não foi possível gravar a foto. Verifique as permissões de storage/app/public no servidor.',
+                ]);
+            }
+
+            $user->avatar_path = $newAvatarPath;
+        } elseif ($request->boolean('remove_avatar')) {
             $user->avatar_path = null;
         }
 
-        if ($request->hasFile('avatar')) {
-            if ($user->avatar_path) {
-                Storage::disk('public')->delete($user->avatar_path);
+        $user->fill($request->safe()->only(['name', 'email']));
+
+        try {
+            $user->save();
+        } catch (Throwable $exception) {
+            if ($newAvatarPath) {
+                Storage::disk('public')->delete($newAvatarPath);
             }
 
-            $user->avatar_path = $request->file('avatar')->store('avatars', 'public');
+            throw $exception;
         }
 
-        $user->fill($data);
-        $user->save();
+        // Só apaga a foto antiga depois que a nova gravação e o usuário foram salvos.
+        if ($oldAvatarPath && $oldAvatarPath !== $user->avatar_path) {
+            Storage::disk('public')->delete($oldAvatarPath);
+        }
 
         return Redirect::route('profile.edit');
     }
