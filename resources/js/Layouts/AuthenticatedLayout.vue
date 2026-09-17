@@ -3,30 +3,63 @@ import QuickActionModal from '@/Components/QuickActionModal.vue';
 import ToastHost from '@/Components/ToastHost.vue';
 import TsukiOnboarding from '@/Components/TsukiOnboarding.vue';
 import { Link, router } from '@inertiajs/vue3';
-import { ArrowDownCircle, ArrowLeftRight, ArrowRightLeft, ArrowUpCircle, BellRing, CreditCard, FileUp, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, RotateCcw, Settings, Tags, UserRound, WalletCards, X } from '@lucide/vue';
+import {
+    ArrowDownCircle,
+    ArrowRightLeft,
+    ArrowUpCircle,
+    BellRing,
+    CreditCard,
+    FileUp,
+    LayoutDashboard,
+    LogOut,
+    Menu,
+    PanelLeftClose,
+    PanelLeftOpen,
+    PiggyBank,
+    Plus,
+    ReceiptText,
+    RotateCcw,
+    Settings,
+    Tags,
+    UserRound,
+    WalletCards,
+    X,
+} from '@lucide/vue';
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const mobileNavigationOpen = ref(false);
 const mobileNavigationTrigger = ref(null);
 const quickActionOpen = ref(false);
 const sidebarCollapsed = ref(false);
+const settingsOpen = ref(false);
+const settingsTrigger = ref(null);
+const settingsMenu = ref(null);
+
 const navigation = [
     { label: 'Visão geral', route: 'dashboard', icon: LayoutDashboard },
     { label: 'Contas', route: 'accounts.index', icon: WalletCards },
     { label: 'Caixinhas', route: 'pockets.index', icon: PiggyBank },
     { label: 'Lançamentos', route: 'ledger-entries.index', icon: ReceiptText },
-    { label: 'Importar OFX', route: 'ofx-imports.index', icon: FileUp },
     { label: 'Cartões', route: 'credit-cards.index', icon: CreditCard },
-    { label: 'Correções de cartão', route: 'card-corrections.index', icon: RotateCcw },
+    { label: 'Importar OFX', route: 'ofx-imports.index', icon: FileUp },
+];
+
+const settingsNavigation = [
     { label: 'Categorias', route: 'categories.index', icon: Tags },
     { label: 'Configuração financeira', route: 'financial-settings.edit', icon: Settings },
-    { label: 'Avisos financeiros', route: 'internal-alerts.index', icon: BellRing },
+    { label: 'Correções de cartão', route: 'card-corrections.index', icon: RotateCcw },
 ];
+
 const isActive = (routeName) => route().current(routeName);
 let previousBodyOverflow = '';
 
 const openMobileNavigation = () => {
     mobileNavigationOpen.value = true;
+};
+
+const closeMobileNavigation = (restoreFocus = true) => {
+    mobileNavigationOpen.value = false;
+    if (restoreFocus) nextTick(() => mobileNavigationTrigger.value?.focus());
 };
 
 const logout = () => {
@@ -37,27 +70,31 @@ const logout = () => {
     });
 };
 
-const closeMobileNavigation = (restoreFocus = true) => {
-    mobileNavigationOpen.value = false;
+const closeOnEscape = (event) => {
+    if (event.key !== 'Escape') return;
 
-    if (restoreFocus) {
-        nextTick(() => mobileNavigationTrigger.value?.focus());
+    if (mobileNavigationOpen.value) closeMobileNavigation();
+    if (settingsOpen.value) {
+        settingsOpen.value = false;
+        nextTick(() => settingsTrigger.value?.focus());
     }
 };
 
-const closeMobileNavigationOnEscape = (event) => {
-    if (event.key === 'Escape' && mobileNavigationOpen.value) {
-        closeMobileNavigation();
-    }
+const closeSettingsOnOutsideClick = (event) => {
+    if (!settingsOpen.value) return;
+    if (settingsMenu.value?.contains(event.target) || settingsTrigger.value?.contains(event.target)) return;
+    settingsOpen.value = false;
 };
 
 onMounted(() => {
     sidebarCollapsed.value = localStorage.getItem('finansys.sidebar-collapsed') === 'true';
-    window.addEventListener('keydown', closeMobileNavigationOnEscape);
+    window.addEventListener('keydown', closeOnEscape);
+    document.addEventListener('pointerdown', closeSettingsOnOutsideClick);
 });
 
 onUnmounted(() => {
-    window.removeEventListener('keydown', closeMobileNavigationOnEscape);
+    window.removeEventListener('keydown', closeOnEscape);
+    document.removeEventListener('pointerdown', closeSettingsOnOutsideClick);
     document.body.style.overflow = previousBodyOverflow;
 });
 
@@ -83,46 +120,88 @@ watch(mobileNavigationOpen, (open) => {
                 <PanelLeftClose v-else :size="15" />
             </button>
 
-            <Link :href="route('dashboard')" class="flex items-center gap-3" :class="sidebarCollapsed ? 'justify-center px-0' : 'px-2'" title="FinanSys">
-                <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-950/20"><ArrowLeftRight :size="23" :stroke-width="2.4" /></span>
-                <span v-show="!sidebarCollapsed"><span class="block text-lg font-semibold tracking-tight">FinanSys</span><span class="block text-xs text-slate-400">Finanças pessoais</span></span>
+            <Link :href="route('dashboard')" class="flex min-h-12 items-center" :class="sidebarCollapsed ? 'justify-center' : 'px-2'" title="FinanSys">
+                <span v-if="sidebarCollapsed" class="text-sm font-bold tracking-tight text-emerald-300">FS</span>
+                <span v-else>
+                    <span class="block text-lg font-semibold tracking-tight">FinanSys</span>
+                    <span class="block text-xs text-slate-400">Finanças pessoais</span>
+                </span>
             </Link>
 
-            <nav class="mt-10 flex flex-1 flex-col gap-2" aria-label="Navegação principal">
-                <Link v-for="item in navigation" :key="item.route" :href="route(item.route)" class="group relative flex items-center rounded-xl py-3 text-sm font-medium transition" :class="[isActive(item.route) ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-300 hover:bg-white/10 hover:text-white', sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3']" :aria-label="item.label">
-                    <component :is="item.icon" :size="20" class="shrink-0" /><span v-show="!sidebarCollapsed">{{ item.label }}</span>
-                    <span v-if="sidebarCollapsed" class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">{{ item.label }}</span>
-                </Link>
-            </nav>
+            <div class="mt-8 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+                <nav class="flex flex-col gap-2" aria-label="Navegação principal">
+                    <Link v-for="item in navigation" :key="item.route" :href="route(item.route)" class="group relative flex items-center rounded-xl py-3 text-sm font-medium transition" :class="[isActive(item.route) ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-300 hover:bg-white/10 hover:text-white', sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3']" :aria-label="item.label">
+                        <component :is="item.icon" :size="20" class="shrink-0" />
+                        <span v-show="!sidebarCollapsed">{{ item.label }}</span>
+                        <span v-if="sidebarCollapsed" class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">{{ item.label }}</span>
+                    </Link>
+                </nav>
+            </div>
 
-            <button type="button" class="group relative flex w-full items-center justify-center rounded-xl bg-emerald-400 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-slate-950" :class="sidebarCollapsed ? 'px-0' : 'gap-2 px-4'" aria-label="Nova movimentação" @click="quickActionOpen = true">
-                <Plus :size="19" /><span v-show="!sidebarCollapsed">Nova movimentação</span>
-                <span v-if="sidebarCollapsed" class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">Nova movimentação</span>
-            </button>
-
-            <div class="mt-5 flex flex-col gap-1 border-t border-white/10 pt-5">
-                <Link :href="route('profile.edit')" class="group relative flex w-full items-center rounded-xl p-2 text-left transition hover:bg-white/10" :class="sidebarCollapsed ? 'justify-center' : 'gap-3'" aria-label="Meu perfil">
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-semibold text-emerald-300">{{ $page.props.auth.user.name.slice(0, 1).toUpperCase() }}</span>
-                    <span v-show="!sidebarCollapsed" class="min-w-0 flex-1"><span class="block truncate text-sm font-medium">{{ $page.props.auth.user.name }}</span><span class="block truncate text-xs text-slate-400">{{ $page.props.auth.user.email }}</span></span>
-                    <span v-if="sidebarCollapsed" class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">Meu perfil</span>
-                </Link>
-                <button type="button" class="group relative flex w-full items-center rounded-xl p-2 text-sm font-medium text-rose-300 transition hover:bg-rose-400/10 hover:text-rose-200" :class="sidebarCollapsed ? 'justify-center' : 'gap-3 px-3'" aria-label="Sair do FinanSys" @click="logout">
-                    <LogOut :size="19" class="shrink-0" />
-                    <span v-show="!sidebarCollapsed">Sair</span>
-                    <span v-if="sidebarCollapsed" class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">Sair</span>
+            <div class="shrink-0 pt-4">
+                <button type="button" class="group relative flex w-full items-center justify-center rounded-xl bg-emerald-400 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-slate-950" :class="sidebarCollapsed ? 'px-0' : 'gap-2 px-4'" aria-label="Nova movimentação" @click="quickActionOpen = true">
+                    <Plus :size="19" />
+                    <span v-show="!sidebarCollapsed">Nova movimentação</span>
                 </button>
+
+                <div class="mt-5 flex flex-col gap-1 border-t border-white/10 pt-5">
+                    <Link :href="route('profile.edit')" class="group relative flex w-full items-center rounded-xl p-2 text-left transition hover:bg-white/10" :class="sidebarCollapsed ? 'justify-center' : 'gap-3'" aria-label="Meu perfil">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-semibold text-emerald-300">{{ $page.props.auth.user.name.slice(0, 1).toUpperCase() }}</span>
+                        <span v-show="!sidebarCollapsed" class="min-w-0 flex-1">
+                            <span class="block truncate text-sm font-medium">{{ $page.props.auth.user.name }}</span>
+                            <span class="block truncate text-xs text-slate-400">{{ $page.props.auth.user.email }}</span>
+                        </span>
+                    </Link>
+                    <button type="button" class="group relative flex w-full items-center rounded-xl p-2 text-sm font-medium text-rose-300 transition hover:bg-rose-400/10 hover:text-rose-200" :class="sidebarCollapsed ? 'justify-center' : 'gap-3 px-3'" aria-label="Sair do FinanSys" @click="logout">
+                        <LogOut :size="19" class="shrink-0" />
+                        <span v-show="!sidebarCollapsed">Sair</span>
+                    </button>
+                </div>
             </div>
         </aside>
 
         <div class="min-w-0 transition-[padding] duration-300" :class="sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-72'">
             <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-                <div class="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
+                <div class="relative flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
                     <button ref="mobileNavigationTrigger" type="button" class="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Abrir navegação" @click="openMobileNavigation"><Menu :size="23" /></button>
-                    <div class="hidden items-center gap-2 lg:flex"><Link :href="route('ledger-entries.index', { create: 'income' })" class="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"><ArrowUpCircle :size="17" />Receita</Link><Link :href="route('ledger-entries.index', { create: 'expense' })" class="flex items-center gap-2 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"><ArrowDownCircle :size="17" />Despesa</Link><Link :href="route('ledger-entries.index', { transfer: 1 })" class="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"><ArrowRightLeft :size="17" />Transferir</Link></div>
-                    <button type="button" class="flex items-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 lg:hidden" @click="quickActionOpen = true"><Plus :size="18" />Adicionar</button>
-                    <Link :href="route('profile.edit')" class="hidden items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 sm:flex lg:ml-auto"><UserRound :size="18" />{{ $page.props.auth.user.name }}</Link>
+
+                    <div class="hidden items-center gap-2 lg:flex">
+                        <Link :href="route('ledger-entries.index', { create: 'income' })" class="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"><ArrowUpCircle :size="17" />Receita</Link>
+                        <Link :href="route('ledger-entries.index', { create: 'expense' })" class="flex items-center gap-2 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"><ArrowDownCircle :size="17" />Despesa</Link>
+                        <Link :href="route('ledger-entries.index', { transfer: 1 })" class="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"><ArrowRightLeft :size="17" />Transferir</Link>
+                    </div>
+
+                    <div class="ml-auto flex items-center gap-1.5 sm:gap-2">
+                        <button type="button" class="flex items-center gap-1.5 rounded-xl bg-slate-950 px-2.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 lg:hidden" @click="quickActionOpen = true"><Plus :size="18" /><span class="hidden min-[390px]:inline">Adicionar</span></button>
+
+                        <Link :href="route('internal-alerts.index')" class="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900" :class="isActive('internal-alerts.index') ? 'bg-slate-100 text-slate-950' : ''" aria-label="Avisos financeiros" title="Avisos financeiros">
+                            <BellRing :size="19" />
+                        </Link>
+
+                        <div class="relative">
+                            <button ref="settingsTrigger" type="button" class="flex h-10 items-center gap-2 rounded-xl px-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-950" :class="settingsOpen ? 'bg-slate-100 text-slate-950' : ''" :aria-expanded="settingsOpen" aria-haspopup="menu" aria-label="Abrir ajustes" @click="settingsOpen = !settingsOpen">
+                                <Settings :size="19" />
+                                <span class="hidden xl:inline">Ajustes</span>
+                            </button>
+
+                            <Transition enter-active-class="transition duration-150 ease-out" enter-from-class="translate-y-1 opacity-0" enter-to-class="translate-y-0 opacity-100" leave-active-class="transition duration-100 ease-in" leave-from-class="translate-y-0 opacity-100" leave-to-class="translate-y-1 opacity-0">
+                                <div v-if="settingsOpen" ref="settingsMenu" class="absolute right-0 top-12 z-40 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-950/10" role="menu" aria-label="Ajustes do sistema">
+                                    <Link v-for="item in settingsNavigation" :key="item.route" :href="route(item.route)" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-950" :class="isActive(item.route) ? 'bg-slate-100 text-slate-950' : ''" role="menuitem" @click="settingsOpen = false">
+                                        <component :is="item.icon" :size="18" />
+                                        {{ item.label }}
+                                    </Link>
+                                </div>
+                            </Transition>
+                        </div>
+
+                        <Link :href="route('profile.edit')" class="hidden items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 sm:flex">
+                            <UserRound :size="18" />
+                            <span class="hidden xl:inline">{{ $page.props.auth.user.name }}</span>
+                        </Link>
+                    </div>
                 </div>
             </header>
+
             <main class="min-w-0 px-4 py-7 sm:px-6 sm:py-9 lg:px-10 lg:py-10"><div class="mx-auto min-w-0 max-w-7xl"><slot /></div></main>
         </div>
 
@@ -130,12 +209,27 @@ watch(mobileNavigationOpen, (open) => {
             <button class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" aria-label="Fechar navegação" @click="closeMobileNavigation" />
             <aside class="relative flex h-dvh max-h-dvh w-[min(86vw,22rem)] flex-col overflow-hidden bg-slate-950 px-5 py-5 text-white shadow-2xl" role="dialog" aria-modal="true" aria-label="Menu principal">
                 <div class="flex shrink-0 items-center justify-between gap-4">
-                    <Link :href="route('dashboard')" class="flex items-center gap-3" @click="closeMobileNavigation(false)"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400 text-slate-950"><ArrowLeftRight :size="21" /></span><span class="font-semibold">FinanSys</span></Link>
+                    <Link :href="route('dashboard')" class="min-w-0" @click="closeMobileNavigation(false)">
+                        <span class="block font-semibold">FinanSys</span>
+                        <span class="block text-xs text-slate-400">Finanças pessoais</span>
+                    </Link>
                     <button class="rounded-lg p-2 text-slate-300 hover:bg-white/10" aria-label="Fechar navegação" @click="closeMobileNavigation"><X :size="22" /></button>
                 </div>
-                <nav class="mt-8 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto" aria-label="Navegação móvel">
-                    <Link v-for="item in navigation" :key="item.route" :href="route(item.route)" class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium" :class="isActive(item.route) ? 'bg-white text-slate-950' : 'text-slate-300'" @click="closeMobileNavigation(false)"><component :is="item.icon" :size="20" />{{ item.label }}</Link>
-                </nav>
+
+                <div class="mt-8 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+                    <nav class="flex flex-col gap-2" aria-label="Navegação móvel">
+                        <Link v-for="item in navigation" :key="item.route" :href="route(item.route)" class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium" :class="isActive(item.route) ? 'bg-white text-slate-950' : 'text-slate-300'" @click="closeMobileNavigation(false)"><component :is="item.icon" :size="20" />{{ item.label }}</Link>
+                    </nav>
+
+                    <div class="mt-6 border-t border-white/10 pt-5">
+                        <p class="px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Ajustes</p>
+                        <div class="mt-2 flex flex-col gap-1">
+                            <Link v-for="item in settingsNavigation" :key="item.route" :href="route(item.route)" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-300 transition hover:bg-white/10 hover:text-white" @click="closeMobileNavigation(false)"><component :is="item.icon" :size="19" />{{ item.label }}</Link>
+                            <Link :href="route('internal-alerts.index')" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-300 transition hover:bg-white/10 hover:text-white" @click="closeMobileNavigation(false)"><BellRing :size="19" />Avisos financeiros</Link>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="flex shrink-0 flex-col gap-3 border-t border-white/10 pt-5">
                     <Link :href="route('profile.edit')" class="flex items-center gap-3 px-3 text-sm text-slate-300" @click="closeMobileNavigation(false)"><UserRound :size="19" />Meu perfil</Link>
                     <button type="button" class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-rose-300 hover:bg-rose-400/10" @click="logout"><LogOut :size="19" />Sair</button>
