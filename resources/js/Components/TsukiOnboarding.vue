@@ -88,7 +88,7 @@ onUnmounted(() => {
             <aside v-if="panelOpen" :id="panelId" ref="panel" role="dialog" aria-modal="false" :aria-labelledby="titleId" class="pointer-events-auto absolute bottom-16 right-0 flex max-h-[min(70dvh,36rem)] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20">
                 <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
                     <div class="flex min-w-0 items-center gap-2.5">
-                        <img :src="tsukiIcon" alt="" width="36" height="36" class="h-9 w-9 shrink-0 rounded-full bg-slate-950 object-contain p-0.5" />
+                        <img :src="tsukiIcon" alt="" width="32" height="32" class="h-8 w-8 shrink-0 object-contain" />
                         <div class="min-w-0">
                             <p :id="titleId" class="truncate text-sm font-semibold text-slate-950">Tsuki</p>
                             <p class="truncate text-xs text-slate-500">Seu guia de primeiros passos</p>
@@ -105,24 +105,21 @@ onUnmounted(() => {
         </Transition>
 
         <Transition enter-active-class="transition duration-200" enter-from-class="translate-y-1 opacity-0" leave-active-class="transition duration-150" leave-to-class="translate-y-1 opacity-0">
-            <button v-if="!panelOpen && dismissed && hasPendingSteps" type="button" class="pointer-events-auto absolute bottom-16 right-0 mb-2 w-max max-w-[15rem] rounded-2xl border border-emerald-200 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 shadow-lg" @click="openPanel">
+            <button v-if="!panelOpen && dismissed && hasPendingSteps" type="button" class="pointer-events-auto absolute bottom-14 right-0 mb-2 w-max max-w-[15rem] rounded-2xl border border-emerald-200 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 shadow-lg" @click="openPanel">
                 <span class="block font-semibold text-emerald-700">Ainda temos etapas pendentes.</span>
                 <span class="mt-0.5 block text-slate-500">Quando quiser, continuo daqui com você.</span>
             </button>
         </Transition>
 
-        <button ref="trigger" type="button" class="tsuki-presence pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full bg-slate-950 shadow-lg shadow-slate-950/25 transition hover:scale-105 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-4 motion-reduce:transform-none motion-reduce:transition-none" :aria-label="triggerLabel" :aria-expanded="panelOpen" :aria-controls="panelId" @click="togglePanel">
-            <span class="tsuki-ring absolute inset-0 rounded-full border border-emerald-300/50" aria-hidden="true" />
+        <button ref="trigger" type="button" class="tsuki-presence pointer-events-auto relative flex h-12 w-12 items-center justify-center bg-transparent transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-4 motion-reduce:transform-none motion-reduce:transition-none" :aria-label="triggerLabel" :aria-expanded="panelOpen" :aria-controls="panelId" @click="togglePanel">
             <span v-if="!panelOpen && hasPendingSteps" class="absolute -right-0.5 -top-0.5 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[10px] font-black text-slate-950 ring-2 ring-white" aria-hidden="true">!</span>
-            <img :src="tsukiIcon" alt="" width="44" height="44" class="relative h-11 w-11 rounded-full object-contain" aria-hidden="true" />
+            <img :src="tsukiIcon" alt="" width="48" height="48" class="relative h-12 w-12 object-contain drop-shadow-md" aria-hidden="true" />
         </button>
     </div>
 </template>
 
 <style scoped>
 @keyframes tsuki-breathe { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-2px) scale(1.025); } }
-@keyframes tsuki-ring { 0%,45% { opacity:0; transform:scale(1); } 70% { opacity:.5; } 100% { opacity:0; transform:scale(1.32); } }
 .tsuki-presence { animation: tsuki-breathe 4.8s ease-in-out infinite; }
-.tsuki-ring { animation: tsuki-ring 4.8s ease-out infinite; }
-@media (prefers-reduced-motion: reduce) { .tsuki-presence,.tsuki-ring { animation:none; } }
+@media (prefers-reduced-motion: reduce) { .tsuki-presence { animation:none; } }
 </style>
