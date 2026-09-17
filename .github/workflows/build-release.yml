@@ -1,4 +1,5 @@
 name: FinanSys Release Build
+# build trigger: compile current production source safely
 on:
   push:
     branches: [build]
