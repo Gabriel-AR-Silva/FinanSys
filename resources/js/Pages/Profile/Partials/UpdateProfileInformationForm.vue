@@ -8,7 +8,7 @@ import { computed, ref } from 'vue';
 
 const user = usePage().props.auth.user;
 const preview = ref(user.avatar_path ? `/storage/${user.avatar_path}` : null);
-const form = useForm({ name: user.name, email: user.email, avatar: null, remove_avatar: false });
+const form = useForm({ _method: 'patch', name: user.name, email: user.email, avatar: null, remove_avatar: false });
 const initials = computed(() => (user.name || 'U').trim().charAt(0).toUpperCase());
 
 const chooseAvatar = (event) => {
