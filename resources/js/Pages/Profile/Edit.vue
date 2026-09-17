@@ -63,8 +63,8 @@ watch(() => page.props.errors, selectErrorTab);
             </header>
 
             <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="overflow-x-auto border-b border-slate-200 px-3 pt-3 sm:px-6">
-                    <div class="flex min-w-max gap-1" role="tablist" aria-label="Seções do perfil">
+                <div class="border-b border-slate-200 px-3 pt-3 sm:px-6">
+                    <div class="grid min-w-0 grid-cols-2 gap-x-2 sm:grid-cols-4" role="tablist" aria-label="Seções do perfil">
                         <button
                             v-for="tab in tabs"
                             :id="`profile-tab-${tab.id}`"
@@ -74,14 +74,14 @@ watch(() => page.props.errors, selectErrorTab);
                             :aria-selected="activeTab === tab.id"
                             :aria-controls="`profile-panel-${tab.id}`"
                             :tabindex="activeTab === tab.id ? 0 : -1"
-                            class="-mb-px inline-flex min-h-11 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-inset"
+                            class="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 border-b-2 px-2 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-inset"
                             :class="activeTab === tab.id ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-500 hover:border-slate-200 hover:text-slate-900'"
                             @click="selectTab(tab.id)"
                             @keydown.left.prevent="moveTab(-1)"
                             @keydown.right.prevent="moveTab(1)"
                             @keydown.home.prevent="selectTab(tabs[0].id)"
                             @keydown.end.prevent="selectTab(tabs[tabs.length - 1].id)"
-                        ><component :is="tab.icon" :size="17" aria-hidden="true" />{{ tab.label }}</button>
+                        ><component :is="tab.icon" :size="17" class="shrink-0" aria-hidden="true" />{{ tab.label }}</button>
                     </div>
                 </div>
 

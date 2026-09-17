@@ -5,7 +5,6 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#0b0f0e">
         <meta name="application-name" content="FinanSys">
-        <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('finansys-favicon-32.png') }}?v=2">
 
         @if (request()->routeIs('home'))
             <meta name="description" content="Organize contas, caixinhas e movimentações em um só lugar com o FinanSys.">
