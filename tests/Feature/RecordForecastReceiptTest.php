@@ -23,7 +23,7 @@ class RecordForecastReceiptTest extends TestCase
         $account = Account::factory()->for($user)->create();
         $category = Category::factory()->for($user)->create(['type' => 'income']);
         $forecast = ReceiptForecast::factory()->for($user)->for($category)->create([
-            'amount' => '100.00', 'expected_on' => '2026-09-19',
+            'amount' => '100.00', 'expected_on' => '2026-09-19', 'version' => 1,
         ]);
         $payload = [
             'mode' => 'new', 'account_id' => $account->id, 'amount' => '40.00',
@@ -52,7 +52,7 @@ class RecordForecastReceiptTest extends TestCase
         $other = User::factory()->create();
         $foreignAccount = Account::factory()->for($other)->create();
         $category = Category::factory()->for($user)->create(['type' => 'income']);
-        $forecast = ReceiptForecast::factory()->for($user)->for($category)->create(['expected_on' => '2026-09-19']);
+        $forecast = ReceiptForecast::factory()->for($user)->for($category)->create(['expected_on' => '2026-09-19', 'version' => 1]);
 
         $this->actingAs($user)->post(route('receipt-forecasts.receipts.store', $forecast->id), [
             'mode' => 'new', 'account_id' => $foreignAccount->id, 'amount' => '40.00',
