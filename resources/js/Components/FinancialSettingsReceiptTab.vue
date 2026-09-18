@@ -13,7 +13,6 @@ const props = defineProps({
     categories: { type: Array, required: true },
     availableReceipts: { type: Array, required: true },
 });
-
 const editing = ref(null);
 const creating = ref(false);
 const cancelling = ref(null);
@@ -22,8 +21,8 @@ const defaults = () => ({ category_id: '', amount: '0,00', expected_on: `${props
 const createForm = useForm(defaults());
 const cancelForm = useForm({ version: 1 });
 const linkForm = useForm({ ledger_entry_id: '', forecast_version: 1, operation_id: crypto.randomUUID() });
-const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const displayDate = (date) => date?.split('-').reverse().join('/') ?? '—';
+const moneyFor = (amount) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(amount));
 const totals = computed(() => (props.forecasts.data ?? []).reduce((total, forecast) => ({
     expected: total.expected + Number(forecast.amount),
     pending: total.pending + Number(forecast.pending),
