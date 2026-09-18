@@ -3,10 +3,13 @@
 namespace App\Actions;
 
 use App\Enums\LedgerEntryType;
+use App\Enums\RecordStatus;
+use App\Models\Account;
 use App\Models\ReceiptForecast;
 use App\Models\ReceiptForecastLink;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Ramsey\Uuid\Uuid;
 
 class RecordForecastReceipt
@@ -25,10 +28,15 @@ class RecordForecastReceipt
         return DB::transaction(function () use ($user, $forecastId, $data, $entryOperationId, $linkOperationId): ReceiptForecastLink {
             User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
             $forecast = ReceiptForecast::query()->whereBelongsTo($user)->whereKey($forecastId)->lockForUpdate()->firstOrFail();
+            $account = Account::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)
+                ->whereKey((int) $data['account_id'])->lockForUpdate()->first();
+            if (! $account) {
+                throw ValidationException::withMessages(['account_id' => 'Escolha uma conta sua que esteja ativa.']);
+            }
 
             $entry = $this->createEntry->handle(
                 user: $user,
-                accountId: (int) $data['account_id'],
+                accountId: $account->getKey(),
                 categoryId: (int) $forecast->category_id,
                 type: LedgerEntryType::Income,
                 value: $data['amount'],
