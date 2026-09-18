@@ -103,9 +103,12 @@ class FinancialSettingsController extends Controller
     {
         $save->handle($request->user(), $request->validated());
 
-        $tab = $request->query('tab') === 'essentials' ? 'essentials' : 'protection';
+        $params = ['month' => $request->validated('month')];
+        if (in_array($request->query('tab'), ['protection', 'essentials'], true)) {
+            $params['tab'] = $request->query('tab');
+        }
 
-        return to_route('financial-settings.edit', ['month' => $request->validated('month'), 'tab' => $tab])
+        return to_route('financial-settings.edit', $params)
             ->with('success', '🤝 Boa, meu parceiro! Configuração do mês salva.');
     }
 
@@ -117,7 +120,11 @@ class FinancialSettingsController extends Controller
         ], ['name.required' => 'Informe o nome da categoria.', 'name.max' => 'Use no máximo 255 caracteres.']);
         $create->handle($request->user(), $data['name'], CategoryType::Expense);
 
-        return to_route('financial-settings.edit', ['month' => $data['month'], 'tab' => 'essentials'])
-            ->with('success', 'Categoria de despesa criada.');
+        $params = ['month' => $data['month']];
+        if ($request->query('tab') === 'essentials') {
+            $params['tab'] = 'essentials';
+        }
+
+        return to_route('financial-settings.edit', $params)->with('success', 'Categoria de despesa criada.');
     }
 }
