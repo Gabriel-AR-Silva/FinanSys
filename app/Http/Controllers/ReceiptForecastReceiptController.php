@@ -19,7 +19,12 @@ class ReceiptForecastReceiptController extends Controller
             $data['operation_id'],
         );
 
-        return to_route('receipt-forecasts.index', ['month' => $link->forecast->expected_on->format('Y-m')])
+        $params = ['month' => $link->forecast->expected_on->format('Y-m')];
+        if ($request->boolean('from_settings')) {
+            $params['tab'] = 'receipts';
+        }
+
+        return to_route($request->boolean('from_settings') ? 'financial-settings.edit' : 'receipt-forecasts.index', $params)
             ->with('success', '✅ Recebimento vinculado. O que entrou e o que ainda falta foram recalculados.');
     }
 }
