@@ -54,6 +54,7 @@ class CreditCardController extends Controller
                         'installments' => $purchase->installments->sortBy('installment_number')->values()->map(fn ($installment): array => [
                             'id' => $installment->id, 'number' => $installment->installment_number, 'gross_amount' => $installment->gross_amount,
                             'paid_amount' => $installment->paid_amount, 'due_on' => $installment->due_on->toDateString(), 'status' => $installment->status->value,
+                            'purchased_on' => $purchase->purchased_on->toDateString(),
                             'advance' => ($advanceAllocation = $installment->advanceAllocations->first()) ? [
                                 'gross_amount' => $advanceAllocation->gross_amount,
                                 'discount_amount' => $advanceAllocation->discount_amount,
