@@ -58,5 +58,15 @@ class OfxPixCreditReplayTest extends TestCase
         $this->assertDatabaseCount('ledger_entries', 0);
         $this->assertSame(2, OfxImportItem::query()->where('review_status', 'confirmed')->count());
         $this->assertSame($first->getKey(), CardPurchase::query()->sole()->getKey());
+
+        // A repeated browser request must remain idempotent at the HTTP boundary, too.
+        $this->actingAs($user)->post(route('ofx-imports.pix-credit.confirm', [
+            'import' => $import->getKey(),
+            'item' => $credit->getKey(),
+        ]), $data)->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('card_purchases', 1);
+        $this->assertDatabaseCount('ledger_entries', 0);
+        $this->assertSame($first->getKey(), CardPurchase::query()->sole()->getKey());
     }
 }
