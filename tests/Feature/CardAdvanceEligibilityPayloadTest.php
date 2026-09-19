@@ -8,7 +8,7 @@ use App\Models\CreditCard;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
-use Inertia\Testing\AssertableJson as Assert;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class CardAdvanceEligibilityPayloadTest extends TestCase
