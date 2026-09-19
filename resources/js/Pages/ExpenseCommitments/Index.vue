@@ -18,34 +18,32 @@ const asCents = (value) => {
     const [whole, fraction = ''] = String(value ?? '0').replace(',', '.').split('.');
     return BigInt(whole || '0') * 100n + BigInt(fraction.padEnd(2, '0').slice(0, 2) || '0');
 };
-const formatCents = (cents) => money.format(Number(cents) / 100);
+const formatCents = (value) => money.format(Number(value) / 100);
 const remaining = (item) => asCents(item.amount) - asCents(item.paid_amount);
 const pending = computed(() => props.commitments.filter(item => item.status === 'pending'));
 const totalPending = computed(() => pending.value.reduce((total, item) => total + remaining(item), 0n));
 const totalBalance = computed(() => props.accounts.reduce((total, account) => total + asCents(account.balance), 0n));
 const formatDate = (value) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
 const scheduleForm = useForm({
-    account_id: props.accounts[0]?.id ?? '',
-    category_id: props.categories[0]?.id ?? '',
-    description: '', amount: '', due_on: today,
-    planning_type: 'ordinary', operation_id: crypto.randomUUID(),
+    account_id: props.accounts[0]?.id ?? '', category_id: props.categories[0]?.id ?? '',
+    description: '', amount: '', due_on: today, planning_type: 'ordinary', operation_id: crypto.randomUUID(),
 });
-const selected = ref(null);
+const paying = ref(null);
+const editing = ref(null);
 const paymentForm = useForm({ amount: '', paid_on: today, operation_id: crypto.randomUUID() });
+const editForm = useForm({ description: '', amount: '', due_on: today, version: 1 });
 const cancelForm = useForm({});
 const cancellingId = ref(null);
 function schedule() {
     scheduleForm.transform(data => ({ ...data, amount: normalizeMoneyInput(data.amount) }))
         .post(route('expense-commitments.store'), {
             preserveScroll: true,
-            onSuccess: () => {
-                scheduleForm.reset('description', 'amount');
-                scheduleForm.operation_id = crypto.randomUUID();
-            },
+            onSuccess: () => { scheduleForm.reset('description', 'amount'); scheduleForm.operation_id = crypto.randomUUID(); },
         });
 }
 function startPayment(item) {
-    selected.value = item;
+    editing.value = null;
+    paying.value = item;
     paymentForm.clearErrors();
     paymentForm.amount = formatMoneyInput(`${remaining(item) / 100n}.${String(remaining(item) % 100n).padStart(2, '0')}`);
     paymentForm.paid_on = today;
@@ -53,9 +51,25 @@ function startPayment(item) {
 }
 function pay() {
     paymentForm.transform(data => ({ ...data, amount: normalizeMoneyInput(data.amount) }))
-        .post(route('expense-commitments.pay', selected.value.id), {
+        .post(route('expense-commitments.pay', paying.value.id), {
             preserveScroll: true,
-            onSuccess: () => { selected.value = null; paymentForm.operation_id = crypto.randomUUID(); },
+            onSuccess: () => { paying.value = null; paymentForm.operation_id = crypto.randomUUID(); },
+        });
+}
+function startEdit(item) {
+    paying.value = null;
+    editing.value = item;
+    editForm.clearErrors();
+    editForm.description = item.description;
+    editForm.amount = formatMoneyInput(item.amount);
+    editForm.due_on = item.due_on;
+    editForm.version = item.version;
+}
+function saveEdit() {
+    editForm.transform(data => ({ ...data, amount: normalizeMoneyInput(data.amount) }))
+        .patch(route('expense-commitments.update', editing.value.id), {
+            preserveScroll: true,
+            onSuccess: () => { editing.value = null; },
         });
 }
 function cancel(item) {
@@ -80,6 +94,7 @@ function cancel(item) {
             </section>
             <section class="rounded-2xl border border-slate-200 bg-white p-5" aria-label="Cadastrar compromisso">
                 <h2 class="text-lg font-semibold">Novo compromisso</h2>
+                <p class="mt-1 text-xs text-slate-500">Nesta etapa, cadastre cada vencimento separadamente; não há recorrência automática.</p>
                 <form class="mt-4 grid gap-4 sm:grid-cols-2" @submit.prevent="schedule">
                     <div class="sm:col-span-2"><InputLabel for="commit-description" value="Descrição" /><TextInput id="commit-description" v-model="scheduleForm.description" required maxlength="255" class="mt-1 block w-full" placeholder="Ex.: boleto da moto" /><InputError :message="scheduleForm.errors.description" /></div>
                     <div><InputLabel for="commit-account" value="Conta que vai pagar" /><select id="commit-account" v-model="scheduleForm.account_id" required class="mt-1 block w-full rounded-xl border-slate-300"><option v-for="account in accounts" :key="account.id" :value="account.id">{{ account.name }}</option></select><InputError :message="scheduleForm.errors.account_id" /></div>
@@ -93,11 +108,12 @@ function cancel(item) {
             </section>
             <section class="space-y-3" aria-label="Compromissos cadastrados"><h2 class="text-lg font-semibold">Seus compromissos</h2><p v-if="!commitments.length" class="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">Nenhum compromisso cadastrado.</p>
                 <article v-for="item in commitments" :key="item.id" class="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-semibold">{{ item.description }}</p><p class="mt-1 text-sm text-slate-500">Vence {{ formatDate(item.due_on) }} · {{ item.status === 'pending' ? 'Pendente' : item.status === 'paid' ? 'Quitado' : 'Cancelado' }}</p><p class="mt-1 text-sm text-slate-600">Total {{ money.format(Number(item.amount)) }} · Pago {{ money.format(Number(item.paid_amount)) }} · Restante {{ formatCents(remaining(item)) }}</p></div><div v-if="item.status === 'pending'" class="flex flex-wrap gap-2"><button type="button" class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white" @click="startPayment(item)">Registrar pagamento</button><button type="button" :disabled="cancellingId === item.id" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50" @click="cancel(item)">Cancelar restante</button></div></div>
+                    <div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-semibold">{{ item.description }}</p><p class="mt-1 text-sm text-slate-500">Vence {{ formatDate(item.due_on) }} · {{ item.status === 'pending' && item.due_on < today ? 'Atrasado' : item.status === 'pending' ? 'Pendente' : item.status === 'paid' ? 'Quitado' : 'Cancelado' }}</p><p class="mt-1 text-sm text-slate-600">Total {{ money.format(Number(item.amount)) }} · Pago {{ money.format(Number(item.paid_amount)) }} · Restante {{ formatCents(remaining(item)) }}</p></div><div v-if="item.status === 'pending'" class="flex flex-wrap gap-2"><button type="button" class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white" @click="startPayment(item)">Registrar pagamento</button><button type="button" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700" @click="startEdit(item)">Corrigir</button><button type="button" :disabled="cancellingId === item.id" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50" @click="cancel(item)">Cancelar restante</button></div></div>
                     <p v-if="item.payments.length" class="mt-3 text-xs text-slate-500">Pagamentos: {{ item.payments.map(payment => `${formatDate(payment.paid_on)} · ${money.format(Number(payment.amount))}`).join(' | ') }}</p>
                 </article>
             </section>
-            <section v-if="selected" class="rounded-2xl border-2 border-emerald-500 bg-white p-5" aria-label="Registrar pagamento"><h2 class="text-lg font-semibold">Pagar: {{ selected.description }}</h2><p class="mt-1 text-sm text-slate-600">Restante: {{ formatCents(remaining(selected)) }}. Pagamentos parciais conservam a pendência; valores lançados saem do saldo apenas uma vez.</p><form class="mt-4 grid gap-4 sm:grid-cols-2" @submit.prevent="pay"><div><InputLabel for="payment-amount" value="Valor efetivamente pago" /><TextInput id="payment-amount" v-model="paymentForm.amount" required inputmode="decimal" class="mt-1 block w-full" @input="paymentForm.amount = sanitizeMoneyInput($event.target.value)" @blur="paymentForm.amount = formatMoneyInput(paymentForm.amount)" /><InputError :message="paymentForm.errors.amount" /></div><div><InputLabel for="payment-date" value="Data do pagamento" /><TextInput id="payment-date" v-model="paymentForm.paid_on" type="date" :max="today" required class="mt-1 block w-full" /><InputError :message="paymentForm.errors.paid_on" /></div><InputError :message="paymentForm.errors.expense_commitment || paymentForm.errors.operation_id" class="sm:col-span-2" /><div class="flex flex-wrap gap-3 sm:col-span-2"><button type="submit" :disabled="paymentForm.processing" class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{{ paymentForm.processing ? 'Registrando…' : 'Confirmar pagamento' }}</button><button type="button" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold" @click="selected = null">Fechar</button></div></form></section>
+            <section v-if="editing" class="rounded-2xl border-2 border-sky-500 bg-white p-5" aria-label="Corrigir compromisso"><h2 class="text-lg font-semibold">Corrigir: {{ editing.description }}</h2><p class="mt-1 text-sm text-slate-600">Somente a descrição, o valor total e a data podem mudar. Pagamentos já feitos são preservados.</p><form class="mt-4 grid gap-4 sm:grid-cols-2" @submit.prevent="saveEdit"><div class="sm:col-span-2"><InputLabel for="edit-description" value="Descrição" /><TextInput id="edit-description" v-model="editForm.description" required maxlength="255" class="mt-1 block w-full" /><InputError :message="editForm.errors.description" /></div><div><InputLabel for="edit-amount" value="Valor total corrigido" /><TextInput id="edit-amount" v-model="editForm.amount" required inputmode="decimal" class="mt-1 block w-full" @input="editForm.amount = sanitizeMoneyInput($event.target.value)" @blur="editForm.amount = formatMoneyInput(editForm.amount)" /><InputError :message="editForm.errors.amount" /></div><div><InputLabel for="edit-date" value="Vencimento" /><TextInput id="edit-date" v-model="editForm.due_on" type="date" required class="mt-1 block w-full" /><InputError :message="editForm.errors.due_on" /></div><InputError :message="editForm.errors.version || editForm.errors.expense_commitment" class="sm:col-span-2" /><div class="flex flex-wrap gap-3 sm:col-span-2"><button type="submit" :disabled="editForm.processing" class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{{ editForm.processing ? 'Salvando…' : 'Salvar correção' }}</button><button type="button" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold" @click="editing = null">Fechar</button></div></form></section>
+            <section v-if="paying" class="rounded-2xl border-2 border-emerald-500 bg-white p-5" aria-label="Registrar pagamento"><h2 class="text-lg font-semibold">Pagar: {{ paying.description }}</h2><p class="mt-1 text-sm text-slate-600">Restante: {{ formatCents(remaining(paying)) }}. Pagamentos parciais conservam a pendência; valores lançados saem do saldo apenas uma vez.</p><form class="mt-4 grid gap-4 sm:grid-cols-2" @submit.prevent="pay"><div><InputLabel for="payment-amount" value="Valor efetivamente pago" /><TextInput id="payment-amount" v-model="paymentForm.amount" required inputmode="decimal" class="mt-1 block w-full" @input="paymentForm.amount = sanitizeMoneyInput($event.target.value)" @blur="paymentForm.amount = formatMoneyInput(paymentForm.amount)" /><InputError :message="paymentForm.errors.amount" /></div><div><InputLabel for="payment-date" value="Data do pagamento" /><TextInput id="payment-date" v-model="paymentForm.paid_on" type="date" :max="today" required class="mt-1 block w-full" /><InputError :message="paymentForm.errors.paid_on" /></div><InputError :message="paymentForm.errors.expense_commitment || paymentForm.errors.operation_id" class="sm:col-span-2" /><div class="flex flex-wrap gap-3 sm:col-span-2"><button type="submit" :disabled="paymentForm.processing" class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{{ paymentForm.processing ? 'Registrando…' : 'Confirmar pagamento' }}</button><button type="button" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold" @click="paying = null">Fechar</button></div></form></section>
         </div>
     </AuthenticatedLayout>
 </template>
