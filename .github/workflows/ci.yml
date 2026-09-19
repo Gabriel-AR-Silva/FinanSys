@@ -49,10 +49,7 @@ jobs:
           php artisan key:generate --ansi
 
       - name: Check PHP formatting
-        run: |
-          vendor/bin/pint
-          git diff -- app/Actions/CorrectManualLedgerEntry.php tests/Feature/CorrectManualLedgerEntryTest.php
-          exit 1
+        run: vendor/bin/pint --test
 
       - name: Run PHP tests
         run: php artisan test --compact
