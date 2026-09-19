@@ -36,7 +36,7 @@ class ExpenseCommitmentPageTest extends TestCase
             'operation_id' => (string) Str::uuid(),
         ]);
 
-        $this->withoutExceptionHandling();
+        $this->withoutVite();
         $this->actingAs($user)->get(route('expense-commitments.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
