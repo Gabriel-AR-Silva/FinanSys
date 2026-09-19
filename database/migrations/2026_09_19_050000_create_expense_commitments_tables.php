@@ -19,6 +19,7 @@ return new class extends Migration
             $table->date('due_on');
             $table->string('planning_type', 32);
             $table->string('status', 16)->default('pending');
+            $table->unsignedInteger('version')->default(1);
             $table->uuid('operation_id');
             $table->timestamps();
             $table->unique(['user_id', 'operation_id'], 'expense_commitments_user_operation_unique');
