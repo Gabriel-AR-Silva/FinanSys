@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['user_id', 'account_id', 'category_id', 'description', 'amount', 'paid_amount', 'due_on', 'planning_type', 'status', 'operation_id'])]
+#[Fillable(['user_id', 'account_id', 'category_id', 'description', 'amount', 'paid_amount', 'due_on', 'planning_type', 'status', 'operation_id', 'version'])]
 class ExpenseCommitment extends Model
 {
     protected function casts(): array
@@ -16,6 +16,7 @@ class ExpenseCommitment extends Model
             'amount' => 'decimal:2',
             'paid_amount' => 'decimal:2',
             'due_on' => 'immutable_date',
+            'version' => 'integer',
         ];
     }
 
