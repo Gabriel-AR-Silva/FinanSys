@@ -38,6 +38,7 @@ class OfxPixCreditReplayTest extends TestCase
 
         $import = BankStatementImport::query()->sole();
         $debit = OfxImportItem::query()->where('direction', 'debit')->sole();
+        $credit = OfxImportItem::query()->where('direction', 'credit')->sole();
         $data = [
             'credit_card_id' => $card->getKey(),
             'category_id' => $category->getKey(),
@@ -49,8 +50,10 @@ class OfxPixCreditReplayTest extends TestCase
         $action = app(ConfirmOfxCardCreditPix::class);
         $first = $action->handle($user, $import, $debit, $data);
         $second = $action->handle($user, $import, $debit, $data);
+        $third = $action->handle($user, $import, $credit, $data);
 
         $this->assertSame($first->getKey(), $second->getKey());
+        $this->assertSame($first->getKey(), $third->getKey());
         $this->assertDatabaseCount('card_purchases', 1);
         $this->assertDatabaseCount('ledger_entries', 0);
         $this->assertSame(2, OfxImportItem::query()->where('review_status', 'confirmed')->count());
