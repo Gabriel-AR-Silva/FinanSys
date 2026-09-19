@@ -6,6 +6,7 @@ import tsukiIcon from '@/assets/tsuki.png';
 
 let tsukiSequence = 0;
 const DISMISSED_KEY = 'finansys:tsuki-onboarding-dismissed';
+const HINT_DISMISSED_KEY = 'finansys:tsuki-minimized-hint-dismissed';
 const props = defineProps({
     essentialSteps: { type: Array, default: () => [] },
     recommendedSteps: { type: Array, default: () => [] },
@@ -15,6 +16,7 @@ const props = defineProps({
 const emit = defineEmits(['navigate', 'open', 'close']);
 const panelOpen = ref(false);
 const dismissed = ref(false);
+const hintDismissed = ref(false);
 const trigger = ref(null);
 const panel = ref(null);
 const closeButton = ref(null);
@@ -26,6 +28,10 @@ const triggerLabel = computed(() => `Abrir primeiros passos com Tsuki. ${Number(
 const rememberClosed = () => {
     dismissed.value = true;
     try { window.localStorage.setItem(DISMISSED_KEY, '1'); } catch (_) { /* armazenamento pode estar indisponível */ }
+};
+const dismissHint = () => {
+    hintDismissed.value = true;
+    try { window.localStorage.setItem(HINT_DISMISSED_KEY, '1'); } catch (_) { /* armazenamento pode estar indisponível */ }
 };
 const openPanel = async () => {
     panelOpen.value = true;
@@ -52,7 +58,13 @@ const handlePointerDown = event => {
 };
 const handleNavigate = step => { emit('navigate', step); closePanel({ restoreFocus: false }); };
 onMounted(() => {
-    try { dismissed.value = window.localStorage.getItem(DISMISSED_KEY) === '1'; } catch (_) { dismissed.value = false; }
+    try {
+        dismissed.value = window.localStorage.getItem(DISMISSED_KEY) === '1';
+        hintDismissed.value = window.localStorage.getItem(HINT_DISMISSED_KEY) === '1';
+    } catch (_) {
+        dismissed.value = false;
+        hintDismissed.value = false;
+    }
     panelOpen.value = props.initiallyOpen && !dismissed.value;
     document.addEventListener('keydown', handleKeydown);
     document.addEventListener('pointerdown', handlePointerDown);
@@ -78,7 +90,10 @@ onUnmounted(() => {
             </aside>
         </Transition>
         <Transition enter-active-class="transition duration-200" enter-from-class="translate-y-1 opacity-0" leave-active-class="transition duration-150" leave-to-class="translate-y-1 opacity-0">
-            <button v-if="!panelOpen && dismissed && hasPendingSteps" type="button" class="pointer-events-auto absolute bottom-16 right-0 mb-2 w-max max-w-[15rem] rounded-2xl border border-emerald-200 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 shadow-lg" @click="openPanel"><span class="block font-semibold text-emerald-700">Ainda temos etapas pendentes.</span><span class="mt-0.5 block text-slate-500">Quando quiser, continuo daqui com você.</span></button>
+            <div v-if="!panelOpen && dismissed && hasPendingSteps && !hintDismissed" class="pointer-events-auto absolute bottom-16 right-0 mb-2 flex w-max max-w-[min(15rem,calc(100vw-2rem))] items-start rounded-2xl border border-emerald-200 bg-white text-left text-xs font-medium text-slate-700 shadow-lg">
+                <button type="button" class="min-w-0 flex-1 rounded-l-2xl py-2 pl-3 pr-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" @click="openPanel"><span class="block font-semibold text-emerald-700">Ainda temos etapas pendentes.</span><span class="mt-0.5 block text-slate-500">Quando quiser, continuo daqui com você.</span></button>
+                <button type="button" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-r-2xl text-slate-500 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label="Dispensar mensagem da Tsuki" @click="dismissHint"><X :size="16" aria-hidden="true" /></button>
+            </div>
         </Transition>
         <button ref="trigger" type="button" class="tsuki-presence pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-4 motion-reduce:transform-none motion-reduce:transition-none" :aria-label="triggerLabel" :aria-expanded="panelOpen" :aria-controls="panelId" @click="togglePanel">
             <span v-if="!panelOpen && hasPendingSteps" class="absolute -right-0.5 -top-0.5 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[10px] font-black text-slate-950 ring-2 ring-white" aria-hidden="true">!</span>
