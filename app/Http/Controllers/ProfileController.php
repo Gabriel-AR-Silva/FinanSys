@@ -69,15 +69,25 @@ class ProfileController extends Controller
             $user->save();
         } catch (Throwable $exception) {
             if ($newAvatarPath) {
-                Storage::disk('public')->delete($newAvatarPath);
+                try {
+                    Storage::disk('public')->delete($newAvatarPath);
+                } catch (Throwable $cleanupException) {
+                    report($cleanupException);
+                }
             }
 
             throw $exception;
         }
 
-        // Só apaga a foto antiga depois que a nova gravação e o usuário foram salvos.
+        // Falhas ao limpar arquivos antigos não devem transformar um salvamento concluído em HTTP 500.
         if ($oldAvatarPath && $oldAvatarPath !== $user->avatar_path) {
-            Storage::disk('public')->delete($oldAvatarPath);
+            try {
+                if (! Storage::disk('public')->delete($oldAvatarPath)) {
+                    report(new \RuntimeException('Não foi possível remover a foto de perfil anterior.'));
+                }
+            } catch (Throwable $exception) {
+                report($exception);
+            }
         }
 
         return Redirect::route('profile.edit');
