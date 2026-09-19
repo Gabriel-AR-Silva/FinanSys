@@ -1,0 +1,27 @@
+name: Temporary query formatting
+on:
+  push:
+    branches:
+      - feat/manual-entry-safe-corrections
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Format changed query and commit to feature branch
+        run: |
+          vendor/bin/pint app/Queries/LedgerEntryIndexQuery.php
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/Queries/LedgerEntryIndexQuery.php
+          git commit -m 'style(ledger): format safe-correction eligibility query'
+          git push origin HEAD:feat/manual-entry-safe-corrections
