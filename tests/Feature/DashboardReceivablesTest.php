@@ -50,7 +50,7 @@ class DashboardReceivablesTest extends TestCase
 
         app(RecordForecastReceipt::class)->handle($user, $forecast->id, [
             'account_id' => $account->id, 'amount' => '40.00', 'occurred_at' => '2026-09-18',
-            'forecast_version' => $forecast->version, 'operation_id' => (string) Str::uuid(),
+            'forecast_version' => $forecast->fresh()->version, 'operation_id' => (string) Str::uuid(),
         ]);
 
         $this->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->component('Dashboard')
