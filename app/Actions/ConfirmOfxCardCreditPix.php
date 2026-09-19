@@ -31,6 +31,13 @@ class ConfirmOfxCardCreditPix
         }
 
         return DB::transaction(function () use ($user, $import, $item, $data): CardPurchase {
+            // Serializar confirmações Pix da mesma importação antes de bloquear qualquer item.
+            // Requisições pelos lados opostos do par não adquirem os itens em ordem inversa.
+            BankStatementImport::query()
+                ->where('user_id', $user->getKey())
+                ->lockForUpdate()
+                ->findOrFail($import->getKey());
+
             $lockedItem = OfxImportItem::query()
                 ->where('user_id', $user->getKey())
                 ->where('bank_statement_import_id', $import->getKey())
@@ -38,7 +45,6 @@ class ConfirmOfxCardCreditPix
                 ->findOrFail($item->getKey());
 
             // A segunda requisição deve consultar o estado depois de adquirir o bloqueio.
-            // Consultar apenas o modelo recebido antes da transação permite um replay obsoleto.
             if ($lockedItem->review_status === OfxReviewStatus::Confirmed
                 && $lockedItem->domain_type === CardPurchase::class
                 && $lockedItem->domain_id !== null) {
@@ -117,6 +123,7 @@ class ConfirmOfxCardCreditPix
             ->where('relationship_key', $selected->relationship_key)
             ->where('classification', OfxClassification::CardCreditPixCandidate)
             ->where('review_status', OfxReviewStatus::PendingReview)
+            ->orderBy('id')
             ->lockForUpdate()
             ->get();
 
