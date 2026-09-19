@@ -20,6 +20,6 @@ const confirmed = () => props.debit.review_status === 'confirmed' && props.credi
         </div>
         <p class="mt-3 text-sm font-semibold text-violet-950">Efeito líquido informado no banco: {{ money(pair.bank_effect) }}</p>
         <p class="mt-1 text-xs text-violet-800">{{ confirmed() ? 'Par confirmado como compra no cartão; não gera lançamentos bancários.' : 'Par aguardando confirmação da compra no cartão.' }}</p>
-        <Link v-if="confirmed() && pair.purchase_id" :href="route('credit-cards.index') + '#purchase-' + pair.purchase_id" class="mt-2 inline-block text-sm font-semibold text-violet-900 underline underline-offset-2">Ir para a compra no cartão</Link>
+        <Link v-if="confirmed() && pair.purchase_id" :href="route('credit-cards.index', { purchase: pair.purchase_id })" class="mt-2 inline-block text-sm font-semibold text-violet-900 underline underline-offset-2">Ir para a compra no cartão</Link>
     </section>
 </template>
