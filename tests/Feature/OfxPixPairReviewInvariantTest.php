@@ -2,12 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Enums\CategoryType;
 use App\Http\Controllers\OfxImportController;
 use App\Models\Account;
 use App\Models\BankStatementImport;
-use App\Models\Category;
-use App\Models\CreditCard;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
