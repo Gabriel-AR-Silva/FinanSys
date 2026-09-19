@@ -204,6 +204,7 @@ const eligibleAdvanceInstallments = computed(() =>
             purchase.installments.map((installment) => ({
                 ...installment,
                 description: purchase.description,
+                purchased_on: purchase.purchased_on,
             })),
         )
         .filter(
