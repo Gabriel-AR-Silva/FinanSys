@@ -16,6 +16,7 @@ use App\Http\Controllers\FinancialEvaluationController;
 use App\Http\Controllers\FinancialSettingsController;
 use App\Http\Controllers\InternalAlertController;
 use App\Http\Controllers\LedgerEntryController;
+use App\Http\Controllers\LedgerEntryCorrectionController;
 use App\Http\Controllers\LedgerEntryReversalController;
 use App\Http\Controllers\OfxCardCreditPixConfirmationController;
 use App\Http\Controllers\OfxImportConfirmationController;
@@ -94,6 +95,10 @@ Route::middleware('auth')->group(function () {
         ->parameters(['lancamentos' => 'ledgerEntry'])
         ->only(['index', 'store', 'destroy'])
         ->names('ledger-entries');
+    Route::get('/lancamentos/{ledgerEntry}/editar', [LedgerEntryCorrectionController::class, 'edit'])
+        ->whereNumber('ledgerEntry')->name('ledger-entries.correction.edit');
+    Route::patch('/lancamentos/{ledgerEntry}/correcao', [LedgerEntryCorrectionController::class, 'update'])
+        ->whereNumber('ledgerEntry')->name('ledger-entries.correction.update');
     Route::resource('categorias', CategoryController::class)
         ->parameters(['categorias' => 'category'])
         ->only(['index', 'store', 'update'])

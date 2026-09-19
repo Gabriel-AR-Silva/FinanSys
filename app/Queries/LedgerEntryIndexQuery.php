@@ -6,6 +6,7 @@ use App\Enums\LedgerEntryType;
 use App\Enums\RecordStatus;
 use App\Models\Account;
 use App\Models\LedgerEntry;
+use App\Models\OfxImportItem;
 use App\Models\Pocket;
 use App\Models\User;
 use Brick\Math\BigDecimal;
@@ -84,6 +85,13 @@ class LedgerEntryIndexQuery
             'category' => $entry->category === null ? null : ['id' => $entry->category->id, 'name' => $entry->category->name],
             'occurred_at' => $entry->occurred_at->toDateString(),
             'reference' => ['type' => $entry->reference_type, 'name' => $entry->reference?->name],
+            'can_correct' => $entry->reference_type === (new Account)->getMorphClass()
+                && in_array($entry->type, [LedgerEntryType::Income, LedgerEntryType::Expense], true)
+                && $entry->reversal_of_operation_id === null
+                && ! ($reversedOperationIds?->has($entry->operation_id) ?? false)
+                && ! $entry->receiptForecastLink()->exists()
+                && $entry->expenseRefunds->isEmpty()
+                && ! OfxImportItem::query()->where('domain_type', $entry->getMorphClass())->where('domain_id', $entry->id)->exists(),
             'can_delete' => $entry->reversal_of_operation_id === null
                 && ! ($reversedOperationIds?->has($entry->operation_id) ?? false)
                 && in_array($entry->type, [LedgerEntryType::Income, LedgerEntryType::Expense], true),
