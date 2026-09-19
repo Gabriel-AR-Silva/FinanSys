@@ -9,6 +9,7 @@ use App\Models\Account;
 use App\Models\Category;
 use App\Models\ExpenseCommitment;
 use App\Models\ExpenseCommitmentPayment;
+use App\Models\LedgerEntry;
 use App\Models\User;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -74,6 +75,9 @@ class ManageExpenseCommitment
             if ($commitment->status !== 'pending') {
                 throw ValidationException::withMessages(['expense_commitment' => 'Este compromisso está encerrado.']);
             }
+            if (LedgerEntry::withTrashed()->whereBelongsTo($user)->where('operation_id', $data['operation_id'])->exists()) {
+                throw ValidationException::withMessages(['operation_id' => 'Esta chave já foi usada em outro lançamento.']);
+            }
             $remaining = BigDecimal::of($commitment->amount)->minus($commitment->paid_amount);
             if (BigDecimal::of($amount)->isGreaterThan($remaining)) {
                 throw ValidationException::withMessages(['amount' => 'O pagamento excede o valor pendente.']);
@@ -95,6 +99,7 @@ class ManageExpenseCommitment
             $commitment->update([
                 'paid_amount' => (string) $paid,
                 'status' => $paid->isEqualTo($commitment->amount) ? 'paid' : 'pending',
+                'version' => $commitment->version + 1,
             ]);
 
             return $payment;
@@ -110,7 +115,7 @@ class ManageExpenseCommitment
                 throw ValidationException::withMessages(['expense_commitment' => 'Um compromisso quitado não pode ser cancelado.']);
             }
             if ($commitment->status === 'pending') {
-                $commitment->update(['status' => 'cancelled']);
+                $commitment->update(['status' => 'cancelled', 'version' => $commitment->version + 1]);
             }
 
             return $commitment;
