@@ -6,6 +6,7 @@ use App\Actions\CorrectManualLedgerEntry;
 use App\Enums\CategoryType;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\LedgerEntry;
 use App\Models\User;
@@ -43,9 +44,9 @@ class CorrectManualLedgerEntryTest extends TestCase
         $this->assertSame('80.00', $entry->fresh()->amount);
         $this->assertEquals(-80, app(AccountBalanceQuery::class)->forUser($user)->sole()->balance);
         $this->assertSame($before + 1, DB::table('audit_logs')->where('action', 'updated')->where('auditable_type', 'ledger_entry')->count());
-        $audit = DB::table('audit_logs')->where('action', 'updated')->where('auditable_type', 'ledger_entry')->sole();
-        $this->assertSame('100.00', json_decode($audit->before, true)['amount']);
-        $this->assertSame('80.00', json_decode($audit->after, true)['amount']);
+        $audit = AuditLog::query()->where('action', 'updated')->where('auditable_type', 'ledger_entry')->sole();
+        $this->assertSame('100.00', $audit->before['amount']);
+        $this->assertSame('80.00', $audit->after['amount']);
     }
 
     public function test_user_cannot_correct_foreign_or_linked_entry(): void
