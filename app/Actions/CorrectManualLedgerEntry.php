@@ -8,6 +8,7 @@ use App\Enums\LedgerEntryType;
 use App\Enums\RecordStatus;
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\ExpenseCommitmentPayment;
 use App\Models\ExpenseRefund;
 use App\Models\LedgerEntry;
 use App\Models\OfxImportItem;
@@ -37,6 +38,7 @@ class CorrectManualLedgerEntry
                 && $entry->reversal_of_operation_id === null
                 && ! LedgerEntry::query()->whereBelongsTo($user)->where('reversal_of_operation_id', $entry->operation_id)->exists()
                 && ! $entry->receiptForecastLink()->exists()
+                && ! ExpenseCommitmentPayment::query()->where('user_id', $user->id)->where('ledger_entry_id', $entry->id)->exists()
                 && ! ExpenseRefund::query()->whereBelongsTo($user)->where('expense_ledger_entry_id', $entry->id)->exists()
                 && ! OfxImportItem::query()->where('domain_type', $entry->getMorphClass())->where('domain_id', $entry->id)->exists();
 
