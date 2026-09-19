@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\CreateManualLedgerEntry;
 use App\Enums\ExpensePlanningType;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
@@ -47,7 +48,7 @@ class ExpenseCommitmentCorrectionTest extends TestCase
         $account = Account::factory()->for($user)->create();
         $category = Category::factory()->for($user)->create(['type' => 'expense']);
         $operationId = (string) Str::uuid();
-        app(\App\Actions\CreateManualLedgerEntry::class)->handle(
+        app(CreateManualLedgerEntry::class)->handle(
             $user, $account->id, $category->id, LedgerEntryType::Expense, '40.00', now()->toDateString(), 'Boleto', $operationId, ExpensePlanningType::Fixed,
         );
         $this->actingAs($user)->post(route('expense-commitments.store'), [
