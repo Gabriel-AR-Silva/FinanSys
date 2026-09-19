@@ -36,7 +36,7 @@ class OfxPixReviewPropsTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $import = BankStatementImport::query()->sole();
-        $this->actingAs($user)->get(route('ofx-imports.index', ['review' => $import->getKey()]))
+        $this->actingAs($user)->withHeader('X-Inertia', 'true')->get(route('ofx-imports.index', ['review' => $import->getKey()]))
             ->assertInertia(fn (Assert $page) => $page->component('OfxImports/Index')
                 ->has('pixPairs', 1)
                 ->where('pixPairs.0.bank_effect', '0.00')
@@ -55,7 +55,7 @@ class OfxPixReviewPropsTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $purchase = CardPurchase::query()->sole();
-        $this->actingAs($user)->get(route('ofx-imports.index', ['review' => $import->getKey()]))
+        $this->actingAs($user)->withHeader('X-Inertia', 'true')->get(route('ofx-imports.index', ['review' => $import->getKey()]))
             ->assertInertia(fn (Assert $page) => $page->component('OfxImports/Index')
                 ->has('pixPairs', 1)
                 ->where('pixPairs.0.bank_effect', '0.00')
@@ -63,7 +63,7 @@ class OfxPixReviewPropsTest extends TestCase
                 ->etc());
 
         $other = User::factory()->create();
-        $this->actingAs($other)->get(route('ofx-imports.index', ['review' => $import->getKey()]))
+        $this->actingAs($other)->withHeader('X-Inertia', 'true')->get(route('ofx-imports.index', ['review' => $import->getKey()]))
             ->assertInertia(fn (Assert $page) => $page->component('OfxImports/Index')
                 ->where('review', null)
                 ->has('pixPairs', 0)
