@@ -9,6 +9,7 @@ use App\Enums\RecordStatus;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\ExpenseCommitment;
+use App\Models\ExpenseCommitmentPayment;
 use App\Queries\AccountBalanceQuery;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,7 +30,20 @@ class ExpenseCommitmentController extends Controller
             'categories' => Category::query()->whereBelongsTo($user)->where('type', 'expense')->where('status', RecordStatus::Active)->orderBy('name')->get(['id', 'name']),
             'commitments' => ExpenseCommitment::query()->whereBelongsTo($user)->with('payments:id,expense_commitment_id,amount,paid_on')
                 ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")
-                ->orderBy('due_on')->orderBy('id')->get(),
+                ->orderBy('due_on')->orderBy('id')->get()
+                ->map(fn (ExpenseCommitment $commitment): array => [
+                    'id' => $commitment->id,
+                    'description' => $commitment->description,
+                    'amount' => $commitment->amount,
+                    'paid_amount' => $commitment->paid_amount,
+                    'due_on' => $commitment->due_on->toDateString(),
+                    'status' => $commitment->status,
+                    'version' => $commitment->version,
+                    'payments' => $commitment->payments->map(fn (ExpenseCommitmentPayment $payment): array => [
+                        'amount' => $payment->amount,
+                        'paid_on' => $payment->paid_on->toDateString(),
+                    ])->values(),
+                ])->values(),
         ]);
     }
 
