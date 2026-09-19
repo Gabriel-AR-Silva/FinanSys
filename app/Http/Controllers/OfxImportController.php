@@ -40,7 +40,19 @@ class OfxImportController extends Controller
         $pixPairs = $review?->items
             ->filter(fn ($item) => $item->classification->value === 'card_credit_pix_candidate' && $item->relationship_key !== null)
             ->groupBy('relationship_key')
-            ->filter(fn ($items) => $items->count() === 2 && $items->pluck('direction')->sort()->values()->all() === ['credit', 'debit'])
+            ->filter(function ($items): bool {
+                if ($items->count() !== 2) {
+                    return false;
+                }
+
+                $credit = $items->firstWhere('direction', 'credit');
+                $debit = $items->firstWhere('direction', 'debit');
+
+                return $credit !== null && $debit !== null
+                    && (string) $credit->amount === (string) $debit->amount
+                    && $credit->occurred_at->setTimezone('America/Sao_Paulo')->toDateString()
+                    === $debit->occurred_at->setTimezone('America/Sao_Paulo')->toDateString();
+            })
             ->map(function ($items) use ($user): array {
                 $debit = $items->firstWhere('direction', 'debit');
                 $purchaseId = $items->every(fn ($item) => $item->review_status->value === 'confirmed' && $item->domain_type === CardPurchase::class && $item->domain_id === $debit->domain_id)
