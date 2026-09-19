@@ -30,20 +30,22 @@ class ConfirmOfxCardCreditPix
             ]);
         }
 
-        if ($item->review_status === OfxReviewStatus::Confirmed
-            && $item->domain_type === CardPurchase::class
-            && $item->domain_id !== null) {
-            return CardPurchase::query()
-                ->whereBelongsTo($user)
-                ->findOrFail($item->domain_id);
-        }
-
         return DB::transaction(function () use ($user, $import, $item, $data): CardPurchase {
             $lockedItem = OfxImportItem::query()
                 ->where('user_id', $user->getKey())
                 ->where('bank_statement_import_id', $import->getKey())
                 ->lockForUpdate()
                 ->findOrFail($item->getKey());
+
+            // A segunda requisição deve consultar o estado depois de adquirir o bloqueio.
+            // Consultar apenas o modelo recebido antes da transação permite um replay obsoleto.
+            if ($lockedItem->review_status === OfxReviewStatus::Confirmed
+                && $lockedItem->domain_type === CardPurchase::class
+                && $lockedItem->domain_id !== null) {
+                return CardPurchase::query()
+                    ->whereBelongsTo($user)
+                    ->findOrFail($lockedItem->domain_id);
+            }
 
             if ($lockedItem->classification !== OfxClassification::CardCreditPixCandidate
                 || $lockedItem->review_status !== OfxReviewStatus::PendingReview) {
