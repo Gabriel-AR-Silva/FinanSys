@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\ManageExpenseCommitment;
+use App\Actions\ReviseExpenseCommitment;
 use App\Enums\ExpensePlanningType;
 use App\Enums\RecordStatus;
 use App\Models\Account;
@@ -46,6 +47,19 @@ class ExpenseCommitmentController extends Controller
         $manage->schedule($request->user(), $data);
 
         return to_route('expense-commitments.index')->with('success', 'Compromisso cadastrado sem alterar o saldo.');
+    }
+
+    public function update(Request $request, int $commitment, ReviseExpenseCommitment $revise): RedirectResponse
+    {
+        $data = $request->validate([
+            'description' => ['required', 'string', 'max:255'],
+            'amount' => ['required', 'decimal:0,2', 'gt:0', 'regex:/^\d{1,17}(?:\.\d{1,2})?$/'],
+            'due_on' => ['required', 'date_format:Y-m-d'],
+            'version' => ['required', 'integer', 'min:1'],
+        ]);
+        $revise->handle($request->user(), $commitment, $data);
+
+        return to_route('expense-commitments.index')->with('success', 'Compromisso corrigido sem alterar os pagamentos já feitos.');
     }
 
     public function pay(Request $request, int $commitment, ManageExpenseCommitment $manage): RedirectResponse
