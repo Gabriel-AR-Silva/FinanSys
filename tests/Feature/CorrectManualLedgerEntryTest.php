@@ -10,6 +10,7 @@ use App\Models\Category;
 use App\Models\LedgerEntry;
 use App\Models\User;
 use App\Queries\AccountBalanceQuery;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -67,7 +68,7 @@ class CorrectManualLedgerEntryTest extends TestCase
         try {
             app(CorrectManualLedgerEntry::class)->handle($other, $entry->id, $payload);
             $this->fail('Outro usuário não pode corrigir um lançamento.');
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $exception) {
+        } catch (ModelNotFoundException $exception) {
             $this->assertSame('100.00', $entry->fresh()->amount);
         }
 
