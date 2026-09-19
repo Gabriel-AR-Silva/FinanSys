@@ -6,6 +6,7 @@ use App\Enums\AuditAction;
 use App\Enums\LedgerEntryType;
 use App\Enums\RecordStatus;
 use App\Models\Account;
+use App\Models\ExpenseCommitmentPayment;
 use App\Models\ExpenseRefund;
 use App\Models\LedgerEntry;
 use App\Models\User;
@@ -41,6 +42,9 @@ class CreateExpenseRefund
                 $expenseWasReversed = LedgerEntry::query()->whereBelongsTo($user)->where('reversal_of_operation_id', $expense->operation_id)->exists();
                 if ($expense->type !== LedgerEntryType::Expense || $expense->reversal_of_operation_id !== null || $expenseWasReversed) {
                     throw ValidationException::withMessages(['expense_ledger_entry_id' => 'Escolha uma despesa disponível para reembolso.']);
+                }
+                if (ExpenseCommitmentPayment::query()->where('user_id', $user->id)->where('ledger_entry_id', $expense->id)->exists()) {
+                    throw ValidationException::withMessages(['expense_ledger_entry_id' => 'Este pagamento pertence a um compromisso. Use o fluxo próprio de correção.']);
                 }
 
                 $account = Account::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->whereKey($data['destination_account_id'])->lockForUpdate()->first();
