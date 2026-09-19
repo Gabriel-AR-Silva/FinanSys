@@ -1,7 +1,7 @@
 <script setup>
 import Modal from '@/Components/Modal.vue';
 import { Link } from '@inertiajs/vue3';
-import { ArrowDownCircle, ArrowRight, ArrowRightLeft, ArrowUpCircle, PiggyBank, WalletCards, X } from '@lucide/vue';
+import { ArrowDownCircle, ArrowRight, ArrowRightLeft, ArrowUpCircle, CalendarClock, PiggyBank, WalletCards, X } from '@lucide/vue';
 
 defineProps({ show: Boolean });
 defineEmits(['close']);
@@ -10,6 +10,7 @@ const actions = [
     { title: 'Criar uma caixinha', description: 'Separe um objetivo dentro de uma conta.', route: 'pockets.index', query: { create: 1 }, icon: PiggyBank, color: 'bg-violet-50 text-violet-700' },
     { title: 'Nova receita', description: 'Abra diretamente o formulário de receita.', route: 'ledger-entries.index', query: { create: 'income' }, icon: ArrowUpCircle, color: 'bg-emerald-50 text-emerald-700' },
     { title: 'Nova despesa', description: 'Abra diretamente o formulário de despesa.', route: 'ledger-entries.index', query: { create: 'expense' }, icon: ArrowDownCircle, color: 'bg-rose-50 text-rose-700' },
+    { title: 'Compromisso futuro', description: 'Agende uma despesa sem alterar o saldo até pagar.', route: 'expense-commitments.index', icon: CalendarClock, color: 'bg-orange-50 text-orange-700' },
     { title: 'Transferir saldo', description: 'Mova valores entre contas e caixinhas.', route: 'ledger-entries.index', query: { transfer: 1 }, icon: ArrowRightLeft, color: 'bg-amber-50 text-amber-700' },
 ];
 </script>
