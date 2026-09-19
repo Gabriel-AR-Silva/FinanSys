@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\ExpensePlanningType;
 use App\Enums\OfxClassification;
 use App\Enums\OfxReviewStatus;
 use App\Models\BankStatementImport;
@@ -48,9 +49,11 @@ class ConfirmOfxCardCreditPix
             if ($lockedItem->review_status === OfxReviewStatus::Confirmed
                 && $lockedItem->domain_type === CardPurchase::class
                 && $lockedItem->domain_id !== null) {
-                return CardPurchase::query()
+                $purchase = CardPurchase::query()
                     ->whereBelongsTo($user)
                     ->findOrFail($lockedItem->domain_id);
+
+                return $this->validateReplay($purchase, $data);
             }
 
             if ($lockedItem->classification !== OfxClassification::CardCreditPixCandidate
@@ -106,6 +109,28 @@ class ConfirmOfxCardCreditPix
 
             return $purchase;
         }, 3);
+    }
+
+    /**
+     * @param  array{credit_card_id:int,category_id:int,planning_type:string,installments_count:int,first_due_on:string}  $data
+     */
+    private function validateReplay(CardPurchase $purchase, array $data): CardPurchase
+    {
+        $firstInstallment = $purchase->installments()
+            ->orderBy('installment_number')
+            ->first();
+
+        if ($purchase->credit_card_id !== (int) $data['credit_card_id']
+            || $purchase->category_id !== (int) $data['category_id']
+            || $purchase->planning_type !== ExpensePlanningType::tryFrom((string) $data['planning_type'])
+            || $purchase->installments_count !== (int) $data['installments_count']
+            || $firstInstallment?->due_on->toDateString() !== (string) $data['first_due_on']) {
+            throw ValidationException::withMessages([
+                'item' => 'Esta confirmação já foi realizada com dados diferentes.',
+            ]);
+        }
+
+        return $purchase;
     }
 
     /** @return Collection<int, OfxImportItem> */
