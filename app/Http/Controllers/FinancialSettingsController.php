@@ -9,6 +9,7 @@ use App\Enums\CategoryType;
 use App\Enums\ReceiptForecastStatus;
 use App\Enums\RecordStatus;
 use App\Http\Requests\UpdateFinancialSettingsRequest;
+use App\Models\Account;
 use App\Models\Category;
 use App\Models\EssentialBudget;
 use App\Models\LedgerEntry;
@@ -79,6 +80,8 @@ class FinancialSettingsController extends Controller
                 ->orderBy('name')->orderBy('id')->get(['id', 'name', 'status']),
             'receiptForecasts' => $forecasts,
             'receiptCategories' => Category::query()->whereBelongsTo($request->user())->where('type', CategoryType::Income)
+                ->where('status', RecordStatus::Active)->orderBy('name')->orderBy('id')->get(['id', 'name']),
+            'receiptAccounts' => Account::query()->whereBelongsTo($request->user())
                 ->where('status', RecordStatus::Active)->orderBy('name')->orderBy('id')->get(['id', 'name']),
             'availableReceipts' => LedgerEntry::query()->whereBelongsTo($request->user())
                 ->where('type', 'income')->whereNull('reversal_of_operation_id')
