@@ -134,4 +134,11 @@ jobs:
           cp .env.example .env
           php artisan key:generate --ansi
       - name: Run financial regressions against MySQL
-        run: php artisan test --compact tests/Feature/OfxImportTest.php tests/Feature/OfxPixCreditReplayTest.php
+        run: >-
+          php artisan test --compact
+          tests/Feature/OfxImportTest.php
+          tests/Feature/OfxPixCreditReplayTest.php
+          tests/Feature/CardPurchaseAndPaymentTest.php
+          tests/Feature/CardAdvanceTest.php
+          tests/Feature/CardPurchaseReversalTest.php
+          tests/Feature/CorrectManualLedgerEntryTest.php
