@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
-import { ArrowRight, Mail, ShieldCheck } from '@lucide/vue';
+import { ArrowRight, ChartNoAxesCombined, Mail, ShieldCheck, WalletCards } from '@lucide/vue';
 
 defineProps({
     canLogin: { type: Boolean },
@@ -13,8 +13,10 @@ defineProps({
 
         <header class="relative z-10 border-b border-white/10">
             <div class="mx-auto flex h-20 w-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-8 lg:px-12">
-                <Link :href="route('home')" class="flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400" aria-label="FinanSys — página inicial">
-                    <img src="/finansys-icon.svg" alt="" width="44" height="44" class="h-11 w-11 shrink-0 rounded-2xl" />
+                <Link :href="route('home')" class="flex items-center gap-3" aria-label="FinanSys — página inicial">
+                    <span class="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-400/20">
+                        <WalletCards :size="23" :stroke-width="2.4" />
+                    </span>
                     <span class="text-lg font-semibold tracking-tight">FinanSys</span>
                 </Link>
 
@@ -60,23 +62,18 @@ defineProps({
                     </Link>
                 </div>
 
-                <div class="mx-auto w-full max-w-lg lg:mx-0 lg:justify-self-end">
+                <div class="mx-auto w-full max-w-lg lg:mx-0 lg:justify-self-end" aria-hidden="true">
                     <div class="rounded-[2rem] border border-white/10 bg-white/[0.07] p-5 shadow-2xl shadow-black/30 backdrop-blur sm:p-7">
-                        <div class="flex items-center gap-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-4">
-                            <img src="/tsuki-mark.svg" alt="" width="64" height="64" class="h-16 w-16 shrink-0 rounded-full bg-slate-950" />
-                            <div class="min-w-0">
-                                <p class="text-sm font-semibold text-emerald-200">Conheça a Tsuki</p>
-                                <p class="mt-1 text-sm leading-5 text-slate-200">Sua guia de primeiros passos no FinanSys.</p>
-                            </div>
-                        </div>
-                        <div class="mt-6 flex items-center justify-between gap-4">
+                        <div class="flex items-center justify-between gap-4">
                             <div>
                                 <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Visão consolidada</p>
                                 <p class="mt-2 text-2xl font-semibold">Tudo no mesmo ritmo</p>
                             </div>
-                            <img src="/finansys-icon.svg" alt="" width="44" height="44" class="h-11 w-11 shrink-0 rounded-2xl" />
+                            <span class="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-400/15 text-emerald-300">
+                                <ChartNoAxesCombined :size="23" />
+                            </span>
                         </div>
-                        <div class="mt-8 flex h-44 items-end gap-3 rounded-2xl border border-white/10 bg-slate-950/50 p-5" aria-hidden="true">
+                        <div class="mt-8 flex h-44 items-end gap-3 rounded-2xl border border-white/10 bg-slate-950/50 p-5">
                             <span v-for="height in [35, 52, 44, 70, 61, 84, 76]" :key="height" class="flex-1 rounded-t-lg bg-gradient-to-t from-emerald-500/40 to-emerald-300" :style="{ height: `${height}%` }"></span>
                         </div>
                         <div class="mt-5 grid grid-cols-2 gap-3">

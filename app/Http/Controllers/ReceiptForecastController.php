@@ -92,8 +92,7 @@ class ReceiptForecastController extends Controller
     {
         $forecast = $create->handle($request->user(), $request->validated());
 
-        return to_route('receipt-forecasts.index', ['month' => $forecast->expected_on->format('Y-m')])
-            ->with('success', '🤝 Previsão salva! O saldo só muda quando o dinheiro entrar.');
+        return $this->returnAfterMutation($request, $forecast, '🤝 Previsão salva! O saldo só muda quando o dinheiro entrar.');
     }
 
     public function cancel(Request $request, int $forecast, CancelReceiptForecast $cancel): RedirectResponse
@@ -101,15 +100,24 @@ class ReceiptForecastController extends Controller
         $data = $request->validate(['version' => ['required', 'integer', 'min:1']], ['version.*' => 'Recarregue a previsão antes de cancelar.']);
         $cancelled = $cancel->handle($request->user(), $forecast, (int) $data['version']);
 
-        return to_route('receipt-forecasts.index', ['month' => $cancelled->expected_on->format('Y-m')])
-            ->with('success', '🤝 Previsão cancelada. Seu histórico continua aqui.');
+        return $this->returnAfterMutation($request, $cancelled, '🤝 Previsão cancelada. Seu histórico continua aqui.');
     }
 
     public function update(UpdateReceiptForecastRequest $request, int $forecast, UpdateReceiptForecast $update): RedirectResponse
     {
         $updated = $update->handle($request->user(), $forecast, $request->validated());
 
-        return to_route('receipt-forecasts.index', ['month' => $updated->expected_on->format('Y-m')])
-            ->with('success', '🤝 Previsão atualizada. O histórico foi preservado.');
+        return $this->returnAfterMutation($request, $updated, '🤝 Previsão atualizada. O histórico foi preservado.');
+    }
+
+    private function returnAfterMutation(Request $request, ReceiptForecast $forecast, string $message): RedirectResponse
+    {
+        $params = ['month' => $forecast->expected_on->format('Y-m')];
+        if ($request->boolean('from_settings')) {
+            $params['tab'] = 'receipts';
+        }
+
+        return to_route($request->boolean('from_settings') ? 'financial-settings.edit' : 'receipt-forecasts.index', $params)
+            ->with('success', $message);
     }
 }

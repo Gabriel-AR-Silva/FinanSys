@@ -12,3 +12,4 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Models/Category.php,app/Http/Requests/StoreLedgerEntryRequest.php | .ai/rules/requests.md |
 | app/Support/FinancialPlanningMath.php | .ai/rules/support.md |
 | tests/** | .ai/rules/tests.md |
+| .github/workflows/**,public/build/**,AGENTS.md,docs/BUILD_BRANCH_WORKFLOW.md | .ai/rules/release-build.md |

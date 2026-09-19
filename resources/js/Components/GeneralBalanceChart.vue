@@ -1,8 +1,11 @@
 <script setup>
+import { Link, usePage } from '@inertiajs/vue3';
 import { TrendingDown, TrendingUp } from '@lucide/vue';
 import { computed } from 'vue';
 
 const props = defineProps({ chart: { type: Object, required: true } });
+const page = usePage();
+const receivables = computed(() => page.props.receivables ?? null);
 const width = 900;
 const lineTop = 24;
 const lineBottom = 140;
@@ -34,7 +37,6 @@ const labels = computed(() => {
     return [points[0], points[Math.floor((points.length - 1) / 2)], points[points.length - 1]];
 });
 const positive = computed(() => Number(props.chart.change) >= 0);
-
 </script>
 
 <template>
@@ -56,6 +58,11 @@ const positive = computed(() => Number(props.chart.change) >= 0);
                 <circle v-for="point in coordinates" :key="point.date" :cx="point.x" :cy="point.y" r="2" fill="#0f172a"><title>{{ formatDate(point.date) }} — {{ formatMoney(point.balance) }}</title></circle>
                 <g v-for="label in labels" :key="label.date"><text :x="label.x" y="169" text-anchor="middle" fill="#64748b" font-size="11">{{ formatDate(label.date) }}</text></g>
             </svg>
+        </div>
+
+        <div v-if="receivables" class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 p-3" aria-label="Recebimentos previstos do mês">
+            <div><p class="text-xs font-semibold uppercase tracking-wide text-sky-800">A receber neste mês</p><p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(receivables.pending) }}</p><p class="mt-1 text-xs text-slate-600">{{ receivables.next_due_on ? `Próxima data prevista: ${formatDate(receivables.next_due_on)}` : 'Sem recebimentos pendentes neste mês.' }} Previsões não fazem parte do saldo.</p></div>
+            <Link :href="route('financial-settings.edit', { month: receivables.month, tab: 'receipts' })" class="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-sky-800 ring-1 ring-sky-200 hover:bg-sky-100">Ver recebimentos previstos</Link>
         </div>
     </article>
 </template>

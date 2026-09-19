@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Enums\AuditAction;
 use App\Enums\LedgerEntryType;
 use App\Enums\ReceiptForecastUnlinkReason;
+use App\Models\ExpenseCommitmentPayment;
 use App\Models\ExpenseRefund;
 use App\Models\LedgerEntry;
 use App\Models\User;
@@ -30,6 +31,9 @@ class DeleteManualLedgerEntry
                 || LedgerEntry::query()->whereBelongsTo($user)->where('reversal_of_operation_id', $entry->operation_id)->exists();
             if ($belongsToReversalChain || ! in_array($entry->type, [LedgerEntryType::Income, LedgerEntryType::Expense], true)) {
                 throw new NotFoundHttpException;
+            }
+            if (ExpenseCommitmentPayment::query()->where('user_id', $user->id)->where('ledger_entry_id', $entry->id)->exists()) {
+                throw ValidationException::withMessages(['ledger_entry' => 'Este pagamento pertence a um compromisso. Corrija o compromisso pelo fluxo específico.']);
             }
             if ($entry->type === LedgerEntryType::Expense
                 && ExpenseRefund::query()->whereBelongsTo($user)->active()->whereBelongsTo($entry, 'expenseEntry')->exists()) {

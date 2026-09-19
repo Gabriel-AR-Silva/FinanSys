@@ -59,3 +59,5 @@ Route::middleware('auth')->group(function () {
 Route::get('auth/google/callback', [GoogleAuthenticationController::class, 'callback'])
     ->middleware('throttle:google-auth')
     ->name('google.callback');
+
+require __DIR__.'/expense-commitments.php';
