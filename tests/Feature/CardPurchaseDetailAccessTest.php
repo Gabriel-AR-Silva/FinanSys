@@ -19,6 +19,8 @@ class CardPurchaseDetailAccessTest extends TestCase
 
     public function test_purchase_link_shows_only_the_authenticated_users_purchase_and_installments(): void
     {
+        $this->withoutVite();
+
         $owner = User::factory()->create();
         $other = User::factory()->create();
         $card = CreditCard::factory()->for($owner)->create();
