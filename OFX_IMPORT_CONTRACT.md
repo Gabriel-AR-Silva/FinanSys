@@ -380,3 +380,38 @@ Implementar conforme `SAFE_DATA_RESET_CONTRACT.md`, com confirmação forte, map
 
 - **2026-09-13:** Chefe enviou amostra real do Nubank, autorizou o avanço da arquitetura e determinou continuidade na branch já existente enquanto a criação de branch dedicada permanece bloqueada.
 - **2026-09-13:** decisões acima consolidadas com base na amostra real e nas invariantes existentes do FinanSys.
+
+## Fronteira arquitetural e conciliação humana
+
+O módulo OFX é uma entrada de dados separável, não uma nova fonte de verdade financeira. Parser, normalização, detecção de relações, classificação, preview e estado temporário pertencem à importação. Depois da confirmação humana, a persistência delega às mesmas Actions e invariantes usadas pelos fluxos manuais.
+
+```text
+Arquivo OFX
+→ interpretação automática
+→ revisão/conciliação humana
+→ confirmação explícita
+→ revalidação no backend
+→ domínio FinanSys
+```
+
+Nenhuma sugestão automática produz fato financeiro silenciosamente. Uma classificação de alta confiança pode pré-selecionar dados ou agrupar itens, mas continua pendente até a confirmação. A interface diferencia:
+
+- sugestão automática: interpretação provável, ainda sem efeito;
+- revisão necessária: existem decisões ou ambiguidade;
+- duplicado ou inválido: item não importável;
+- confirmado pelo usuário: pode persistir, sujeito à revalidação do backend.
+
+A revisão responde o que o banco informou, o que o FinanSys sugere, quais categoria/planejamento/cartão serão usados e se o usuário confirma, altera ou ignora. Valor, data e origem extraídos não podem ser adulterados pelo frontend.
+
+Sinal bancário isolado não define renda ou despesa econômica. Transferências próprias permanecem neutras; Pix no Crédito não pode inflar receita e despesa como fatos independentes; em caso ambíguo, o sistema pede revisão em vez de inventar classificação. `LEDGERBAL` continua evidência de conciliação e nunca substitui saldo derivado.
+
+O núcleo financeiro não depende do parser nem de classes específicas de OFX. Essa fronteira permite substituir o adapter ou evoluir futuramente para outras fontes sem criar agora uma abstração genérica prematura. Remover o módulo de importação não deve quebrar os cadastros manuais.
+
+### Aceite da fronteira
+
+1. Preview e revisão não criam lançamentos, compras ou transferências.
+2. Somente confirmação explícita chama a persistência do domínio.
+3. Backend revalida propriedade, escolhas e invariantes financeiras.
+4. Pix no Crédito agrupado gera uma compra, efeito bancário líquido zero e replay idempotente.
+5. Reimportação, duplicatas e confirmações simultâneas não duplicam compra ou ledger.
+6. Parser/importação permanecem desacoplados das Actions financeiras centrais.

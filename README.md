@@ -6,7 +6,7 @@ compartilhado que realmente justifique uma store global.
 
 ## Preparação local
 
-Requisitos: PHP 8.3+, Composer, Node.js 22+ e SQLite (padrão local).
+Requisitos: PHP 8.4.1+, Composer, Node.js 22+ e SQLite (padrão local).
 
 ```bash
 composer install
@@ -88,19 +88,37 @@ ser tratado como evidência de concorrência do banco escolhido para produção.
   visões atual e projetada.
 - Configuração financeira mensal cobre proteção de renda e orçamentos essenciais.
 - Recebimentos previstos cobrem recorrência, parcial, residual, excedente,
-  cancelamento, vínculo, desvínculo e revínculo explícito.
+  cancelamento, vínculo, desvínculo, revínculo e registro direto do recebimento.
+- Compromissos futuros preservam o saldo até o pagamento e suportam pagamento
+  parcial, correção e cancelamento com idempotência e auditoria.
 - Cartões cobrem cadastro, compras parceladas, distribuição de centavos,
   pagamentos parciais, alocação determinística e juros/multas confirmados como
-  obrigações próprias. O ciclo contratual restante de cartões está documentado
-  em `FINANCIAL_PLANNING_STAGES.md`.
+  obrigações próprias, antecipação, estorno e aplicação de crédito sem criar
+  renda ou saldo bancário artificial.
+- A importação OFX oferece preview e revisão humana antes da confirmação, trata
+  Pix no Crédito como uma compra de cartão com efeito bancário líquido zero e
+  protege reimportação/replay contra duplicidade.
 - Fechamento financeiro diário, reconstrução de lacunas, revisões e proveniência
   alimentam o histórico financeiro.
 - Avisos financeiros internos são deduplicados por visão/período, preservam a
   pior situação observada e são atualizados por mutações financeiras relevantes.
-- WhatsApp e importação OFX permanecem deliberadamente fora da publicação atual.
+- WhatsApp permanece fora do núcleo da V1 e, se retomado, será módulo opcional.
+
+## Documentação canônica
+
+- `FINANCIAL_PLANNING_CONTRACT.md`: regras de planejamento, projeção e efeitos
+  financeiros transversais.
+- `CARD_REVERSAL_CONTRACT.md`: estorno, crédito de cartão e aplicação.
+- `OFX_IMPORT_CONTRACT.md`: parser, revisão humana, confirmação e conciliação
+  OFX.
+- `V1_ONBOARDING_CONTRACT.md`: onboarding, pré-requisitos, CTAs e Tsuki.
+- `SAFE_DATA_RESET_CONTRACT.md`: limpeza segura de dados financeiros.
+- `DAILY_FINANCIAL_ENGINE_PROPOSAL.md`: proposta futura; não integra a V1.
+- `docs/BUILD_BRANCH_WORKFLOW.md`: promoção `develop → build → main`.
 
 ## Continuidade de desenvolvimento
 
-Antes de alterar regras financeiras, leia `AGENTS.md`, `.ai/rules/index.md`, o
-contrato aplicável e `CODEX_HANDOFF.md`. O handoff registra o estado consolidado,
-evidências de CI, riscos residuais e a ordem recomendada de continuidade.
+Antes de alterar regras financeiras, leia `AGENTS.md`, `.ai/rules/index.md` e o
+contrato canônico aplicável. Estado de trabalho, evidências e pendências devem
+ficar no PR ou issue correspondente, evitando handoffs permanentes que ficam
+desatualizados.
