@@ -185,3 +185,49 @@ Ajuda contextual preferencialmente não exige persistência própria. Só persis
 Antes de escrever migrations/componentes, o Codex deve inspecionar o modelo atual de contas/saldos, configuração mensal, previsões, compromissos, categorias, cartões/correções e layout autenticado para reutilizar os fluxos existentes. Se a estrutura atual já representar um passo, o onboarding deve orquestrar esse fluxo em vez de criar uma implementação financeira paralela.
 
 Antes de implementar os ícones/estados de ajuda, Codex + Lia devem produzir durante o trabalho um mapa curto `conceito/ação -> origem/pré-requisito -> tipo de ajuda -> destino do CTA`, priorizando apenas os pontos em que a falta de contexto pode bloquear ou induzir erro no uso do sistema.
+
+## Navegação guiada e cadeias de pré-requisitos
+
+Quando uma ação depender de cadastro, configuração ou operação anterior, a interface explica o que falta e, quando existir destino seguro, oferece CTA direto para a ação responsável. O CTA orienta; ele nunca cria registros, crédito ou mutações financeiras automaticamente e não substitui validações do backend.
+
+Uma dependência pode formar uma cadeia. Cada etapa deve apontar para a anterior até chegar a uma ação primária executável, evitando selects vazios e becos sem saída. O mapa mínimo é:
+
+```text
+ação bloqueada
+→ pré-requisito imediato
+→ origem do pré-requisito
+→ CTA/destino específico
+→ pré-requisito anterior, se houver
+→ ação primária final
+```
+
+Não direcionar genericamente ao dashboard quando existir uma tela, aba, modal ou formulário específico. Se a ação não se aplicar ao usuário, explicar a condição em vez de exibir CTA inútil. Links e ações devem funcionar por toque e teclado.
+
+Quando seguro, preservar o contexto de origem por redirect, query string ou estado já existente para facilitar o retorno. O V1 não exige uma pilha global de navegação; ao retornar, os estados derivados devem refletir automaticamente o pré-requisito concluído.
+
+### Fluxo obrigatório de referência: Correções de cartão
+
+Aplicar crédito exige crédito disponível; crédito nasce de estorno elegível de valor pago; estorno exige compra elegível; compra exige cartão. Se não houver crédito, explicar que ele não é cadastrado manualmente e oferecer acesso às compras/estornos. Se não houver compra ou cartão, continuar a orientação até o cadastro do cartão, sem flexibilizar elegibilidade financeira.
+
+```text
+Aplicar crédito
+→ crédito disponível
+→ estorno elegível
+→ compra elegível
+→ cartão existente
+→ cadastrar cartão
+```
+
+### Tsuki flutuante provisória
+
+No V1, o ponto de ajuda usa `🌙` em botão circular flutuante. A presença visual pode usar pulso, ring ou pequena variação de escala/opacidade em CSS, desde que seja discreta, não concorra com alertas financeiros e respeite `prefers-reduced-motion`. O botão deve ter nome acessível, foco visível e área de toque adequada. A identidade visual permanece desacoplada da lógica do onboarding para permitir troca futura sem refatorar o checklist.
+
+### Aceite da navegação guiada
+
+1. Toda ação bloqueada relevante explica o pré-requisito ausente.
+2. Havendo destino seguro, o CTA leva diretamente ao contexto responsável.
+3. A cadeia alcança uma ação primária e não fabrica entidades para liberar fluxo.
+4. Correções de cartão demonstram a cadeia de ponta a ponta.
+5. O retorno ou a revisita atualiza a disponibilidade a partir dos dados reais.
+6. Tsuki e CTAs permanecem acessíveis, responsivos e compatíveis com movimento reduzido.
+7. Nenhuma orientação altera contratos financeiros existentes.

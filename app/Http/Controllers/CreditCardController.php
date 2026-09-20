@@ -20,6 +20,37 @@ class CreditCardController extends Controller
 {
     public function index(Request $request, AccountBalanceQuery $accountBalances): Response
     {
+        if ($request->query('purchase') !== null) {
+            $purchaseId = $request->query('purchase');
+            abort_unless(is_string($purchaseId) && ctype_digit($purchaseId) && (int) $purchaseId > 0, 404);
+
+            $card = CreditCard::query()->whereBelongsTo($request->user())
+                ->whereHas('purchases', fn ($query) => $query->whereKey($purchaseId))
+                ->with(['purchases' => fn ($query) => $query->whereKey($purchaseId)
+                    ->with(['category:id,name', 'installments.advanceAllocations.advance'])])
+                ->firstOrFail();
+            $purchase = $card->purchases->firstOrFail();
+
+            return Inertia::render('CreditCards/Purchase', [
+                'card' => ['id' => $card->id, 'name' => $card->name],
+                'purchase' => [
+                    'id' => $purchase->id,
+                    'description' => $purchase->description,
+                    'category_name' => $purchase->category->name,
+                    'gross_amount' => $purchase->gross_amount,
+                    'purchased_on' => $purchase->purchased_on->toDateString(),
+                    'installments_count' => $purchase->installments_count,
+                    'installments' => $purchase->installments->sortBy('installment_number')->values()->map(fn ($installment): array => [
+                        'number' => $installment->installment_number,
+                        'gross_amount' => $installment->gross_amount,
+                        'paid_amount' => $installment->paid_amount,
+                        'due_on' => $installment->due_on->toDateString(),
+                        'status' => $installment->status->value,
+                    ]),
+                ],
+            ]);
+        }
+
         $cards = CreditCard::query()->whereBelongsTo($request->user())
             ->with([
                 'purchases' => fn ($query) => $query->with(['category:id,name', 'installments.advanceAllocations.advance'])->latest('purchased_on')->latest('id'),

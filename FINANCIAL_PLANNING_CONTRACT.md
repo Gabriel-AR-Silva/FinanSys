@@ -2,9 +2,9 @@
 
 ## Estado e autorização
 
-Consolidado em 2026-09-08 a partir das decisões do Chefe. Status após revisão por Maia, Inv, Lia e Bento: decisões aprovadas preservadas; lacunas identificadas impedem considerar o documento inteiro pronto para implementação. Bloqueios são localizados por etapa no [relatório de revisão](FINANCIAL_PLANNING_REVIEW.md). Este documento não declara a funcionalidade implementada ou testada.
+Consolidado a partir das decisões aprovadas pelo Chefe e revisado em 2026-09-20 após a entrega da V1. Este é o contrato canônico das regras de planejamento financeiro; implementação, evidências e pendências operacionais são rastreadas em código, testes, PRs e issues, não em relatórios temporários.
 
-O [roteiro detalhado de etapas](FINANCIAL_PLANNING_STAGES.md) é a referência de execução e substitui o agrupamento resumido de quatro entregas abaixo para fins de dependências e aceite. A independência das etapas é de entrega e ativação, respeitando contratos de dados.
+As etapas descritas neste contrato preservam dependências e critérios de aceite. Uma funcionalidade só é considerada publicada depois do fluxo de release e do smoke no ambiente real; CI verde comprova o código testado, não o estado da produção.
 
 A orientação aprovada do Ratsel é cadastro progressivo, atalhos no contexto, explicação das premissas e entregas verificáveis. O contrato OFX permanece separado.
 

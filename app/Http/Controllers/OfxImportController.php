@@ -6,6 +6,7 @@ use App\Actions\PrepareOfxImport;
 use App\Enums\RecordStatus;
 use App\Models\Account;
 use App\Models\BankStatementImport;
+use App\Models\CardPurchase;
 use App\Models\Category;
 use App\Models\CreditCard;
 use App\Models\User;
@@ -36,12 +37,43 @@ class OfxImportController extends Controller
             ? BankStatementImport::query()->whereBelongsTo($user)->with('items')->find($reviewId)
             : null;
 
+        $pixPairs = $review?->items
+            ->filter(fn ($item) => $item->classification->value === 'card_credit_pix_candidate' && $item->relationship_key !== null)
+            ->groupBy('relationship_key')
+            ->filter(function ($items): bool {
+                if ($items->count() !== 2) {
+                    return false;
+                }
+
+                $credit = $items->firstWhere('direction', 'credit');
+                $debit = $items->firstWhere('direction', 'debit');
+
+                return $credit !== null && $debit !== null
+                    && (string) $credit->amount === (string) $debit->amount
+                    && $credit->occurred_at->setTimezone('America/Sao_Paulo')->toDateString()
+                    === $debit->occurred_at->setTimezone('America/Sao_Paulo')->toDateString();
+            })
+            ->map(function ($items) use ($user): array {
+                $debit = $items->firstWhere('direction', 'debit');
+                $purchaseId = $items->every(fn ($item) => $item->review_status->value === 'confirmed' && $item->domain_type === CardPurchase::class && $item->domain_id === $debit->domain_id)
+                    ? $debit->domain_id : null;
+
+                return [
+                    'credit_item_id' => $items->firstWhere('direction', 'credit')->getKey(),
+                    'debit_item_id' => $debit->getKey(),
+                    'amount' => $debit->amount,
+                    'purchase_id' => $purchaseId === null ? null : CardPurchase::query()->whereBelongsTo($user)->whereKey($purchaseId)->value('id'),
+                    'bank_effect' => '0.00',
+                ];
+            })->values()->all() ?? [];
+
         return Inertia::render('OfxImports/Index', [
             'accounts' => Account::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->orderBy('name')->get(['id', 'name']),
             'cards' => CreditCard::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->orderBy('name')->get(['id', 'name', 'closing_day', 'due_day']),
             'categories' => Category::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->orderBy('name')->get(['id', 'name', 'type']),
             'imports' => $imports,
             'review' => $review,
+            'pixPairs' => $pixPairs,
         ]);
     }
 
