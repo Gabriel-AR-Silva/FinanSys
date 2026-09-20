@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\ExpensePlanningType;
 use App\Enums\OfxClassification;
 use App\Enums\OfxReviewStatus;
 use App\Models\BankStatementImport;
@@ -30,20 +31,30 @@ class ConfirmOfxCardCreditPix
             ]);
         }
 
-        if ($item->review_status === OfxReviewStatus::Confirmed
-            && $item->domain_type === CardPurchase::class
-            && $item->domain_id !== null) {
-            return CardPurchase::query()
-                ->whereBelongsTo($user)
-                ->findOrFail($item->domain_id);
-        }
-
         return DB::transaction(function () use ($user, $import, $item, $data): CardPurchase {
+            // Serializar confirmações Pix da mesma importação antes de bloquear qualquer item.
+            // Requisições pelos lados opostos do par não adquirem os itens em ordem inversa.
+            BankStatementImport::query()
+                ->where('user_id', $user->getKey())
+                ->lockForUpdate()
+                ->findOrFail($import->getKey());
+
             $lockedItem = OfxImportItem::query()
                 ->where('user_id', $user->getKey())
                 ->where('bank_statement_import_id', $import->getKey())
                 ->lockForUpdate()
                 ->findOrFail($item->getKey());
+
+            // A segunda requisição deve consultar o estado depois de adquirir o bloqueio.
+            if ($lockedItem->review_status === OfxReviewStatus::Confirmed
+                && $lockedItem->domain_type === CardPurchase::class
+                && $lockedItem->domain_id !== null) {
+                $purchase = CardPurchase::query()
+                    ->whereBelongsTo($user)
+                    ->findOrFail($lockedItem->domain_id);
+
+                return $this->validateReplay($purchase, $data);
+            }
 
             if ($lockedItem->classification !== OfxClassification::CardCreditPixCandidate
                 || $lockedItem->review_status !== OfxReviewStatus::PendingReview) {
@@ -100,6 +111,28 @@ class ConfirmOfxCardCreditPix
         }, 3);
     }
 
+    /**
+     * @param  array{credit_card_id:int,category_id:int,planning_type:string,installments_count:int,first_due_on:string}  $data
+     */
+    private function validateReplay(CardPurchase $purchase, array $data): CardPurchase
+    {
+        $firstInstallment = $purchase->installments()
+            ->orderBy('installment_number')
+            ->first();
+
+        if ($purchase->credit_card_id !== (int) $data['credit_card_id']
+            || $purchase->category_id !== (int) $data['category_id']
+            || $purchase->planning_type !== ExpensePlanningType::tryFrom((string) $data['planning_type'])
+            || $purchase->installments_count !== (int) $data['installments_count']
+            || $firstInstallment?->due_on->toDateString() !== (string) $data['first_due_on']) {
+            throw ValidationException::withMessages([
+                'item' => 'Esta confirmação já foi realizada com dados diferentes.',
+            ]);
+        }
+
+        return $purchase;
+    }
+
     /** @return Collection<int, OfxImportItem> */
     private function pairFor(User $user, BankStatementImport $import, OfxImportItem $selected): Collection
     {
@@ -115,6 +148,7 @@ class ConfirmOfxCardCreditPix
             ->where('relationship_key', $selected->relationship_key)
             ->where('classification', OfxClassification::CardCreditPixCandidate)
             ->where('review_status', OfxReviewStatus::PendingReview)
+            ->orderBy('id')
             ->lockForUpdate()
             ->get();
 
