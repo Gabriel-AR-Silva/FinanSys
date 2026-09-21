@@ -9,6 +9,30 @@ use PHPUnit\Framework\TestCase;
 
 class DailyMarginCalculatorTest extends TestCase
 {
+    #[DataProvider('approvedDailyMarginExamples')]
+    public function test_calculates_approved_daily_margin_examples(
+        string $budget,
+        string $spent,
+        string $margin,
+        string $grossSavings,
+        string $grossExcess,
+    ): void {
+        $result = (new DailyMarginCalculator)->calculate('2026-09', [
+            ['date' => '2026-09-01', 'status' => 'confirmed', 'budget' => $budget, 'spent' => $spent],
+        ]);
+
+        self::assertSame($margin, $result['days'][0]['margin']);
+        self::assertSame($grossSavings, $result['gross_savings']);
+        self::assertSame($grossExcess, $result['gross_excess']);
+        self::assertSame($margin, $result['net_margin']);
+    }
+
+    public static function approvedDailyMarginExamples(): iterable
+    {
+        yield 'saves ten' => ['90.00', '80.00', '10.00', '10.00', '0.00'];
+        yield 'exceeds by twenty' => ['90.00', '110.00', '-20.00', '0.00', '20.00'];
+    }
+
     public function test_savings_and_excess_are_separate_and_do_not_redistribute_budget(): void
     {
         $result = (new DailyMarginCalculator)->calculate('2026-09', [
@@ -49,7 +73,28 @@ class DailyMarginCalculatorTest extends TestCase
         self::assertSame('0.10', $result['gross_savings']);
         self::assertSame('0.01', $result['gross_excess']);
         self::assertSame('0.09', $result['net_margin']);
-        self::assertSame('0.00', $calculator->calculate('2026-02', [])['net_margin']);
+
+        $emptyMonth = $calculator->calculate('2026-02', []);
+        self::assertSame([], $emptyMonth['days']);
+        self::assertSame(0, $emptyMonth['confirmed_days']);
+        self::assertSame(0, $emptyMonth['pending_days']);
+        self::assertSame('0.00', $emptyMonth['gross_savings']);
+        self::assertSame('0.00', $emptyMonth['gross_excess']);
+        self::assertSame('0.00', $emptyMonth['net_margin']);
+    }
+
+    public function test_accepts_leap_day_and_returns_the_same_result_for_the_same_input(): void
+    {
+        $days = [
+            ['date' => '2028-02-29', 'status' => 'confirmed', 'budget' => '10.00', 'spent' => '9.99'],
+        ];
+        $calculator = new DailyMarginCalculator;
+
+        $firstResult = $calculator->calculate('2028-02', $days);
+        $secondResult = $calculator->calculate('2028-02', $days);
+
+        self::assertSame('0.01', $firstResult['net_margin']);
+        self::assertSame($firstResult, $secondResult);
     }
 
     #[DataProvider('invalidInputs')]
