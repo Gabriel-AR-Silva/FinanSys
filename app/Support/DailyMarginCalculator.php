@@ -13,7 +13,7 @@ use InvalidArgumentException;
 final class DailyMarginCalculator
 {
     /**
-     * @param list<array{date:string,status:string,budget?:string,spent?:string}> $days
+     * @param  list<array{date:string,status:string,budget?:string,spent?:string}>  $days
      * @return array{month:string,days:list<array{date:string,status:string,margin:?string}>,confirmed_days:int,pending_days:int,gross_savings:string,gross_excess:string,net_margin:string}
      */
     public function calculate(string $month, array $days): array
@@ -39,14 +39,17 @@ final class DailyMarginCalculator
             if ($parsed === false || $parsed->format('Y-m-d') !== $date || str_starts_with($date, $month.'-') === false || isset($seen[$date])) {
                 throw new InvalidArgumentException('Dates must be valid, unique and belong to the requested month.');
             }
+
             $seen[$date] = true;
 
             if ($day['status'] === 'pending') {
                 if (array_key_exists('budget', $day) || array_key_exists('spent', $day)) {
                     throw new InvalidArgumentException('Pending days cannot carry confirmed amounts.');
                 }
+
                 $pending++;
                 $results[] = ['date' => $date, 'status' => 'pending', 'margin' => null];
+
                 continue;
             }
 
@@ -57,11 +60,13 @@ final class DailyMarginCalculator
             $budget = $this->money($day['budget']);
             $spent = $this->money($day['spent']);
             $margin = $budget->minus($spent);
+
             if ($margin->isNegative()) {
                 $excess = $excess->plus($margin->abs());
             } else {
                 $savings = $savings->plus($margin);
             }
+
             $confirmed++;
             $results[] = ['date' => $date, 'status' => 'confirmed', 'margin' => (string) $margin];
         }
