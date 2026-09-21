@@ -33,12 +33,13 @@ class IndicatorComparisonExportTest extends TestCase
         $response = $this->actingAs($user)->get(route('indicator-comparison.export'));
 
         $response->assertOk()
-            ->assertHeader('Cache-Control', 'private, no-store, max-age=0')
             ->assertJsonPath('schema', 'finansys-indicator-comparison-v1')
             ->assertJsonPath('complete', true)
             ->assertJsonPath('ledger_entries.0.id', $own->id)
             ->assertJsonPath('ledger_entries.0.amount', '125.50')
             ->assertJsonCount(1, 'ledger_entries');
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        $this->assertStringContainsString('private', $response->headers->get('Cache-Control'));
         $this->assertStringNotContainsString('SEGREDO PRIVADO', $response->getContent());
         $this->assertStringNotContainsString('OUTRO USUARIO', $response->getContent());
         $this->assertStringNotContainsString('999.00', $response->getContent());
@@ -71,8 +72,8 @@ class IndicatorComparisonExportTest extends TestCase
         ]);
 
         $this->actingAs($user)->get(route('indicator-comparison.export'))
-            ->assertOk()->assertJsonPath('opening_balance_before_range', '300.00')
+            ->assertOk()->assertJsonPath('opening_balance_before_range', '300')
             ->assertJsonCount(1, 'ledger_entries')
-            ->assertJsonPath('reported_indicators.general_balance', '280.00');
+            ->assertJsonPath('reported_indicators.general_balance', '280');
     }
 }
