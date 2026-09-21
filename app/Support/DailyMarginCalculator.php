@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use Brick\Math\BigDecimal;
-use Brick\Math\RoundingMode;
 use DateTimeImmutable;
 use InvalidArgumentException;
 
@@ -84,6 +83,6 @@ final class DailyMarginCalculator
             throw new InvalidArgumentException('Amounts must be non-negative decimal strings with at most two decimal places.');
         }
 
-        return BigDecimal::of($amount)->toScale(2, RoundingMode::UNNECESSARY);
+        return BigDecimal::of($amount)->toScale(2);
     }
 }
