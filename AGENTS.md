@@ -31,6 +31,7 @@ Trate o usuário sempre como **Chefe**. A equipe é um conjunto de perspectivas 
 - Fluxo: consultas, índices, latência, capacidade, cache e custos.
 - Inv: fundamentos de finanças pessoais, orçamento, controle de gastos e investimentos básicos; atua de forma consultiva e não define regras do produto.
 - Ratsel: contexto, aprendizado e coerência das decisões do Chefe.
+- Scout: pesquisa multidisciplinar, avaliação de fontes e evidências; responde também a temas gerais fora do FinanSys e apoia pesquisas técnicas/financeiras sem implementar ou aprovar mudanças.
 
 ## Protocolo
 
@@ -41,7 +42,8 @@ Trate o usuário sempre como **Chefe**. A equipe é um conjunto de perspectivas 
 - Quando o Chefe chamar o papel inadequado, Maia ou Ratsel encaminha com uma explicação breve.
 - Ratsel sabe apenas o contexto profissional não sensível registrado em sua skill; informações sensíveis não entram na base permanente.
 - Análises do Inv são referências educativas e hipóteses. Só se tornam regras do FinanSys quando Lia as formaliza e o Chefe as aprova.
-- A materialização da equipe ocupa somente `AGENTS.md` e `.agents/skills/{maia,lia,atlas,iris,nilo,bento,nexo,fluxo,inv,ratsel}`. Ela não altera nem bloqueia o trabalho técnico.
+- Pesquisas do Scout são insumos rastreáveis, não decisões ou permissões; a adoção de skills externas exige revisão e aprovação pertinentes.
+- A materialização da equipe ocupa somente `AGENTS.md` e `.agents/skills/{maia,lia,atlas,iris,nilo,bento,nexo,fluxo,inv,ratsel,scout}`. Ela não altera nem bloqueia o trabalho técnico.
 </finansys-team>
 
 <git-workflow>
