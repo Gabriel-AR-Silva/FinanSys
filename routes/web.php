@@ -14,6 +14,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseRefundController;
 use App\Http\Controllers\FinancialEvaluationController;
 use App\Http\Controllers\FinancialSettingsController;
+use App\Http\Controllers\IndicatorComparisonExportController;
 use App\Http\Controllers\InternalAlertController;
 use App\Http\Controllers\LedgerEntryController;
 use App\Http\Controllers\LedgerEntryCorrectionController;
@@ -62,6 +63,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/configuracao-financeira', [FinancialSettingsController::class, 'edit'])->name('financial-settings.edit');
     Route::get('/historico-financeiro', [FinancialEvaluationController::class, 'index'])->name('financial-evaluations.index');
     Route::get('/avisos-financeiros', [InternalAlertController::class, 'index'])->name('internal-alerts.index');
+    Route::get('/exportacoes/indicadores.json', IndicatorComparisonExportController::class)
+        ->middleware('throttle:3,1')->name('indicator-comparison.export');
     Route::put('/configuracao-financeira', [FinancialSettingsController::class, 'update'])->name('financial-settings.update');
     Route::post('/configuracao-financeira/categorias', [FinancialSettingsController::class, 'storeCategory'])->name('financial-settings.categories.store');
     Route::get('/importacoes/ofx', [OfxImportController::class, 'index'])->name('ofx-imports.index');
