@@ -10,6 +10,7 @@ use App\Http\Controllers\CardPurchaseController;
 use App\Http\Controllers\CardPurchaseReversalController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CreditCardController;
+use App\Http\Controllers\DailyBudgetController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseRefundController;
 use App\Http\Controllers\FinancialEvaluationController;
@@ -45,6 +46,9 @@ Route::get('/dashboard', DashboardController::class)
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::post('/orcamento-diario', [DailyBudgetController::class, 'store'])
+        ->middleware('throttle:12,1')
+        ->name('daily-budgets.store');
     Route::get('/cartoes', [CreditCardController::class, 'index'])->name('credit-cards.index');
     Route::get('/cartoes/correcoes', [CardCorrectionController::class, 'index'])->name('card-corrections.index');
     Route::post('/cartoes', [CreditCardController::class, 'store'])->name('credit-cards.store');
