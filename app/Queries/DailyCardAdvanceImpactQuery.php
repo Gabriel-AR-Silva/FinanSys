@@ -12,8 +12,8 @@ use InvalidArgumentException;
 /**
  * Read-only, current-state view of advances executed on one local date.
  * An observation cutoff excludes records created later and flags subsequent
- * allocation/advance/purchase edits. This is NOT a historical snapshot or
- * ordinary daily spending. Never add to a check-in.
+ * allocation/advance/purchase edits or purchase deletion. This is NOT a
+ * historical snapshot or ordinary daily spending. Never add to a check-in.
  */
 final class DailyCardAdvanceImpactQuery
 {
@@ -42,8 +42,11 @@ final class DailyCardAdvanceImpactQuery
                     // Without a dated origin, retain uncertainty rather than
                     // silently dropping a moved advance from its old day.
                     ->orWhere('updated_at', '>', $observed)))
-            ->whereHas('installment', fn ($query) => $query->where('user_id', $user->getKey())->whereHas('purchase', fn ($purchase) => $purchase->where('user_id', $user->getKey())))
-            ->with(['advance', 'installment.purchase'])
+            // A purchase may be soft-deleted after observation (for example
+            // during a reversal). Keep its allocation visible for coverage.
+            ->whereHas('installment', fn ($query) => $query->where('user_id', $user->getKey())
+                ->whereHas('purchase', fn ($purchase) => $purchase->withTrashed()->where('user_id', $user->getKey())))
+            ->with(['advance', 'installment.purchase' => fn ($purchase) => $purchase->withTrashed()])
             ->orderBy('id')
             ->get();
 
@@ -54,13 +57,23 @@ final class DailyCardAdvanceImpactQuery
         $unclassified = 0;
 
         foreach ($allocations as $allocation) {
+            // A deleted purchase has no safely reconstructable classification
+            // at the observation instant. Do not silently discard its advance
+            // or count the current purchase fields as historical facts.
+            $purchase = $allocation->installment->purchase;
+            if ($purchase->trashed()) {
+                $unverifiable[] = (int) $allocation->getKey();
+
+                continue;
+            }
+
             // All three rows can change after an observation. In particular,
             // current purchase planning_type cannot classify an earlier
             // advance if the purchase was edited later. DATETIME stores raw
             // UTC values without an offset: do not use cast timezones here.
             $allocationUpdated = $allocation->getRawOriginal('updated_at');
             $advanceUpdated = $allocation->advance->getRawOriginal('updated_at');
-            $purchaseUpdated = $allocation->installment->purchase->getRawOriginal('updated_at');
+            $purchaseUpdated = $purchase->getRawOriginal('updated_at');
             if (($allocationUpdated !== null && CarbonImmutable::parse((string) $allocationUpdated, 'UTC')->greaterThan($observed))
                 || ($advanceUpdated !== null && CarbonImmutable::parse((string) $advanceUpdated, 'UTC')->greaterThan($observed))
                 || ($purchaseUpdated !== null && CarbonImmutable::parse((string) $purchaseUpdated, 'UTC')->greaterThan($observed))) {
@@ -69,7 +82,7 @@ final class DailyCardAdvanceImpactQuery
                 continue;
             }
 
-            $type = $allocation->installment->purchase->planning_type;
+            $type = $purchase->planning_type;
             if ($type === null) {
                 $unclassified++;
 
