@@ -18,7 +18,7 @@ final class DailyMarginCalculator
      */
     public function calculate(string $month, array $days): array
     {
-        if (preg_match('/^\d{4}-(0[1-9]|1[0-2])$/D', $month) !== 1) {
+        if (preg_match('/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/D', $month) !== 1) {
             throw new InvalidArgumentException('Month must use YYYY-MM.');
         }
 
