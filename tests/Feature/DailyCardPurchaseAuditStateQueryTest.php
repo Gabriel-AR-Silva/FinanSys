@@ -45,6 +45,45 @@ class DailyCardPurchaseAuditStateQueryTest extends TestCase
         $this->assertSame([$purchase->id], $query->forUserOnDay($user, '2026-09-22', $late)['purchase_ids']);
     }
 
+    public function test_deleted_purchase_is_unverifiable_after_deletion_without_changing_prior_observation(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T15:00:00Z'));
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $purchase = CardPurchase::factory()->create([
+            'user_id' => $user->id,
+            'purchased_on' => '2026-09-21',
+            'gross_amount' => '120.00',
+            'planning_type' => ExpensePlanningType::Ordinary,
+        ]);
+        app(AuditRecorder::class)->record($user, AuditAction::Created, $purchase);
+        $otherPurchase = CardPurchase::factory()->create([
+            'user_id' => $other->id,
+            'purchased_on' => '2026-09-21',
+            'gross_amount' => '999.00',
+            'planning_type' => ExpensePlanningType::Ordinary,
+        ]);
+        app(AuditRecorder::class)->record($other, AuditAction::Created, $otherPurchase);
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-22T15:00:00Z'));
+        $purchase->delete();
+
+        $query = app(DailyCardPurchaseAuditStateQuery::class);
+        $before = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-21T15:00:01Z'));
+        $after = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T15:00:01Z'));
+        $otherResult = $query->forUserOnDay($other, '2026-09-21', CarbonImmutable::parse('2026-09-22T15:00:01Z'));
+
+        $this->assertSame('120.00', $before['ordinary_audited_total']);
+        $this->assertSame([$purchase->id], $before['purchase_ids']);
+        $this->assertSame([], $before['unverifiable_purchase_ids']);
+        $this->assertSame('0.00', $after['ordinary_audited_total']);
+        $this->assertSame([], $after['purchase_ids']);
+        $this->assertSame([$purchase->id], $after['unverifiable_purchase_ids']);
+        $this->assertSame('partial_audited_purchase_states', $after['coverage']);
+        $this->assertSame('999.00', $otherResult['ordinary_audited_total']);
+        $this->assertSame([], $otherResult['unverifiable_purchase_ids']);
+    }
+
     public function test_unknown_update_and_incomplete_snapshot_cannot_be_silently_counted(): void
     {
         $user = User::factory()->create();
