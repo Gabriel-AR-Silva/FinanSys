@@ -4,16 +4,17 @@ namespace App\Queries;
 
 use App\Enums\ExpensePlanningType;
 use App\Models\CardPurchase;
+use App\Models\CardPurchaseReversal;
 use App\Models\User;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
 use InvalidArgumentException;
 
 /**
- * Read-only, current-state view of purchases made on a local date. Purchase
- * principal is not the amount due on that day and must not be added to the
- * installment/advance queries or used for confirmed daily spending. Historical
- * reversals and classification edits cannot be reconstructed from this view.
+ * Read-only gross purchases made on a local date. Reversed purchases remain
+ * visible as original purchases; their reversal is a separate event, never a
+ * second expense or an automatic reduction of this gross total. Classification
+ * edits cannot be reconstructed here. Do not use this view for a check-in.
  */
 final class DailyCardPurchaseRecognitionQuery
 {
@@ -31,18 +32,34 @@ final class DailyCardPurchaseRecognitionQuery
             throw new InvalidArgumentException('Não é possível consultar compras antes do início do dia.');
         }
 
-        $purchases = CardPurchase::query()
+        $purchases = CardPurchase::withTrashed()
             ->where('user_id', $user->getKey())
             ->whereDate('purchased_on', $localDate)
             ->where('created_at', '<=', $observed)
             ->orderBy('id')
             ->get();
 
+        // Only a recorded reversal explains a deleted purchase as an original
+        // purchase. Ordinary deletions must not reappear after their deletion.
+        $reversedPurchaseIds = CardPurchaseReversal::query()
+            ->where('user_id', $user->getKey())
+            ->whereIn('card_purchase_id', $purchases->pluck('id'))
+            ->where('created_at', '<=', $observed)
+            ->whereDate('reversed_on', '<=', $observed->setTimezone('America/Sao_Paulo')->toDateString())
+            ->pluck('card_purchase_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
         $total = BigDecimal::zero();
         $ids = [];
         $unclassified = 0;
 
         foreach ($purchases as $purchase) {
+            if ($purchase->trashed()
+                && $purchase->deleted_at->utc()->lessThanOrEqualTo($observed)
+                && ! in_array((int) $purchase->getKey(), $reversedPurchaseIds, true)) {
+                continue;
+            }
             if ($purchase->planning_type === null) {
                 $unclassified++;
 
@@ -60,7 +77,7 @@ final class DailyCardPurchaseRecognitionQuery
             'ordinary_purchase_total' => (string) $total->toScale(2),
             'purchase_ids' => $ids,
             'unclassified_count' => $unclassified,
-            'coverage' => 'current_card_purchases_only',
+            'coverage' => 'gross_card_purchases_with_recorded_reversals',
         ];
     }
 }
