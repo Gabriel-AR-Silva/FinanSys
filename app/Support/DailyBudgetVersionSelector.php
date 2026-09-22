@@ -14,6 +14,10 @@ use InvalidArgumentException;
 final class DailyBudgetVersionSelector
 {
     /**
+     * Resolve the budget at an explicit check-in, including a same-day check-in.
+     * A check-in only captures versions already effective and recorded at that
+     * instant; later changes must not silently rewrite the stored snapshot.
+     *
      * @param  list<array{id:int,user_id:int,amount:string,effective_at:string,recorded_at:string}>  $versions
      * @return array{id:int,amount:string}|null
      */
@@ -22,11 +26,16 @@ final class DailyBudgetVersionSelector
         $day = $this->day($userId, $date);
         $nextDay = $day->modify('+1 day');
         $confirmed = $this->timestamp($confirmedAt);
-        if ($confirmed < $nextDay) {
-            throw new InvalidArgumentException('A day cannot be confirmed before it ends in Sao Paulo.');
+        if ($confirmed < $day) {
+            throw new InvalidArgumentException('A day cannot be confirmed before it begins in Sao Paulo.');
         }
 
-        return $this->select($userId, $nextDay, $confirmed, false, $versions);
+        // For a same-day check-in, stop at the check-in instant. For a later
+        // check-in, retain the last budget that was effective before local
+        // midnight, excluding any change made on the following day.
+        $sameDay = $confirmed < $nextDay;
+
+        return $this->select($userId, $sameDay ? $confirmed : $nextDay, $confirmed, $sameDay, $versions);
     }
 
     /**
@@ -87,8 +96,6 @@ final class DailyBudgetVersionSelector
             $effective = $this->timestamp($version['effective_at']);
             $recorded = $this->timestamp($version['recorded_at']);
 
-            // Closed days use the local next-day boundary; open days also
-            // require the change to have taken effect by the observation.
             if (($inclusive ? $effective > $effectiveCutoff : $effective >= $effectiveCutoff)
                 || $recorded > $observed) {
                 continue;
