@@ -14,6 +14,7 @@ use App\Models\CreditCard;
 use App\Models\LedgerEntry;
 use App\Models\User;
 use App\Queries\AccountBalanceQuery;
+use App\Queries\DailyCardPaymentSettlementQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -84,6 +85,7 @@ class CardPurchaseAndPaymentTest extends TestCase
 
         $payment = app(PayCreditCard::class)->handle($user, $this->paymentPayload($card, $account, '150.00'));
         $installments = $purchase->installments()->orderBy('due_on')->get();
+        $settlement = app(DailyCardPaymentSettlementQuery::class)->forUserOnDay($user, '2026-09-09');
 
         $this->assertSame(['100.00', '50.00'], $payment->allocations->pluck('amount')->all());
         $this->assertSame('100.00', $installments[0]->paid_amount);
@@ -91,6 +93,10 @@ class CardPurchaseAndPaymentTest extends TestCase
         $this->assertSame('50.00', $installments[1]->paid_amount);
         $this->assertSame(CardInstallmentStatus::Pending, $installments[1]->status);
         $this->assertSame(LedgerEntryType::CardPayment, $payment->ledgerEntry->type);
+        $this->assertSame('150.00', $settlement['settled_total']);
+        $this->assertSame([$payment->id], $settlement['payment_ids']);
+        $this->assertSame([$payment->ledger_entry_id], $settlement['ledger_entry_ids']);
+        $this->assertSame([], $settlement['unverifiable_payment_ids']);
         $this->assertEquals(350, app(AccountBalanceQuery::class)->forUser($user)->sole()->balance);
         $this->assertDatabaseMissing('ledger_entries', ['user_id' => $user->id, 'type' => LedgerEntryType::Expense->value]);
     }
