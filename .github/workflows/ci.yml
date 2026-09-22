@@ -153,3 +153,4 @@ jobs:
           tests/Feature/DailyCardAdvanceImpactQueryTest.php
           tests/Feature/DailyCardAdvanceObservationTest.php
           tests/Feature/DailyCardPurchaseRecognitionQueryTest.php
+          tests/Feature/DailyCardPurchaseReversalQueryTest.php
