@@ -49,10 +49,7 @@ jobs:
           php artisan key:generate --ansi
 
       - name: Check PHP formatting
-        run: |
-          vendor/bin/pint app/Queries/DailyOrdinaryLedgerAuditStateQuery.php
-          git diff -- app/Queries/DailyOrdinaryLedgerAuditStateQuery.php
-          vendor/bin/pint --test
+        run: vendor/bin/pint --test
 
       - name: Run PHP tests
         run: php artisan test --compact
@@ -141,8 +138,8 @@ jobs:
           php artisan test --compact
           tests/Feature/OfxImportTest.php
           tests/Feature/OfxPixCreditReplayTest.php
-          tests/Feature/OfxPixPairReviewInvariantTest.php
           tests/Feature/OfxPixReviewPropsTest.php
+          tests/Feature/OfxPixPairReviewInvariantTest.php
           tests/Feature/CardPurchaseAndPaymentTest.php
           tests/Feature/CardAdvanceTest.php
           tests/Feature/CardPurchaseReversalTest.php
