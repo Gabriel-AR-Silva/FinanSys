@@ -45,7 +45,7 @@ class DailyOrdinaryLedgerExpenseQueryTest extends TestCase
     public function test_reversals_and_linked_refunds_are_not_double_counted(): void
     {
         $user = User::factory()->create();
-        $expense = LedgerEntry::factory()->expense()->create(['user_id' => $user->id, 'amount' => '80.00', 'occurred_at' => '2026-09-21 15:00:00']);
+        $expense = LedgerEntry::factory()->expense()->create(['user_id' => $user->id, 'amount' => '80.00', 'occurred_at' => '2026-09-21 15:00:00', 'created_at' => '2026-09-21 15:00:00']);
         LedgerEntry::factory()->create([
             'user_id' => $user->id,
             'type' => LedgerEntryType::Refund,
@@ -53,10 +53,11 @@ class DailyOrdinaryLedgerExpenseQueryTest extends TestCase
             'amount' => '20.00',
             'reversal_of_operation_id' => $expense->operation_id,
             'occurred_at' => '2026-09-21 16:00:00',
+            'created_at' => '2026-09-21 16:00:00',
         ]);
-        $active = LedgerEntry::factory()->expense()->create(['user_id' => $user->id, 'amount' => '50.00', 'occurred_at' => '2026-09-21 15:00:00']);
-        $refund = LedgerEntry::factory()->create(['user_id' => $user->id, 'type' => LedgerEntryType::Refund, 'planning_type' => null, 'amount' => '15.00', 'occurred_at' => '2026-09-22 14:00:00']);
-        ExpenseRefund::factory()->create(['user_id' => $user->id, 'expense_ledger_entry_id' => $active->id, 'refund_ledger_entry_id' => $refund->id, 'operation_id' => (string) Str::uuid()]);
+        $active = LedgerEntry::factory()->expense()->create(['user_id' => $user->id, 'amount' => '50.00', 'occurred_at' => '2026-09-21 15:00:00', 'created_at' => '2026-09-21 15:00:00']);
+        $refund = LedgerEntry::factory()->create(['user_id' => $user->id, 'type' => LedgerEntryType::Refund, 'planning_type' => null, 'amount' => '15.00', 'occurred_at' => '2026-09-22 14:00:00', 'created_at' => '2026-09-22 14:00:00']);
+        ExpenseRefund::factory()->create(['user_id' => $user->id, 'expense_ledger_entry_id' => $active->id, 'refund_ledger_entry_id' => $refund->id, 'operation_id' => (string) Str::uuid(), 'created_at' => '2026-09-22 15:00:00']);
         $query = app(DailyOrdinaryLedgerExpenseQuery::class);
 
         $before = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T12:00:00Z'));
