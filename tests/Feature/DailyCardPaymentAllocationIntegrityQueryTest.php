@@ -73,6 +73,11 @@ class DailyCardPaymentAllocationIntegrityQueryTest extends TestCase
         $this->assertSame(['installment:'.$allocationId], $historical['unverifiable_allocation_ids']);
         $this->assertSame('partial_card_allocation_unverifiable', $historical['coverage']);
 
+        DB::table('card_payments')->where('id', $payment->id)->update(['updated_at' => '2026-09-23 12:30:00']);
+        $editedPayment = $query->forPayment($user, $payment->fresh(), $observed);
+        $this->assertContains('payment:'.$payment->id, $editedPayment['unverifiable_allocation_ids']);
+        $this->assertSame('partial_card_allocation_unverifiable', $editedPayment['coverage']);
+
         $this->expectException(InvalidArgumentException::class);
         $query->forPayment($other, $payment, $observed);
     }
