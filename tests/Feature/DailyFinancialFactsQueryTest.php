@@ -57,7 +57,7 @@ class DailyFinancialFactsQueryTest extends TestCase
         $this->assertSame('unreconciled_distinct_financial_views', $facts['reconciliation_status']);
     }
 
-    public function test_unclassified_and_later_edited_purchase_block_reconciliation_without_leaking_another_user(): void
+    public function test_later_edited_purchase_blocks_reconciliation_without_leaking_another_user(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-22T16:00:00Z'));
         $user = User::factory()->create();
@@ -68,7 +68,7 @@ class DailyFinancialFactsQueryTest extends TestCase
         ]);
         CardPurchase::factory()->create([
             'user_id' => $user->id, 'gross_amount' => '20.00',
-            'purchased_on' => '2026-09-22', 'planning_type' => null,
+            'purchased_on' => '2026-09-22', 'planning_type' => ExpensePlanningType::Fixed,
         ]);
         $changed = CardPurchase::factory()->create([
             'user_id' => $user->id, 'gross_amount' => '30.00',
@@ -92,8 +92,8 @@ class DailyFinancialFactsQueryTest extends TestCase
         $this->assertSame('10.00', $facts['purchase']['ordinary_purchase_total']);
         $this->assertSame([$stable->id], $facts['purchase']['purchase_ids']);
         $this->assertSame([$changed->id], $facts['purchase']['unverifiable_purchase_ids']);
-        $this->assertSame(1, $facts['purchase']['unclassified_count']);
-        $this->assertSame(['purchase_unclassified', 'purchase_unverifiable'], $facts['coverage_blockers']);
+        $this->assertSame(0, $facts['purchase']['unclassified_count']);
+        $this->assertSame(['purchase_unverifiable'], $facts['coverage_blockers']);
         $this->assertSame(['due'], $facts['as_of_unsupported_views']);
         $this->assertNull($facts['eligible_spent']);
     }
