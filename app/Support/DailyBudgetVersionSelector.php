@@ -19,6 +19,36 @@ final class DailyBudgetVersionSelector
      */
     public function resolve(int $userId, string $date, string $confirmedAt, array $versions): ?array
     {
+        $day = $this->day($userId, $date);
+        $nextDay = $day->modify('+1 day');
+        $confirmed = $this->timestamp($confirmedAt);
+        if ($confirmed < $nextDay) {
+            throw new InvalidArgumentException('A day cannot be confirmed before it ends in Sao Paulo.');
+        }
+
+        return $this->select($userId, $nextDay, $confirmed, false, $versions);
+    }
+
+    /**
+     * Current-day reference only: never confirms a day or includes a budget
+     * which becomes effective or is recorded after the observation instant.
+     *
+     * @param  list<array{id:int,user_id:int,amount:string,effective_at:string,recorded_at:string}>  $versions
+     * @return array{id:int,amount:string}|null
+     */
+    public function resolveOpenDay(int $userId, string $date, string $observedAt, array $versions): ?array
+    {
+        $day = $this->day($userId, $date);
+        $observed = $this->timestamp($observedAt);
+        if ($observed < $day || $observed >= $day->modify('+1 day')) {
+            throw new InvalidArgumentException('An open-day observation must occur within the requested local day.');
+        }
+
+        return $this->select($userId, $observed, $observed, true, $versions);
+    }
+
+    private function day(int $userId, string $date): DateTimeImmutable
+    {
         if ($userId < 1) {
             throw new InvalidArgumentException('A valid user is required.');
         }
@@ -28,12 +58,15 @@ final class DailyBudgetVersionSelector
             throw new InvalidArgumentException('A valid local day is required.');
         }
 
-        $nextDay = $day->modify('+1 day');
-        $confirmed = $this->timestamp($confirmedAt);
-        if ($confirmed < $nextDay) {
-            throw new InvalidArgumentException('A day cannot be confirmed before it ends in Sao Paulo.');
-        }
+        return $day;
+    }
 
+    /**
+     * @param  list<array{id:int,user_id:int,amount:string,effective_at:string,recorded_at:string}>  $versions
+     * @return array{id:int,amount:string}|null
+     */
+    private function select(int $userId, DateTimeImmutable $effectiveCutoff, DateTimeImmutable $observed, bool $inclusive, array $versions): ?array
+    {
         $selected = null;
         $selectedEffective = null;
         $selectedRecorded = null;
@@ -54,9 +87,10 @@ final class DailyBudgetVersionSelector
             $effective = $this->timestamp($version['effective_at']);
             $recorded = $this->timestamp($version['recorded_at']);
 
-            // A later change must not rewrite a previously closed day; an
-            // explicitly backfilled version may have been recorded later.
-            if ($effective >= $nextDay || $recorded > $confirmed) {
+            // Closed days use the local next-day boundary; open days also
+            // require the change to have taken effect by the observation.
+            if (($inclusive ? $effective > $effectiveCutoff : $effective >= $effectiveCutoff)
+                || $recorded > $observed) {
                 continue;
             }
 
