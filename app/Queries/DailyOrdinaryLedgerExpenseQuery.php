@@ -28,12 +28,20 @@ final class DailyOrdinaryLedgerExpenseQuery
             throw new InvalidArgumentException('Informe um dia local válido.');
         }
 
-        $start = $day->startOfDay()->utc();
-        $end = $day->addDay()->startOfDay()->utc();
         $observed = ($observedAt ?? CarbonImmutable::now('UTC'))->utc();
-        if ($observed->lessThan($start)) {
+        if ($observed->lessThan($day->startOfDay()->utc())) {
             throw new InvalidArgumentException('Não é possível consultar gastos antes do início do dia.');
         }
+
+        // The existing V1 writers store ledger_entries.occurred_at and Eloquent
+        // created_at as offset-free application-local DATETIME values, not UTC.
+        // Compare them in the same Sao Paulo wall-clock convention; only the
+        // API's explicit observation instant is converted from UTC to local.
+        // Do not convert persisted V1 timestamps or use this partial view for
+        // historical confirmations: mutable classifications remain unversioned.
+        $start = $day->startOfDay()->format('Y-m-d H:i:s');
+        $end = $day->addDay()->startOfDay()->format('Y-m-d H:i:s');
+        $cutoff = $observed->setTimezone('America/Sao_Paulo')->format('Y-m-d H:i:s');
 
         $entries = LedgerEntry::query()
             ->where('user_id', $user->getKey())
@@ -41,31 +49,31 @@ final class DailyOrdinaryLedgerExpenseQuery
             ->whereNull('reversal_of_operation_id')
             ->where('occurred_at', '>=', $start)
             ->where('occurred_at', '<', $end)
-            ->where('occurred_at', '<=', $observed)
-            ->where('created_at', '<=', $observed)
+            ->where('occurred_at', '<=', $cutoff)
+            ->where('created_at', '<=', $cutoff)
             ->whereNotExists(fn ($query) => $query->selectRaw('1')
                 ->from('ledger_entries as reversals')
                 ->whereColumn('reversals.user_id', 'ledger_entries.user_id')
                 ->whereColumn('reversals.reversal_of_operation_id', 'ledger_entries.operation_id')
                 ->whereNull('reversals.deleted_at')
-                ->where('reversals.created_at', '<=', $observed)
-                ->where('reversals.occurred_at', '<=', $observed))
+                ->where('reversals.created_at', '<=', $cutoff)
+                ->where('reversals.occurred_at', '<=', $cutoff))
             ->with(['expenseRefunds' => fn ($query) => $query
                 ->where('user_id', $user->getKey())
-                ->where('created_at', '<=', $observed)
+                ->where('created_at', '<=', $cutoff)
                 ->whereHas('refundEntry', fn ($refund) => $refund
                     ->where('user_id', $user->getKey())
                     ->where('type', LedgerEntryType::Refund)
                     ->whereNull('reversal_of_operation_id')
-                    ->where('created_at', '<=', $observed)
-                    ->where('occurred_at', '<=', $observed)
+                    ->where('created_at', '<=', $cutoff)
+                    ->where('occurred_at', '<=', $cutoff)
                     ->whereNotExists(fn ($reversals) => $reversals->selectRaw('1')
                         ->from('ledger_entries as refund_reversals')
                         ->whereColumn('refund_reversals.user_id', 'ledger_entries.user_id')
                         ->whereColumn('refund_reversals.reversal_of_operation_id', 'ledger_entries.operation_id')
                         ->whereNull('refund_reversals.deleted_at')
-                        ->where('refund_reversals.created_at', '<=', $observed)
-                        ->where('refund_reversals.occurred_at', '<=', $observed)))
+                        ->where('refund_reversals.created_at', '<=', $cutoff)
+                        ->where('refund_reversals.occurred_at', '<=', $cutoff)))
                 ->with('refundEntry')])
             ->orderBy('id')
             ->get();
