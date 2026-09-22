@@ -18,7 +18,7 @@ use InvalidArgumentException;
  */
 final class DailyCardPurchaseRecognitionQuery
 {
-    /** @return array{ordinary_purchase_total:string,purchase_ids:list<int>,unclassified_count:int,coverage:string} */
+    /** @return array{ordinary_purchase_total:string,purchase_ids:list<int>,unclassified_count:int,unverifiable_purchase_ids:list<int>,coverage:string} */
     public function forUserOnDay(User $user, string $localDate, ?CarbonImmutable $observedAt = null): array
     {
         $day = CarbonImmutable::createFromFormat('!Y-m-d', $localDate, 'America/Sao_Paulo');
@@ -53,6 +53,7 @@ final class DailyCardPurchaseRecognitionQuery
         $total = BigDecimal::zero();
         $ids = [];
         $unclassified = 0;
+        $unverifiable = [];
 
         foreach ($purchases as $purchase) {
             // MySQL stores DATETIME without an offset. Eloquent's date cast can
@@ -63,6 +64,17 @@ final class DailyCardPurchaseRecognitionQuery
                 && ! in_array((int) $purchase->getKey(), $reversedPurchaseIds, true)) {
                 continue;
             }
+
+            // An edit after the observation may have changed the amount, date or
+            // classification. The old state was not versioned, so never pass the
+            // current value off as a verified historical amount.
+            $updatedAt = $purchase->getRawOriginal('updated_at');
+            if ($updatedAt !== null && CarbonImmutable::parse((string) $updatedAt, 'UTC')->greaterThan($observed)) {
+                $unverifiable[] = (int) $purchase->getKey();
+
+                continue;
+            }
+
             if ($purchase->planning_type === null) {
                 $unclassified++;
 
@@ -80,7 +92,8 @@ final class DailyCardPurchaseRecognitionQuery
             'ordinary_purchase_total' => (string) $total->toScale(2),
             'purchase_ids' => $ids,
             'unclassified_count' => $unclassified,
-            'coverage' => 'gross_card_purchases_with_recorded_reversals',
+            'unverifiable_purchase_ids' => $unverifiable,
+            'coverage' => $unverifiable === [] ? 'gross_card_purchases_with_recorded_reversals' : 'partial_gross_card_purchases_unverifiable_edits',
         ];
     }
 }
