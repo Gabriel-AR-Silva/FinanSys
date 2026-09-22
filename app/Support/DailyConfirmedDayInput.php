@@ -19,8 +19,9 @@ final class DailyConfirmedDayInput
      */
     public function build(int $userId, string $date, string $confirmedAt, string $eligibleSpent, array $versions): array
     {
-        if (preg_match('/^(0|[1-9]\d*)(\.\d{1,2})?$/D', $eligibleSpent) !== 1) {
-            throw new InvalidArgumentException('Eligible spend must be a non-negative decimal string with at most two decimal places.');
+        // Do not accept BigDecimal values that a future DECIMAL(19,2) column cannot store.
+        if (preg_match('/^(0|[1-9]\\d{0,16})(\\.\\d{1,2})?$/D', $eligibleSpent) !== 1) {
+            throw new InvalidArgumentException('Eligible spend must be a non-negative decimal within DECIMAL(19,2).');
         }
 
         $selected = (new DailyBudgetVersionSelector)->resolve($userId, $date, $confirmedAt, $versions);
