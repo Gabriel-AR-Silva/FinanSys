@@ -148,3 +148,4 @@ jobs:
           tests/Feature/DailyBudgetHistoryQueryTest.php
           tests/Feature/DailyBudgetSnapshotQueryTest.php
           tests/Feature/DailyBudgetEndpointTest.php
+          tests/Feature/DailyOrdinaryLedgerExpenseQueryTest.php
