@@ -13,8 +13,8 @@ use InvalidArgumentException;
 
 /**
  * Read-only reconstruction from recorded purchase creation/update audits only.
- * This is not complete card spending: unaudited legacy purchases, reversals,
- * ordinary deletions and linked credits still require reconciliation.
+ * This is not complete card spending: unaudited legacy purchases moved to a
+ * different day, reversals, deletions and linked credits need reconciliation.
  */
 final class DailyCardPurchaseAuditStateQuery
 {
@@ -42,8 +42,12 @@ final class DailyCardPurchaseAuditStateQuery
 
         $states = [];
         $invalid = [];
+        $createdIds = [];
         foreach ($events as $event) {
             $id = (int) $event->auditable_id;
+            if ($event->action === AuditAction::Created->value) {
+                $createdIds[$id] = true;
+            }
             if ($event->action === AuditAction::Updated->value && ! array_key_exists($id, $states)) {
                 $invalid[$id] = true;
 
@@ -68,6 +72,19 @@ final class DailyCardPurchaseAuditStateQuery
                 continue;
             }
             $states[$id] = $after;
+        }
+
+        // Detect missing creation snapshots without trusting mutable amounts.
+        // Purchases later moved away from this day are not discoverable here.
+        $presentIds = CardPurchase::withTrashed()
+            ->where('user_id', $user->getKey())
+            ->whereDate('purchased_on', $localDate)
+            ->where('created_at', '<=', $observed)
+            ->pluck('id');
+        foreach ($presentIds as $id) {
+            if (! isset($createdIds[(int) $id])) {
+                $invalid[(int) $id] = true;
+            }
         }
 
         $total = BigDecimal::zero();
