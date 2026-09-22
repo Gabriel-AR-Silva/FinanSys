@@ -67,6 +67,40 @@ class DailyOrdinaryLedgerExpenseQueryTest extends TestCase
         $this->assertSame([$active->id], $after['entry_ids']);
     }
 
+    public function test_refund_link_created_after_observation_does_not_rewrite_earlier_read(): void
+    {
+        $user = User::factory()->create();
+        $expense = LedgerEntry::factory()->expense()->create([
+            'user_id' => $user->id,
+            'amount' => '50.00',
+            'occurred_at' => '2026-09-21 15:00:00',
+            'created_at' => '2026-09-21 15:00:00',
+        ]);
+        $refund = LedgerEntry::factory()->create([
+            'user_id' => $user->id,
+            'type' => LedgerEntryType::Refund,
+            'planning_type' => null,
+            'amount' => '15.00',
+            'occurred_at' => '2026-09-21 16:00:00',
+            'created_at' => '2026-09-21 16:00:00',
+        ]);
+        ExpenseRefund::factory()->create([
+            'user_id' => $user->id,
+            'expense_ledger_entry_id' => $expense->id,
+            'refund_ledger_entry_id' => $refund->id,
+            'operation_id' => (string) Str::uuid(),
+            'created_at' => '2026-09-23 10:00:00',
+        ]);
+
+        $query = app(DailyOrdinaryLedgerExpenseQuery::class);
+        $beforeLink = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T22:00:00Z'));
+        $afterLink = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-23T11:00:00Z'));
+
+        $this->assertSame('50.00', $beforeLink['ordinary_total']);
+        $this->assertSame('35.00', $afterLink['ordinary_total']);
+        $this->assertSame([$expense->id], $beforeLink['entry_ids']);
+    }
+
     public function test_invalid_day_and_observation_before_day_are_rejected(): void
     {
         $user = User::factory()->create();
