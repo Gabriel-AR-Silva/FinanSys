@@ -146,6 +146,67 @@ class DailyCardAdvanceImpactQueryTest extends TestCase
         $this->assertSame(ExpensePlanningType::Ordinary, $stablePurchase->planning_type);
     }
 
+    public function test_soft_deleted_purchase_keeps_advance_coverage_explicit(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T15:00:00Z'));
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $create = function (User $owner, string $amount): array {
+            $purchase = CardPurchase::factory()->create(['user_id' => $owner->id, 'planning_type' => ExpensePlanningType::Ordinary]);
+            $installment = CardInstallment::factory()->create([
+                'user_id' => $owner->id,
+                'card_purchase_id' => $purchase->id,
+                'status' => CardInstallmentStatus::Advanced,
+                'gross_amount' => $amount,
+                'due_on' => '2026-11-12',
+            ]);
+            $advance = CardAdvance::query()->create([
+                'user_id' => $owner->id,
+                'credit_card_id' => $purchase->credit_card_id,
+                'gross_amount' => $amount,
+                'discount_amount' => '0.00',
+                'net_amount' => $amount,
+                'advanced_on' => '2026-09-21',
+                'selected_installment_ids' => [$installment->id],
+                'operation_id' => (string) Str::uuid(),
+            ]);
+            $allocation = CardAdvanceAllocation::query()->create([
+                'user_id' => $owner->id,
+                'card_advance_id' => $advance->id,
+                'card_installment_id' => $installment->id,
+                'gross_amount' => $amount,
+                'discount_amount' => '0.00',
+                'net_amount' => $amount,
+                'original_due_on' => '2026-11-12',
+            ]);
+
+            return [$purchase, $allocation];
+        };
+
+        [$deletedPurchase, $deletedAllocation] = $create($user, '30.00');
+        [, $stableAllocation] = $create($user, '5.00');
+        [, $foreignAllocation] = $create($other, '999.00');
+        $query = app(DailyCardAdvanceImpactQuery::class);
+        $observed = CarbonImmutable::parse('2026-09-22T15:00:00Z');
+        $this->assertSame('35.00', $query->forUserOnDay($user, '2026-09-21', $observed)['ordinary_net_advanced']);
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-22T16:00:00Z'));
+        $deletedPurchase->delete();
+
+        $historical = $query->forUserOnDay($user, '2026-09-21', $observed);
+        $this->assertSame('5.00', $historical['ordinary_net_advanced']);
+        $this->assertSame('5.00', $historical['ordinary_future_gross_released']);
+        $this->assertSame([$stableAllocation->id], $historical['allocation_ids']);
+        $this->assertSame([$deletedAllocation->id], $historical['unverifiable_allocation_ids']);
+        $this->assertSame('partial_card_advance_timing_unverifiable_edits', $historical['coverage']);
+        $this->assertNotContains($foreignAllocation->id, $historical['unverifiable_allocation_ids']);
+        $this->assertSame('999.00', $query->forUserOnDay($other, '2026-09-21', $observed)['ordinary_net_advanced']);
+
+        $afterDeletion = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T16:00:01Z'));
+        $this->assertSame([$deletedAllocation->id], $afterDeletion['unverifiable_allocation_ids']);
+        $this->assertSame('5.00', $afterDeletion['ordinary_net_advanced']);
+    }
+
     public function test_rejects_invalid_local_date(): void
     {
         $this->expectException(InvalidArgumentException::class);
