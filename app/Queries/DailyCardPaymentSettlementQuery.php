@@ -5,6 +5,7 @@ namespace App\Queries;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
 use App\Models\CardPayment;
+use App\Models\LedgerEntry;
 use App\Models\User;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
@@ -17,7 +18,7 @@ use InvalidArgumentException;
  */
 final class DailyCardPaymentSettlementQuery
 {
-    /** @return array{settled_total:string,payment_ids:list<int>,ledger_entry_ids:list<int>,unverifiable_payment_ids:list<int>,coverage:string} */
+    /** @return array{settled_total:string,payment_ids:list<int>,ledger_entry_ids:list<int>,unverifiable_payment_ids:list<int>,unmatched_ledger_entry_ids:list<int>,coverage:string} */
     public function forUserOnDay(User $user, string $localDate, ?CarbonImmutable $observedAt = null): array
     {
         $day = CarbonImmutable::createFromFormat('!Y-m-d', $localDate, 'America/Sao_Paulo');
@@ -75,12 +76,37 @@ final class DailyCardPaymentSettlementQuery
             $ledgerIds[] = (int) $entry->getKey();
         }
 
+        // A ledger cash outflow without a matching payment row must not be
+        // invisible merely because the reconciliation starts from payments.
+        // Include later-edited entries across dates: their old date is unknown.
+        // Ledger DATETIME is stored in application-local wall time, unlike the
+        // payment timestamps above, which are compared as UTC instants.
+        $cutoff = $observed->setTimezone('America/Sao_Paulo')->format('Y-m-d H:i:s');
+        $unmatchedLedgerIds = LedgerEntry::withTrashed()
+            ->where('user_id', $user->getKey())
+            ->where('type', LedgerEntryType::CardPayment)
+            ->where('created_at', '<=', $cutoff)
+            ->where(fn ($query) => $query->whereDate('occurred_at', $localDate)
+                ->orWhere('updated_at', '>', $cutoff)
+                ->orWhere('deleted_at', '>', $cutoff))
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')
+                ->from('card_payments')
+                ->whereColumn('card_payments.user_id', 'ledger_entries.user_id')
+                ->whereColumn('card_payments.ledger_entry_id', 'ledger_entries.id')
+                ->where('card_payments.created_at', '<=', $observed->format('Y-m-d H:i:s')))
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
         return [
             'settled_total' => (string) $total->toScale(2),
             'payment_ids' => $paymentIds,
             'ledger_entry_ids' => $ledgerIds,
             'unverifiable_payment_ids' => $unverifiable,
-            'coverage' => $unverifiable === [] ? 'card_settlement_only' : 'partial_card_settlement_unverifiable_links',
+            'unmatched_ledger_entry_ids' => $unmatchedLedgerIds,
+            'coverage' => $unverifiable === [] && $unmatchedLedgerIds === []
+                ? 'card_settlement_only' : 'partial_card_settlement_unverifiable_links',
         ];
     }
 
