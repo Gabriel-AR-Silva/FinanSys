@@ -87,7 +87,7 @@ final class DailyBudgetVersionSelector
                 || ! is_int($version['id']) || $version['id'] < 1
                 || ! is_int($version['user_id']) || $version['user_id'] !== $userId
                 || ! is_string($version['amount'])
-                || preg_match('/^(0|[1-9]\d*)(\.\d{1,2})?$/D', $version['amount']) !== 1
+                || preg_match('/^(0|[1-9]\\d{0,16})(\\.\\d{1,2})?$/D', $version['amount']) !== 1
                 || isset($seen[$version['id']])) {
                 throw new InvalidArgumentException('Budget versions must be unique, valid and belong to the user.');
             }
@@ -116,12 +116,12 @@ final class DailyBudgetVersionSelector
 
     private function timestamp(string $value): DateTimeImmutable
     {
-        if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/D', $value) !== 1) {
+        if (preg_match('/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[+-]\\d{2}:\\d{2}$/D', $value) !== 1) {
             throw new InvalidArgumentException('A timestamp with an explicit UTC offset is required.');
         }
 
-        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:sP', $value);
-        if ($parsed === false || $parsed->format('Y-m-d\TH:i:sP') !== $value || $parsed->format('Y') === '0000') {
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d\\TH:i:sP', $value);
+        if ($parsed === false || $parsed->format('Y-m-d\\TH:i:sP') !== $value || $parsed->format('Y') === '0000') {
             throw new InvalidArgumentException('A valid timestamp is required.');
         }
 
