@@ -53,11 +53,13 @@ final class DailyFinancialFactsQuery
             'purchase' => [$purchase, 'unverifiable_purchase_ids'],
             'advance' => [$advance, 'unverifiable_allocation_ids'],
             'reversal' => [$reversal, 'unverifiable_reversal_ids'],
-            'settlement' => [$settlement, 'unverifiable_payment_ids'],
         ] as $name => [$view, $key]) {
             if ($view[$key] !== []) {
                 $blockers[] = $name.'_unverifiable';
             }
+        }
+        if ($settlement['unverifiable_payment_ids'] !== [] || $settlement['unmatched_ledger_entry_ids'] !== []) {
+            $blockers[] = 'settlement_unverifiable';
         }
         if ($due['unverifiable_installment_ids'] !== [] || $due['unverifiable_charge_ids'] !== []) {
             $blockers[] = 'due_unverifiable';
