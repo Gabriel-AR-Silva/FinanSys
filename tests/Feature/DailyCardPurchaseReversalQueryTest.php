@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Queries\DailyCardPurchaseReversalQuery;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -18,6 +19,7 @@ class DailyCardPurchaseReversalQueryTest extends TestCase
 
     public function test_distinguishes_cancelled_obligations_from_credited_payments_and_excludes_later_records(): void
     {
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T16:00:00Z'));
         $user = User::factory()->create();
         $other = User::factory()->create();
         $earlyPurchase = CardPurchase::factory()->create(['user_id' => $user->id]);
@@ -34,6 +36,7 @@ class DailyCardPurchaseReversalQueryTest extends TestCase
         $early->save();
         $late->timestamps = false;
         $late->created_at = '2026-09-23 10:00:00';
+        $late->updated_at = '2026-09-23 10:00:00';
         $late->save();
 
         $query = app(DailyCardPurchaseReversalQuery::class);
@@ -65,8 +68,13 @@ class DailyCardPurchaseReversalQueryTest extends TestCase
         $this->assertSame('12.00', $original['credited_paid_total']);
         $this->assertSame([$edited->id, $stable->id], $original['reversal_ids']);
 
-        $this->travelTo(CarbonImmutable::parse('2026-09-21T15:02:00Z'));
-        $edited->update(['cancelled_pending_amount' => '80.00', 'credited_paid_amount' => '40.00']);
+        // Simulate a legacy write with a deterministic UTC timestamp. Reversal
+        // edits have no versioned amounts to reconstruct for an earlier view.
+        DB::table('card_purchase_reversals')->where('id', $edited->id)->update([
+            'cancelled_pending_amount' => '80.00',
+            'credited_paid_amount' => '40.00',
+            'updated_at' => '2026-09-21 15:02:00',
+        ]);
 
         $historical = $query->forUserOnDay($user, '2026-09-21', $observedBeforeEdit);
         $this->assertSame('5.00', $historical['cancelled_pending_total']);
