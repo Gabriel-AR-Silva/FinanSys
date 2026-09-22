@@ -2,6 +2,8 @@
 
 namespace App\Queries;
 
+use App\Enums\AuditAction;
+use App\Models\AuditLog;
 use App\Models\CardPurchase;
 use App\Models\CardPurchaseReversal;
 use App\Models\User;
@@ -36,22 +38,32 @@ final class DailyCardPurchaseReversalQuery
             ->where(function ($query) use ($localDate, $observed) {
                 $query->whereDate('reversed_on', $localDate)
                     // An edit after observation may have moved the reversal
-                    // away from this day. Without a dated audit, we cannot
-                    // prove its original day: report uncertainty rather than
-                    // silently omitting it. Other-day edits are conservatively
-                    // flagged as well, never included in this day's totals.
+                    // away from this day. Without its original dated audit,
+                    // report uncertainty instead of silently omitting it.
                     ->orWhere('updated_at', '>', $observed);
             })
             ->orderBy('id')
             ->get();
 
-        // A reversal's user_id alone does not prove that its linked purchase
-        // belongs to the same tenant. Include soft-deleted original purchases:
-        // legitimate reversal actions can soft-delete them.
+        // Include soft-deleted original purchases: legitimate reversals can
+        // soft-delete them. The reversal's user_id alone is not provenance.
         $purchases = CardPurchase::withTrashed()
             ->whereIn('id', $reversals->pluck('card_purchase_id'))
             ->get(['id', 'user_id', 'credit_card_id'])
             ->keyBy('id');
+
+        // The official reversal action stores an immutable creation snapshot.
+        // Only a single, consistent snapshot can rule out an unrelated day;
+        // missing or duplicate audits must never silently erase uncertainty.
+        $originAudits = AuditLog::query()
+            ->where('user_id', $user->getKey())
+            ->where('auditable_type', (new CardPurchaseReversal)->getMorphClass())
+            ->where('action', AuditAction::Reversed->value)
+            ->where('created_at', '<=', $observed)
+            ->whereIn('auditable_id', $reversals->pluck('id'))
+            ->orderBy('id')
+            ->get()
+            ->groupBy('auditable_id');
 
         $cancelled = BigDecimal::zero();
         $credited = BigDecimal::zero();
@@ -68,11 +80,33 @@ final class DailyCardPurchaseReversalQuery
                 continue;
             }
 
-            // Reversal amounts and dates are not versioned. A later edit
-            // cannot be reconstructed from the current row for an earlier
-            // observation. MySQL DATETIME has no offset: read it as raw UTC.
+            // MySQL DATETIME has no offset: read the raw value as UTC.
             $updatedAt = $reversal->getRawOriginal('updated_at');
             if ($updatedAt !== null && CarbonImmutable::parse((string) $updatedAt, 'UTC')->greaterThan($observed)) {
+                if ($reversal->reversed_on->toDateString() !== $localDate) {
+                    $audits = $originAudits->get($reversal->getKey());
+                    if ($audits !== null && $audits->count() === 1) {
+                        $snapshot = $audits->first()->after;
+                        $originalDay = is_array($snapshot) ? ($snapshot['reversed_on'] ?? null) : null;
+                        if (is_array($snapshot)
+                            && isset($snapshot['id'], $snapshot['user_id'], $snapshot['credit_card_id'], $snapshot['card_purchase_id'])
+                            && (int) $snapshot['id'] === (int) $reversal->getKey()
+                            && (int) $snapshot['user_id'] === (int) $user->getKey()
+                            && (int) $snapshot['credit_card_id'] === (int) $reversal->credit_card_id
+                            && (int) $snapshot['card_purchase_id'] === (int) $reversal->card_purchase_id
+                            && is_string($originalDay)
+                            && preg_match('/\A\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?\z/', $originalDay)
+                            && substr($originalDay, 0, 10) !== $localDate) {
+                            $originDate = CarbonImmutable::createFromFormat('!Y-m-d', substr($originalDay, 0, 10), 'America/Sao_Paulo');
+                            if ($originDate !== false && $originDate->format('Y-m-d') === substr($originalDay, 0, 10)) {
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                // The original amount/date is not reconstructable from an
+                // unversioned row. Do not call its current values historical.
                 $unverifiable[] = (int) $reversal->getKey();
 
                 continue;
