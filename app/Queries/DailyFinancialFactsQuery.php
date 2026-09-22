@@ -23,20 +23,48 @@ final class DailyFinancialFactsQuery
     ) {}
 
     /**
-     * @return array{ledger:array<string,mixed>,purchase:array<string,mixed>,due:array<string,mixed>,advance:array<string,mixed>,reversal:array<string,mixed>,eligible_spent:null,reconciliation_status:string}
+     * @return array{ledger:array<string,mixed>,purchase:array<string,mixed>,due:array<string,mixed>,advance:array<string,mixed>,reversal:array<string,mixed>,observed_at:string,coverage_blockers:list<string>,as_of_unsupported_views:list<string>,eligible_spent:null,reconciliation_status:string}
      */
     public function forUserOnDay(User $user, string $localDate, ?CarbonImmutable $observedAt = null): array
     {
         $observed = ($observedAt ?? CarbonImmutable::now('UTC'))->utc();
+        $ledger = $this->ledger->forUserOnDay($user, $localDate, $observed);
+        $purchase = $this->purchases->forUserOnDay($user, $localDate, $observed);
+        // Due commitments currently have no as-of observation contract.
+        // Explicitly segregate their current-state data from dated facts.
+        $due = $this->due->forUserOnDay($user, $localDate);
+        $advance = $this->advances->forUserOnDay($user, $localDate, $observed);
+        $reversal = $this->reversals->forUserOnDay($user, $localDate, $observed);
+
+        // Preserve the provenance of uncertainty across views. In particular,
+        // an unclassified entry must not be mistaken for a verified zero, and
+        // an edited amount must not be included in a historical subtotal.
+        $blockers = [];
+        foreach (['ledger' => $ledger, 'purchase' => $purchase, 'due' => $due, 'advance' => $advance] as $name => $view) {
+            if ($view['unclassified_count'] > 0) {
+                $blockers[] = $name.'_unclassified';
+            }
+        }
+        foreach ([
+            'ledger' => [$ledger, 'unverifiable_entry_ids'],
+            'purchase' => [$purchase, 'unverifiable_purchase_ids'],
+            'advance' => [$advance, 'unverifiable_allocation_ids'],
+            'reversal' => [$reversal, 'unverifiable_reversal_ids'],
+        ] as $name => [$view, $key]) {
+            if ($view[$key] !== []) {
+                $blockers[] = $name.'_unverifiable';
+            }
+        }
 
         return [
-            'ledger' => $this->ledger->forUserOnDay($user, $localDate, $observed),
-            'purchase' => $this->purchases->forUserOnDay($user, $localDate, $observed),
-            // Due commitments currently have no as-of observation contract.
-            // Explicitly segregate their current-state data from dated facts.
-            'due' => $this->due->forUserOnDay($user, $localDate),
-            'advance' => $this->advances->forUserOnDay($user, $localDate, $observed),
-            'reversal' => $this->reversals->forUserOnDay($user, $localDate, $observed),
+            'ledger' => $ledger,
+            'purchase' => $purchase,
+            'due' => $due,
+            'advance' => $advance,
+            'reversal' => $reversal,
+            'observed_at' => $observed->toIso8601String(),
+            'coverage_blockers' => $blockers,
+            'as_of_unsupported_views' => ['due'],
             'eligible_spent' => null,
             'reconciliation_status' => 'unreconciled_distinct_financial_views',
         ];
