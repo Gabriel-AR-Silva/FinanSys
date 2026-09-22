@@ -71,6 +71,8 @@ class DailyOrdinaryLedgerExpenseQueryTest extends TestCase
 
     public function test_refund_link_created_after_observation_does_not_rewrite_earlier_read(): void
     {
+        // Keep Eloquent's implicit updated_at before the historical cutoff.
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T18:00:00Z'));
         $user = User::factory()->create();
         $expense = LedgerEntry::factory()->expense()->create([
             'user_id' => $user->id,
@@ -105,6 +107,8 @@ class DailyOrdinaryLedgerExpenseQueryTest extends TestCase
 
     public function test_future_dated_reversal_only_applies_after_its_effective_time(): void
     {
+        // A fixture must not inherit updated_at from the CI runner's clock.
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T18:00:00Z'));
         $user = User::factory()->create();
         $expense = LedgerEntry::factory()->expense()->create([
             'user_id' => $user->id,
