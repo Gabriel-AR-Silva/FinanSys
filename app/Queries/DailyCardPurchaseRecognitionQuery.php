@@ -55,8 +55,11 @@ final class DailyCardPurchaseRecognitionQuery
         $unclassified = 0;
 
         foreach ($purchases as $purchase) {
-            if ($purchase->trashed()
-                && $purchase->deleted_at->utc()->lessThanOrEqualTo($observed)
+            // MySQL stores DATETIME without an offset. Eloquent's date cast can
+            // reinterpret it in the app timezone, so read the raw UTC value.
+            $deletedAt = $purchase->getRawOriginal('deleted_at');
+            if ($deletedAt !== null
+                && CarbonImmutable::parse((string) $deletedAt, 'UTC')->lessThanOrEqualTo($observed)
                 && ! in_array((int) $purchase->getKey(), $reversedPurchaseIds, true)) {
                 continue;
             }
