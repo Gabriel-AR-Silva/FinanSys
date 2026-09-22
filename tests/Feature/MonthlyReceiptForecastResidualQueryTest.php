@@ -11,6 +11,7 @@ use App\Queries\MonthlyReceiptForecastResidualQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use Tests\TestCase;
+use UnexpectedValueException;
 
 class MonthlyReceiptForecastResidualQueryTest extends TestCase
 {
@@ -60,6 +61,23 @@ class MonthlyReceiptForecastResidualQueryTest extends TestCase
 
         $this->assertSame('100.00', $result['pending_total']);
         $this->assertSame('0.00', $result['forecasts'][0]['received']);
+    }
+
+    public function test_foreign_receipt_link_fails_closed_instead_of_counting_another_users_income(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $forecast = ReceiptForecast::factory()->for($user)->create(['amount' => '100.00', 'expected_on' => '2026-09-15']);
+        $foreignReceipt = LedgerEntry::factory()->income()->create(['user_id' => $other->id, 'amount' => '40.00']);
+        ReceiptForecastLink::factory()->create([
+            'user_id' => $user->id,
+            'receipt_forecast_id' => $forecast->id,
+            'ledger_entry_id' => $foreignReceipt->id,
+        ]);
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage('Inconsistent receipt forecast linkage.');
+        app(MonthlyReceiptForecastResidualQuery::class)->forUserInMonth($user, '2026-09');
     }
 
     public function test_invalid_month_is_rejected_and_empty_month_is_explicitly_empty(): void
