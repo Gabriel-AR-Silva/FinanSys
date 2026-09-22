@@ -56,6 +56,35 @@ class DailyOrdinaryLedgerAuditStateQueryTest extends TestCase
         $this->assertSame('audited_ledger_creation_updates_only', $historical['coverage']);
     }
 
+    public function test_deletion_after_observation_preserves_prior_view_but_blocks_later_subtotal(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T15:00:00+00:00'));
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => CategoryType::Expense]);
+        $entry = app(CreateManualLedgerEntry::class)->handle(
+            $user, $account->id, $category->id, LedgerEntryType::Expense, '80.00',
+            '2026-09-21', 'Despesa excluída depois', (string) Str::uuid(), ExpensePlanningType::Ordinary,
+        );
+        $other = User::factory()->create();
+        $query = app(DailyOrdinaryLedgerAuditStateQuery::class);
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-22T15:00:00+00:00'));
+        $entry->delete();
+
+        $before = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-21T15:00:01+00:00'));
+        $after = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T15:00:01+00:00'));
+        $otherResult = $query->forUserOnDay($other, '2026-09-21', CarbonImmutable::parse('2026-09-22T15:00:01+00:00'));
+
+        $this->assertSame('80.00', $before['ordinary_audited_total']);
+        $this->assertSame([$entry->id], $before['entry_ids']);
+        $this->assertSame('0.00', $after['ordinary_audited_total']);
+        $this->assertSame([], $after['entry_ids']);
+        $this->assertContains($entry->id, $after['unverifiable_entry_ids']);
+        $this->assertSame('partial_audited_ledger_creation_updates', $after['coverage']);
+        $this->assertNotContains($entry->id, $otherResult['unverifiable_entry_ids']);
+    }
+
     public function test_unaudited_moved_and_soft_deleted_entries_are_unverifiable_only_for_their_owner(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-22T16:00:00+00:00'));
