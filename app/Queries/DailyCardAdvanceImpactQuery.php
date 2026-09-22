@@ -12,8 +12,8 @@ use InvalidArgumentException;
 /**
  * Read-only, current-state view of advances executed on one local date.
  * An observation cutoff excludes records created later and flags subsequent
- * allocation/advance edits. Mutable purchase classifications mean this is NOT
- * a historical snapshot or ordinary daily spending. Never add to a check-in.
+ * allocation/advance/purchase edits. This is NOT a historical snapshot or
+ * ordinary daily spending. Never add to a check-in.
  */
 final class DailyCardAdvanceImpactQuery
 {
@@ -54,13 +54,16 @@ final class DailyCardAdvanceImpactQuery
         $unclassified = 0;
 
         foreach ($allocations as $allocation) {
-            // Both rows are mutable. A later edit to the allocation amount or
-            // its advance can invalidate an earlier view. DATETIME stores raw
-            // UTC values without a timezone; do not use the cast timezone.
+            // All three rows can change after an observation. In particular,
+            // current purchase planning_type cannot classify an earlier
+            // advance if the purchase was edited later. DATETIME stores raw
+            // UTC values without an offset: do not use cast timezones here.
             $allocationUpdated = $allocation->getRawOriginal('updated_at');
             $advanceUpdated = $allocation->advance->getRawOriginal('updated_at');
+            $purchaseUpdated = $allocation->installment->purchase->getRawOriginal('updated_at');
             if (($allocationUpdated !== null && CarbonImmutable::parse((string) $allocationUpdated, 'UTC')->greaterThan($observed))
-                || ($advanceUpdated !== null && CarbonImmutable::parse((string) $advanceUpdated, 'UTC')->greaterThan($observed))) {
+                || ($advanceUpdated !== null && CarbonImmutable::parse((string) $advanceUpdated, 'UTC')->greaterThan($observed))
+                || ($purchaseUpdated !== null && CarbonImmutable::parse((string) $purchaseUpdated, 'UTC')->greaterThan($observed))) {
                 $unverifiable[] = (int) $allocation->getKey();
 
                 continue;
