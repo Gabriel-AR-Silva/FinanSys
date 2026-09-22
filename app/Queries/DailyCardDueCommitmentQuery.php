@@ -12,19 +12,24 @@ use Carbon\CarbonImmutable;
 use InvalidArgumentException;
 
 /**
- * Current-state card obligations due on one local day. This is NOT the daily
- * spending total: payment does not create a second expense, and due date alone
- * cannot establish the day of ordinary consumption. Do not feed a check-in
- * until the card recognition/advance contract and as-of history are settled.
+ * Card obligations due on one local day, never an additional consumption total.
+ * Observation mode is conservative: a later edit can move a due date or change
+ * its amount, status, purchase link or classification. Without versions, the
+ * previous state cannot be recovered. Neither mode is a check-in input.
  */
 final class DailyCardDueCommitmentQuery
 {
-    /** @return array{ordinary_due_total:string,installment_ids:list<int>,charge_ids:list<int>,unclassified_count:int,coverage:string} */
-    public function forUserOnDay(User $user, string $localDate): array
+    /** @return array{ordinary_due_total:string,installment_ids:list<int>,charge_ids:list<int>,unclassified_count:int,unverifiable_installment_ids:list<int>,unverifiable_charge_ids:list<int>,coverage:string} */
+    public function forUserOnDay(User $user, string $localDate, ?CarbonImmutable $observedAt = null): array
     {
         $day = CarbonImmutable::createFromFormat('!Y-m-d', $localDate, 'America/Sao_Paulo');
         if ($day === false || $day->format('Y-m-d') !== $localDate) {
             throw new InvalidArgumentException('Informe um dia local válido.');
+        }
+
+        $observed = $observedAt?->utc();
+        if ($observed !== null && $observed->lessThan($day->startOfDay()->utc())) {
+            throw new InvalidArgumentException('Não é possível consultar vencimentos antes do início do dia.');
         }
 
         $excludedStatuses = [CardInstallmentStatus::Advanced, CardInstallmentStatus::Reversed];
@@ -43,12 +48,47 @@ final class DailyCardDueCommitmentQuery
             ->orderBy('id')
             ->get();
 
+        $unverifiableInstallments = [];
+        $unverifiableCharges = [];
+        if ($observed !== null) {
+            $cutoff = $observed->format('Y-m-d H:i:s');
+            // Search across all dates and statuses: a moved or advanced item
+            // must not silently disappear from the previously queried day.
+            $unverifiableInstallments = CardInstallment::query()
+                ->where('user_id', $user->getKey())
+                ->where('created_at', '<=', $cutoff)
+                ->where(function ($query) use ($cutoff): void {
+                    $query->where('updated_at', '>', $cutoff)
+                        ->orWhereHas('purchase', fn ($purchase) => $purchase
+                            ->where('updated_at', '>', $cutoff));
+                })
+                ->orderBy('id')
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->all();
+            $unverifiableCharges = CardCharge::query()
+                ->where('user_id', $user->getKey())
+                ->where('created_at', '<=', $cutoff)
+                ->where('updated_at', '>', $cutoff)
+                ->orderBy('id')
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->all();
+        }
+
         $total = BigDecimal::zero();
         $installmentIds = [];
         $chargeIds = [];
         $unclassified = 0;
 
         foreach ($installments as $installment) {
+            if ($observed !== null && (
+                in_array((int) $installment->getKey(), $unverifiableInstallments, true)
+                || $this->recordedAfter($installment->getRawOriginal('created_at'), $observed)
+                || $this->recordedAfter($installment->purchase->getRawOriginal('created_at'), $observed)
+            )) {
+                continue;
+            }
             if ($installment->purchase->planning_type === null) {
                 $unclassified++;
 
@@ -63,6 +103,12 @@ final class DailyCardDueCommitmentQuery
         }
 
         foreach ($charges as $charge) {
+            if ($observed !== null && (
+                in_array((int) $charge->getKey(), $unverifiableCharges, true)
+                || $this->recordedAfter($charge->getRawOriginal('created_at'), $observed)
+            )) {
+                continue;
+            }
             if ($charge->planning_type === null) {
                 $unclassified++;
 
@@ -81,7 +127,19 @@ final class DailyCardDueCommitmentQuery
             'installment_ids' => $installmentIds,
             'charge_ids' => $chargeIds,
             'unclassified_count' => $unclassified,
-            'coverage' => 'current_card_due_only',
+            'unverifiable_installment_ids' => $unverifiableInstallments,
+            'unverifiable_charge_ids' => $unverifiableCharges,
+            'coverage' => $observed === null
+                ? 'current_card_due_only'
+                : ($unverifiableInstallments === [] && $unverifiableCharges === []
+                    ? 'observed_card_due_without_versioned_history'
+                    : 'partial_card_due_unverifiable_edits'),
         ];
+    }
+
+    private function recordedAfter(mixed $rawTimestamp, CarbonImmutable $observed): bool
+    {
+        return $rawTimestamp !== null
+            && CarbonImmutable::parse((string) $rawTimestamp, 'UTC')->greaterThan($observed);
     }
 }
