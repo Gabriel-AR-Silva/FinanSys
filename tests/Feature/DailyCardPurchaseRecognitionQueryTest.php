@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Enums\ExpensePlanningType;
 use App\Models\CardPurchase;
+use App\Models\CardPurchaseReversal;
 use App\Models\User;
 use App\Queries\DailyCardPurchaseRecognitionQuery;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Tests\TestCase;
 
@@ -37,7 +39,7 @@ class DailyCardPurchaseRecognitionQueryTest extends TestCase
         $this->assertSame('1200.00', $result['ordinary_purchase_total']);
         $this->assertSame([$purchase->id], $result['purchase_ids']);
         $this->assertSame(0, $result['unclassified_count']);
-        $this->assertSame('current_card_purchases_only', $result['coverage']);
+        $this->assertSame('gross_card_purchases_with_recorded_reversals', $result['coverage']);
         $this->assertSame('40.00', $query->forUserOnDay($user, '2026-09-22', CarbonImmutable::parse('2026-09-23T00:00:00Z'))['ordinary_purchase_total']);
     }
 
@@ -57,6 +59,58 @@ class DailyCardPurchaseRecognitionQueryTest extends TestCase
         $this->assertSame([], $before['purchase_ids']);
         $this->assertSame('80.00', $after['ordinary_purchase_total']);
         $this->assertSame([$purchase->id], $after['purchase_ids']);
+    }
+
+    public function test_reversed_purchase_remains_visible_as_original_gross_before_and_after_reversal(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $purchase = CardPurchase::factory()->create([
+            'user_id' => $user->id,
+            'purchased_on' => '2026-09-21',
+            'gross_amount' => '300.00',
+        ]);
+        $purchase->timestamps = false;
+        $purchase->created_at = '2026-09-21 12:00:00';
+        $purchase->deleted_at = '2026-09-22 16:00:00';
+        $purchase->save();
+
+        $reversal = CardPurchaseReversal::query()->create([
+            'user_id' => $user->id,
+            'credit_card_id' => $purchase->credit_card_id,
+            'card_purchase_id' => $purchase->id,
+            'reversed_on' => '2026-09-22',
+            'cancelled_pending_amount' => '200.00',
+            'credited_paid_amount' => '100.00',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+        $reversal->timestamps = false;
+        $reversal->created_at = '2026-09-22 16:00:00';
+        $reversal->save();
+        CardPurchase::factory()->create(['user_id' => $other->id, 'purchased_on' => '2026-09-21', 'gross_amount' => '900.00']);
+
+        $query = app(DailyCardPurchaseRecognitionQuery::class);
+        $before = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T15:00:00Z'));
+        $after = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T17:00:00Z'));
+
+        $this->assertSame('300.00', $before['ordinary_purchase_total']);
+        $this->assertSame([$purchase->id], $before['purchase_ids']);
+        $this->assertSame('300.00', $after['ordinary_purchase_total']);
+        $this->assertSame([$purchase->id], $after['purchase_ids']);
+    }
+
+    public function test_ordinary_soft_deletion_is_visible_before_but_not_after_deletion(): void
+    {
+        $user = User::factory()->create();
+        $purchase = CardPurchase::factory()->create(['user_id' => $user->id, 'purchased_on' => '2026-09-21', 'gross_amount' => '70.00']);
+        $purchase->timestamps = false;
+        $purchase->created_at = '2026-09-21 12:00:00';
+        $purchase->deleted_at = '2026-09-22 16:00:00';
+        $purchase->save();
+
+        $query = app(DailyCardPurchaseRecognitionQuery::class);
+        $this->assertSame('70.00', $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T15:00:00Z'))['ordinary_purchase_total']);
+        $this->assertSame('0.00', $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T17:00:00Z'))['ordinary_purchase_total']);
     }
 
     public function test_soft_deleted_purchase_is_excluded_from_current_state(): void
