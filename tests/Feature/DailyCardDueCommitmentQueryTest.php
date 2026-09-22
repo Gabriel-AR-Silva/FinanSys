@@ -9,7 +9,10 @@ use App\Models\CardInstallment;
 use App\Models\CardPurchase;
 use App\Models\User;
 use App\Queries\DailyCardDueCommitmentQuery;
+use App\Queries\DailyFinancialFactsQuery;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Tests\TestCase;
 
@@ -40,6 +43,38 @@ class DailyCardDueCommitmentQueryTest extends TestCase
         $this->assertSame([$charge->id], $result['charge_ids']);
         $this->assertSame(0, $result['unclassified_count']);
         $this->assertSame('current_card_due_only', $result['coverage']);
+    }
+
+    public function test_observation_flags_moved_due_dates_and_later_charge_edits_without_counting_current_values(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T12:00:00Z'));
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $purchase = CardPurchase::factory()->create(['user_id' => $user->id, 'purchased_on' => '2026-09-21']);
+        $stable = CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $purchase->id, 'due_on' => '2026-09-21', 'gross_amount' => '10.00']);
+        $moved = CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $purchase->id, 'installment_number' => 2, 'due_on' => '2026-09-21', 'gross_amount' => '40.00']);
+        $charge = CardCharge::factory()->create(['user_id' => $user->id, 'due_on' => '2026-09-21', 'amount' => '5.00']);
+        $foreign = CardCharge::factory()->create(['user_id' => $other->id, 'due_on' => '2026-09-21', 'amount' => '999.00']);
+        DB::table('card_installments')->where('id', $moved->id)->update(['due_on' => '2026-09-22', 'updated_at' => '2026-09-23 10:00:00']);
+        DB::table('card_charges')->where('id', $charge->id)->update(['amount' => '500.00', 'updated_at' => '2026-09-23 10:00:00']);
+        DB::table('card_charges')->where('id', $foreign->id)->update(['amount' => '1000.00', 'updated_at' => '2026-09-23 10:00:00']);
+
+        $observed = CarbonImmutable::parse('2026-09-21T16:00:00Z');
+        $query = app(DailyCardDueCommitmentQuery::class);
+        $before = $query->forUserOnDay($user, '2026-09-21', $observed);
+        $newDay = $query->forUserOnDay($user, '2026-09-22', CarbonImmutable::parse('2026-09-22T16:00:00Z'));
+        $after = $query->forUserOnDay($user, '2026-09-22', CarbonImmutable::parse('2026-09-23T11:00:00Z'));
+
+        $this->assertSame('10.00', $before['ordinary_due_total']);
+        $this->assertSame([$stable->id], $before['installment_ids']);
+        $this->assertSame([$moved->id], $before['unverifiable_installment_ids']);
+        $this->assertSame([$charge->id], $before['unverifiable_charge_ids']);
+        $this->assertSame('partial_card_due_unverifiable_edits', $before['coverage']);
+        $this->assertSame('0.00', $newDay['ordinary_due_total']);
+        $this->assertSame([$moved->id], $newDay['unverifiable_installment_ids']);
+        $this->assertSame('40.00', $after['ordinary_due_total']);
+        $this->assertSame([], $after['unverifiable_installment_ids']);
+        $this->assertSame(['due_unverifiable'], app(DailyFinancialFactsQuery::class)->forUserOnDay($user, '2026-09-21', $observed)['coverage_blockers']);
     }
 
     public function test_rejects_invalid_local_date(): void
