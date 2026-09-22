@@ -60,6 +60,16 @@ final class DailyCardPurchaseReversalQuery
                 continue;
             }
 
+            // Reversal amounts are not versioned. A later edit cannot be
+            // reconstructed from the current row for an earlier observation.
+            // MySQL stores DATETIME without an offset; inspect its raw UTC value.
+            $updatedAt = $reversal->getRawOriginal('updated_at');
+            if ($updatedAt !== null && CarbonImmutable::parse((string) $updatedAt, 'UTC')->greaterThan($observed)) {
+                $unverifiable[] = (int) $reversal->getKey();
+
+                continue;
+            }
+
             $cancelled = $cancelled->plus($reversal->cancelled_pending_amount);
             $credited = $credited->plus($reversal->credited_paid_amount);
             $ids[] = (int) $reversal->getKey();
