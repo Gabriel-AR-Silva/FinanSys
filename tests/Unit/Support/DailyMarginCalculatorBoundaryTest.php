@@ -89,4 +89,21 @@ class DailyMarginCalculatorBoundaryTest extends TestCase
             ['date' => '2026-02-29', 'status' => 'pending'],
         ]);
     }
+
+    public function test_accepts_leap_february_29(): void
+    {
+        $result = (new DailyMarginCalculator)->calculate('2028-02', [
+            ['date' => '2028-02-29', 'status' => 'confirmed', 'budget' => '90.00', 'spent' => '80.00'],
+        ]);
+
+        self::assertSame('10.00', $result['days'][0]['margin']);
+        self::assertSame(1, $result['confirmed_days']);
+    }
+
+    public function test_rejects_year_zero_even_with_no_days(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        (new DailyMarginCalculator)->calculate('0000-09', []);
+    }
 }
