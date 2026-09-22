@@ -25,12 +25,12 @@ class DailyOrdinaryLedgerExpenseQueryTest extends TestCase
         $entry = LedgerEntry::factory()->expense()->create([
             'user_id' => $user->id,
             'amount' => '80.00',
-            'occurred_at' => '2026-09-22 02:59:59', // 21/09 23:59:59 in Sao Paulo
+            'occurred_at' => '2026-09-21 23:59:59', // V1 stores Sao Paulo wall-clock DATETIME
         ]);
         LedgerEntry::factory()->expense()->create(['user_id' => $user->id, 'amount' => '9.00', 'planning_type' => ExpensePlanningType::Fixed, 'occurred_at' => '2026-09-21 18:00:00']);
         LedgerEntry::factory()->expense()->create(['user_id' => $user->id, 'amount' => '12.00', 'planning_type' => ExpensePlanningType::Extraordinary, 'occurred_at' => '2026-09-21 18:00:00']);
         LedgerEntry::factory()->expense()->create(['user_id' => $other->id, 'amount' => '999.00', 'occurred_at' => '2026-09-21 18:00:00']);
-        LedgerEntry::factory()->expense()->create(['user_id' => $user->id, 'amount' => '99.00', 'occurred_at' => '2026-09-22 03:00:00']);
+        LedgerEntry::factory()->expense()->create(['user_id' => $user->id, 'amount' => '99.00', 'occurred_at' => '2026-09-22 00:00:00']);
         LedgerEntry::factory()->income()->create(['user_id' => $user->id, 'amount' => '50.00', 'occurred_at' => '2026-09-21 18:00:00']);
         LedgerEntry::factory()->expense()->create(['user_id' => $user->id, 'amount' => '30.00', 'planning_type' => null, 'occurred_at' => '2026-09-21 18:00:00']);
 
@@ -95,7 +95,7 @@ class DailyOrdinaryLedgerExpenseQueryTest extends TestCase
 
         $query = app(DailyOrdinaryLedgerExpenseQuery::class);
         $beforeLink = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T22:00:00Z'));
-        $afterLink = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-23T11:00:00Z'));
+        $afterLink = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-23T14:00:00Z'));
 
         $this->assertSame('50.00', $beforeLink['ordinary_total']);
         $this->assertSame('35.00', $afterLink['ordinary_total']);
@@ -123,7 +123,7 @@ class DailyOrdinaryLedgerExpenseQueryTest extends TestCase
         $query = app(DailyOrdinaryLedgerExpenseQuery::class);
 
         $before = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T22:00:00Z'));
-        $after = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-23T13:00:00Z'));
+        $after = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-23T16:00:00Z'));
 
         $this->assertSame('50.00', $before['ordinary_total']);
         $this->assertSame([$expense->id], $before['entry_ids']);
