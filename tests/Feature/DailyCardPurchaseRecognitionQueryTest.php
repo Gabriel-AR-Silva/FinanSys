@@ -73,6 +73,7 @@ class DailyCardPurchaseRecognitionQueryTest extends TestCase
         ]);
         $purchase->timestamps = false;
         $purchase->created_at = '2026-09-21 12:00:00';
+        $purchase->updated_at = '2026-09-21 12:00:00';
         $purchase->deleted_at = '2026-09-22 16:00:00';
         $purchase->save();
 
@@ -134,6 +135,7 @@ class DailyCardPurchaseRecognitionQueryTest extends TestCase
         $purchase = CardPurchase::factory()->create(['user_id' => $user->id, 'purchased_on' => '2026-09-21', 'gross_amount' => '70.00']);
         $purchase->timestamps = false;
         $purchase->created_at = '2026-09-21 12:00:00';
+        $purchase->updated_at = '2026-09-21 12:00:00';
         $purchase->deleted_at = '2026-09-22 16:00:00';
         $purchase->save();
 
