@@ -19,6 +19,7 @@ class DailyCardPurchaseAuditStateQueryTest extends TestCase
 
     public function test_as_of_revision_moves_purchase_between_days_without_rewriting_earlier_observation(): void
     {
+        $this->travelTo(CarbonImmutable::parse('2026-09-22T09:00:00Z'));
         $user = User::factory()->create();
         $purchase = CardPurchase::factory()->create([
             'user_id' => $user->id,
@@ -27,13 +28,12 @@ class DailyCardPurchaseAuditStateQueryTest extends TestCase
             'planning_type' => ExpensePlanningType::Ordinary,
         ]);
         $recorder = app(AuditRecorder::class);
-        $created = $recorder->record($user, AuditAction::Created, $purchase);
-        AuditLog::query()->whereKey($created->id)->update(['created_at' => '2026-09-22 09:00:00']);
+        $recorder->record($user, AuditAction::Created, $purchase);
 
+        $this->travelTo(CarbonImmutable::parse('2026-09-22T16:00:00Z'));
         $before = $purchase->attributesToArray();
         $purchase->update(['purchased_on' => '2026-09-22', 'gross_amount' => '180.00']);
-        $updated = $recorder->record($user, AuditAction::Updated, $purchase, $before);
-        AuditLog::query()->whereKey($updated->id)->update(['created_at' => '2026-09-22 16:00:00']);
+        $recorder->record($user, AuditAction::Updated, $purchase, $before);
 
         $query = app(DailyCardPurchaseAuditStateQuery::class);
         $early = CarbonImmutable::parse('2026-09-22T12:00:00Z');
