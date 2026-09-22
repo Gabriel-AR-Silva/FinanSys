@@ -60,7 +60,7 @@ class DailyOrdinaryLedgerExpenseQueryTest extends TestCase
         $query = app(DailyOrdinaryLedgerExpenseQuery::class);
 
         $before = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T12:00:00Z'));
-        $after = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::now('UTC')->addMinute());
+        $after = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-23T00:00:00Z'));
 
         $this->assertSame('50.00', $before['ordinary_total']);
         $this->assertSame('35.00', $after['ordinary_total']);
