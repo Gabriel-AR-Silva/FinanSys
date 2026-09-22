@@ -35,8 +35,13 @@ final class DailyCardAdvanceImpactQuery
             ->where('created_at', '<=', $observed)
             ->whereHas('advance', fn ($query) => $query
                 ->where('user_id', $user->getKey())
-                ->whereDate('advanced_on', $localDate)
-                ->where('created_at', '<=', $observed))
+                ->where('created_at', '<=', $observed)
+                ->where(fn ($dated) => $dated
+                    ->whereDate('advanced_on', $localDate)
+                    // The current day may have changed after observation.
+                    // Without a dated origin, retain uncertainty rather than
+                    // silently dropping a moved advance from its old day.
+                    ->orWhere('updated_at', '>', $observed)))
             ->whereHas('installment', fn ($query) => $query->where('user_id', $user->getKey())->whereHas('purchase', fn ($purchase) => $purchase->where('user_id', $user->getKey())))
             ->with(['advance', 'installment.purchase'])
             ->orderBy('id')
