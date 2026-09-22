@@ -49,6 +49,40 @@ class DailyCardPurchaseReversalQueryTest extends TestCase
         $this->assertSame('card_purchase_reversal_events_only', $after['coverage']);
     }
 
+    public function test_later_edit_marks_historical_reversal_unverifiable_without_affecting_other_events_or_users(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T15:00:00Z'));
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $edited = $this->reversal(CardPurchase::factory()->create(['user_id' => $user->id]), '2026-09-21', '30.00', '10.00');
+        $stable = $this->reversal(CardPurchase::factory()->create(['user_id' => $user->id]), '2026-09-21', '5.00', '2.00');
+        $foreign = $this->reversal(CardPurchase::factory()->create(['user_id' => $other->id]), '2026-09-21', '999.00', '999.00');
+
+        $query = app(DailyCardPurchaseReversalQuery::class);
+        $observedBeforeEdit = CarbonImmutable::parse('2026-09-21T15:00:30Z');
+        $original = $query->forUserOnDay($user, '2026-09-21', $observedBeforeEdit);
+        $this->assertSame('35.00', $original['cancelled_pending_total']);
+        $this->assertSame('12.00', $original['credited_paid_total']);
+        $this->assertSame([$edited->id, $stable->id], $original['reversal_ids']);
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T15:02:00Z'));
+        $edited->update(['cancelled_pending_amount' => '80.00', 'credited_paid_amount' => '40.00']);
+
+        $historical = $query->forUserOnDay($user, '2026-09-21', $observedBeforeEdit);
+        $this->assertSame('5.00', $historical['cancelled_pending_total']);
+        $this->assertSame('2.00', $historical['credited_paid_total']);
+        $this->assertSame([$stable->id], $historical['reversal_ids']);
+        $this->assertSame([$edited->id], $historical['unverifiable_reversal_ids']);
+        $this->assertSame('partial_card_purchase_reversal_events', $historical['coverage']);
+
+        $current = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-21T15:02:01Z'));
+        $this->assertSame('85.00', $current['cancelled_pending_total']);
+        $this->assertSame('42.00', $current['credited_paid_total']);
+        $this->assertSame('card_purchase_reversal_events_only', $current['coverage']);
+        $this->assertSame('999.00', $query->forUserOnDay($other, '2026-09-21', $observedBeforeEdit)['credited_paid_total']);
+        $this->assertNotContains($foreign->id, $historical['reversal_ids']);
+    }
+
     public function test_rejects_an_invalid_local_day_and_observation_before_midnight(): void
     {
         $query = app(DailyCardPurchaseReversalQuery::class);
