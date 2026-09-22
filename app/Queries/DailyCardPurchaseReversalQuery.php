@@ -2,6 +2,7 @@
 
 namespace App\Queries;
 
+use App\Models\CardPurchase;
 use App\Models\CardPurchaseReversal;
 use App\Models\User;
 use Brick\Math\BigDecimal;
@@ -16,7 +17,7 @@ use InvalidArgumentException;
  */
 final class DailyCardPurchaseReversalQuery
 {
-    /** @return array{cancelled_pending_total:string,credited_paid_total:string,reversal_ids:list<int>,coverage:string} */
+    /** @return array{cancelled_pending_total:string,credited_paid_total:string,reversal_ids:list<int>,unverifiable_reversal_ids:list<int>,coverage:string} */
     public function forUserOnDay(User $user, string $localDate, ?CarbonImmutable $observedAt = null): array
     {
         $day = CarbonImmutable::createFromFormat('!Y-m-d', $localDate, 'America/Sao_Paulo');
@@ -36,11 +37,29 @@ final class DailyCardPurchaseReversalQuery
             ->orderBy('id')
             ->get();
 
+        // A reversal's user_id alone does not prove that its linked purchase
+        // belongs to the same tenant. Include soft-deleted original purchases:
+        // legitimate reversal actions can soft-delete them.
+        $purchases = CardPurchase::withTrashed()
+            ->whereIn('id', $reversals->pluck('card_purchase_id'))
+            ->get(['id', 'user_id', 'credit_card_id'])
+            ->keyBy('id');
+
         $cancelled = BigDecimal::zero();
         $credited = BigDecimal::zero();
         $ids = [];
+        $unverifiable = [];
 
         foreach ($reversals as $reversal) {
+            $purchase = $purchases->get($reversal->card_purchase_id);
+            if ($purchase === null
+                || (int) $purchase->user_id !== (int) $user->getKey()
+                || (int) $purchase->credit_card_id !== (int) $reversal->credit_card_id) {
+                $unverifiable[] = (int) $reversal->getKey();
+
+                continue;
+            }
+
             $cancelled = $cancelled->plus($reversal->cancelled_pending_amount);
             $credited = $credited->plus($reversal->credited_paid_amount);
             $ids[] = (int) $reversal->getKey();
@@ -50,7 +69,8 @@ final class DailyCardPurchaseReversalQuery
             'cancelled_pending_total' => (string) $cancelled->toScale(2),
             'credited_paid_total' => (string) $credited->toScale(2),
             'reversal_ids' => $ids,
-            'coverage' => 'card_purchase_reversal_events_only',
+            'unverifiable_reversal_ids' => $unverifiable,
+            'coverage' => $unverifiable === [] ? 'card_purchase_reversal_events_only' : 'partial_card_purchase_reversal_events',
         ];
     }
 }
