@@ -8,6 +8,7 @@ use App\Models\ReceiptForecast;
 use App\Models\ReceiptForecastLink;
 use App\Models\User;
 use App\Queries\MonthlyReceiptForecastResidualQuery;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -60,6 +61,25 @@ class MonthlyReceiptForecastResidualQueryTest extends TestCase
 
         $this->assertSame('100.00', $result['pending_total']);
         $this->assertSame('0.00', $result['forecasts'][0]['received']);
+    }
+
+    public function test_composite_foreign_key_rejects_receipts_owned_by_another_user(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $forecast = ReceiptForecast::factory()->for($user)->create(['amount' => '100.00', 'expected_on' => '2026-09-15']);
+        $foreignReceipt = LedgerEntry::factory()->income()->create(['user_id' => $other->id, 'amount' => '40.00']);
+
+        try {
+            ReceiptForecastLink::factory()->create([
+                'user_id' => $user->id,
+                'receipt_forecast_id' => $forecast->id,
+                'ledger_entry_id' => $foreignReceipt->id,
+            ]);
+            $this->fail('The database must reject a receipt belonging to another user.');
+        } catch (QueryException) {
+            $this->assertDatabaseCount('receipt_forecast_links', 0);
+        }
     }
 
     public function test_invalid_month_is_rejected_and_empty_month_is_explicitly_empty(): void
