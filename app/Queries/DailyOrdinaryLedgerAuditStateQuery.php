@@ -92,6 +92,21 @@ final class DailyOrdinaryLedgerAuditStateQuery
             }
         }
 
+        // Creation/update events alone cannot reconstruct a deletion. A row
+        // soft-deleted by the observation cutoff must not remain in the
+        // audited subtotal merely because its last creation snapshot survived.
+        // Ledger timestamps use the same local DATETIME convention as above.
+        $deletedIds = LedgerEntry::withTrashed()
+            ->where('user_id', $user->getKey())
+            ->where('type', LedgerEntryType::Expense)
+            ->where('created_at', '<=', $cutoff)
+            ->whereNotNull('deleted_at')
+            ->where('deleted_at', '<=', $cutoff)
+            ->pluck('id');
+        foreach ($deletedIds as $id) {
+            $invalid[(int) $id] = true;
+        }
+
         $total = BigDecimal::zero();
         $ids = [];
         $unclassified = 0;
