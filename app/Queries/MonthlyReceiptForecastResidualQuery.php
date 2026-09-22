@@ -26,10 +26,13 @@ final class MonthlyReceiptForecastResidualQuery
             throw new InvalidArgumentException('Informe um mês válido no formato AAAA-MM.');
         }
 
+        // Half-open bounds include the final day even when DATE casts are
+        // persisted as DATETIME strings with a midnight time component.
         $forecasts = ReceiptForecast::query()
             ->whereBelongsTo($user)
             ->where('status', '!=', ReceiptForecastStatus::Cancelled)
-            ->whereBetween('expected_on', [$start->toDateString(), $start->endOfMonth()->toDateString()])
+            ->where('expected_on', '>=', $start->toDateString())
+            ->where('expected_on', '<', $start->addMonth()->toDateString())
             ->orderBy('expected_on')
             ->orderBy('id')
             ->get();
