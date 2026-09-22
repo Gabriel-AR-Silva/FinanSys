@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('daily_budget_versions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('actor_id')->constrained('users');
+            $table->foreignId('actor_id')->constrained('users')->cascadeOnDelete();
             $table->decimal('amount', 19, 2);
             // Store UTC instants; interpret the day boundary in America/Sao_Paulo.
             $table->dateTime('effective_at');
