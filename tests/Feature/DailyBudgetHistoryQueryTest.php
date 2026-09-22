@@ -65,11 +65,11 @@ class DailyBudgetHistoryQueryTest extends TestCase
         $selector = new DailyBudgetVersionSelector;
         $this->assertSame(
             ['id' => $before->id, 'amount' => '90.00'],
-            $selector->resolve($user->id, '2026-09-21', '2026-09-22T03:00:00Z', $versions)
+            $selector->resolve($user->id, '2026-09-21', '2026-09-22T03:00:00+00:00', $versions)
         );
         $this->assertSame(
             ['id' => $after->id, 'amount' => '120.00'],
-            $selector->resolveOpenDay($user->id, '2026-09-22', '2026-09-22T03:00:00Z', $versions)
+            $selector->resolveOpenDay($user->id, '2026-09-22', '2026-09-22T03:00:00+00:00', $versions)
         );
     }
 
