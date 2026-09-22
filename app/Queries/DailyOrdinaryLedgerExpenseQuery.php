@@ -71,6 +71,7 @@ final class DailyOrdinaryLedgerExpenseQuery
         foreach ($entries as $entry) {
             if ($entry->planning_type === null) {
                 $unclassified++;
+
                 continue;
             }
             if ($entry->planning_type !== ExpensePlanningType::Ordinary) {
