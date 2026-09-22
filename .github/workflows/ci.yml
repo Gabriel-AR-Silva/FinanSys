@@ -152,6 +152,7 @@ jobs:
           tests/Feature/DailyFinancialTimestampRoundTripTest.php
           tests/Feature/DailyLedgerHistoricalEditCoverageTest.php
           tests/Feature/DailyOrdinaryLedgerAuditStateQueryTest.php
+          tests/Feature/DailyOrdinaryLedgerAuditTypeChangeTest.php
           tests/Feature/DailyCardDueCommitmentQueryTest.php
           tests/Feature/DailyCardAdvanceImpactQueryTest.php
           tests/Feature/DailyCardAdvanceObservationTest.php
