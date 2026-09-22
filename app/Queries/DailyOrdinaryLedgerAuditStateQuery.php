@@ -84,10 +84,10 @@ final class DailyOrdinaryLedgerAuditStateQuery
             $states[$id] = $after;
         }
 
-        // An expense may have moved away from the requested day. Inspect all
-        // existing user expenses, rather than filtering on mutable occurred_at.
+        // An expense may have moved to another date OR changed its type.
+        // Neither occurred_at nor the current type can delimit historical
+        // coverage because both fields are mutable without an audit event.
         $present = LedgerEntry::withTrashed()->where('user_id', $user->getKey())
-            ->where('type', LedgerEntryType::Expense)
             ->where('created_at', '<=', $cutoff)
             ->get(['id', 'updated_at', 'deleted_at']);
         foreach ($present as $entry) {
