@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AuditAction;
 use App\Models\CardPurchase;
 use App\Models\CardPurchaseReversal;
 use App\Models\User;
 use App\Queries\DailyCardPurchaseReversalQuery;
+use App\Support\AuditRecorder;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -62,6 +64,40 @@ class DailyCardReversalMovedDateCoverageTest extends TestCase
         $otherResult = $query->forUserOnDay($other, '2026-09-22', $beforeEdit);
         $this->assertSame('999.00', $otherResult['cancelled_pending_total']);
         $this->assertSame([$foreign->id], $otherResult['reversal_ids']);
+    }
+
+    public function test_unique_valid_creation_audit_excludes_unrelated_days_but_not_original_day(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T15:00:00Z'));
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $moved = $this->reversal(CardPurchase::factory()->create(['user_id' => $user->id]), '2026-09-21', '30.00', '10.00');
+        $untracked = $this->reversal(CardPurchase::factory()->create(['user_id' => $user->id]), '2026-09-21', '5.00', '2.00');
+        $foreign = $this->reversal(CardPurchase::factory()->create(['user_id' => $other->id]), '2026-09-21', '999.00', '999.00');
+        $recorder = app(AuditRecorder::class);
+        $recorder->record($user, AuditAction::Reversed, $moved);
+        $recorder->record($other, AuditAction::Reversed, $foreign);
+
+        DB::table('card_purchase_reversals')->whereIn('id', [$moved->id, $untracked->id])->update([
+            'reversed_on' => '2026-09-22',
+            'updated_at' => '2026-09-22 16:00:00',
+        ]);
+
+        $query = app(DailyCardPurchaseReversalQuery::class);
+        $observation = CarbonImmutable::parse('2026-09-22T15:00:00Z');
+        $original = $query->forUserOnDay($user, '2026-09-21', $observation);
+        $this->assertSame('0.00', $original['cancelled_pending_total']);
+        $this->assertSame([$moved->id, $untracked->id], $original['unverifiable_reversal_ids']);
+
+        $newDay = $query->forUserOnDay($user, '2026-09-22', $observation);
+        $this->assertSame('0.00', $newDay['cancelled_pending_total']);
+        $this->assertSame([$moved->id, $untracked->id], $newDay['unverifiable_reversal_ids']);
+
+        $unrelated = $query->forUserOnDay($user, '2026-09-20', $observation);
+        $this->assertSame('0.00', $unrelated['cancelled_pending_total']);
+        $this->assertSame([$untracked->id], $unrelated['unverifiable_reversal_ids']);
+        $this->assertSame('partial_card_purchase_reversal_events', $unrelated['coverage']);
+        $this->assertSame('999.00', $query->forUserOnDay($other, '2026-09-21', $observation)['cancelled_pending_total']);
     }
 
     private function reversal(CardPurchase $purchase, string $day, string $cancelled, string $credited): CardPurchaseReversal
