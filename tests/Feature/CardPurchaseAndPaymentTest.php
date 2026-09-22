@@ -17,6 +17,7 @@ use App\Queries\AccountBalanceQuery;
 use App\Queries\DailyCardPaymentSettlementQuery;
 use App\Queries\DailyFinancialFactsQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -100,6 +101,16 @@ class CardPurchaseAndPaymentTest extends TestCase
         $this->assertSame([], $settlement['unverifiable_payment_ids']);
         $this->assertEquals(350, app(AccountBalanceQuery::class)->forUser($user)->sole()->balance);
         $this->assertDatabaseMissing('ledger_entries', ['user_id' => $user->id, 'type' => LedgerEntryType::Expense->value]);
+
+        // This file is selected by the MySQL financial regression workflow:
+        // a tampered allocation cannot certify an otherwise linked settlement.
+        DB::table('card_payment_allocations')->where('id', $payment->allocations->first()->id)
+            ->update(['amount' => '99.00']);
+        $invalid = app(DailyFinancialFactsQuery::class)->forUserOnDay($user, '2026-09-09');
+        $this->assertSame('0.00', $invalid['settlement']['settled_total']);
+        $this->assertSame([$payment->id], $invalid['settlement']['unverifiable_payment_ids']);
+        $this->assertContains('settlement_unverifiable', $invalid['coverage_blockers']);
+        $this->assertNull($invalid['eligible_spent']);
     }
 
     public function test_unmatched_card_payment_ledger_is_flagged_without_duplicate_settlement_or_consumption(): void
