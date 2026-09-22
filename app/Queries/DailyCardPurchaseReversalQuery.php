@@ -32,8 +32,16 @@ final class DailyCardPurchaseReversalQuery
 
         $reversals = CardPurchaseReversal::query()
             ->where('user_id', $user->getKey())
-            ->whereDate('reversed_on', $localDate)
             ->where('created_at', '<=', $observed)
+            ->where(function ($query) use ($localDate, $observed) {
+                $query->whereDate('reversed_on', $localDate)
+                    // An edit after observation may have moved the reversal
+                    // away from this day. Without a dated audit, we cannot
+                    // prove its original day: report uncertainty rather than
+                    // silently omitting it. Other-day edits are conservatively
+                    // flagged as well, never included in this day's totals.
+                    ->orWhere('updated_at', '>', $observed);
+            })
             ->orderBy('id')
             ->get();
 
@@ -60,9 +68,9 @@ final class DailyCardPurchaseReversalQuery
                 continue;
             }
 
-            // Reversal amounts are not versioned. A later edit cannot be
-            // reconstructed from the current row for an earlier observation.
-            // MySQL stores DATETIME without an offset; inspect its raw UTC value.
+            // Reversal amounts and dates are not versioned. A later edit
+            // cannot be reconstructed from the current row for an earlier
+            // observation. MySQL DATETIME has no offset: read it as raw UTC.
             $updatedAt = $reversal->getRawOriginal('updated_at');
             if ($updatedAt !== null && CarbonImmutable::parse((string) $updatedAt, 'UTC')->greaterThan($observed)) {
                 $unverifiable[] = (int) $reversal->getKey();
