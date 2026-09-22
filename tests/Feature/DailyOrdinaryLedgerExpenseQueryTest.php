@@ -44,6 +44,7 @@ class DailyOrdinaryLedgerExpenseQueryTest extends TestCase
 
     public function test_reversals_and_linked_refunds_are_not_double_counted(): void
     {
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T18:00:00Z'));
         $user = User::factory()->create();
         $expense = LedgerEntry::factory()->expense()->create(['user_id' => $user->id, 'amount' => '80.00', 'occurred_at' => '2026-09-21 15:00:00', 'created_at' => '2026-09-21 15:00:00']);
         LedgerEntry::factory()->create([
