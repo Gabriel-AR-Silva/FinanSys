@@ -26,6 +26,7 @@ const sections = [
         { label: 'Caixinhas', route: 'pockets.index', icon: PiggyBank },
         { label: 'Lançamentos', route: 'ledger-entries.index', icon: ReceiptText },
         { label: 'Cartões', route: 'credit-cards.index', icon: CreditCard },
+        { label: 'Orçamento diário', route: 'daily-budgets.edit', icon: PiggyBank },
     ] },
     { label: 'Organização', items: [{ label: 'Categorias', route: 'categories.index', icon: Tags }] },
 ];
@@ -85,7 +86,7 @@ watch(mobileNavigationOpen, open => {
             </nav>
             <div class="shrink-0 space-y-3 border-t border-white/10 pt-4">
                 <button type="button" class="flex min-h-11 w-full items-center justify-center rounded-xl bg-emerald-400 px-2.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300" aria-label="Nova movimentação" @click="quickActionOpen = true"><Plus :size="19" /><span v-if="!sidebarCollapsed" class="ml-2">Nova movimentação</span></button>
-                <Link :href="route('profile.edit')" class="flex min-h-11 items-center rounded-xl p-2 text-left text-slate-200 hover:bg-white/10" :class="sidebarCollapsed ? 'justify-center' : 'gap-3'" aria-label="Meu perfil" :title="sidebarCollapsed ? 'Meu perfil' : undefined"><span class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-800 text-xs font-semibold text-emerald-300"><img v-if="avatar && !avatarFailed" :src="avatar" alt="" class="h-full w-full object-cover" @error="avatarFailed = true" /><span v-else>{{ initials }}</span></span><span v-if="!sidebarCollapsed" class="min-w-0"><span class="block truncate text-sm font-medium">{{ user.name }}</span><span class="block truncate text-xs text-slate-400">{{ user.email }}</span></span></Link>
+                <Link :href="route('profile.edit')" class="flex min-h-11 w-full items-center rounded-xl p-2 text-left text-slate-200 hover:bg-white/10" :class="sidebarCollapsed ? 'justify-center' : 'gap-3'" aria-label="Meu perfil" :title="sidebarCollapsed ? 'Meu perfil' : undefined"><span class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-800 text-xs font-semibold text-emerald-300"><img v-if="avatar && !avatarFailed" :src="avatar" alt="" class="h-full w-full object-cover" @error="avatarFailed = true" /><span v-else>{{ initials }}</span></span><span v-if="!sidebarCollapsed" class="min-w-0"><span class="block truncate text-sm font-medium">{{ user.name }}</span><span class="block truncate text-xs text-slate-400">{{ user.email }}</span></span></Link>
                 <button type="button" class="flex min-h-10 w-full items-center rounded-xl px-3 text-sm font-medium text-rose-300 hover:bg-rose-400/10" :class="sidebarCollapsed ? 'justify-center' : 'gap-3'" aria-label="Sair do FinanSys" @click="logout"><LogOut :size="19" /><span v-if="!sidebarCollapsed">Sair</span></button>
             </div>
         </aside>
