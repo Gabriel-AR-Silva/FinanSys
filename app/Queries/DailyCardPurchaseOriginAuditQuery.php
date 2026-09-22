@@ -39,6 +39,9 @@ final class DailyCardPurchaseOriginAuditQuery
             ->orderBy('id')
             ->get();
 
+        // A purchase has only one creation. Do not silently double-count a
+        // replayed or inconsistent creation audit, even if snapshots disagree.
+        $creationCounts = $audits->countBy(fn ($audit): string => (string) $audit->auditable_id);
         $total = BigDecimal::zero();
         $ids = [];
         $unclassified = 0;
@@ -55,6 +58,12 @@ final class DailyCardPurchaseOriginAuditQuery
             // Eloquent serializes immutable_date as ISO UTC; its calendar-date
             // prefix denotes the original date, not an additional transaction.
             if (substr($snapshot['purchased_on'], 0, 10) !== $localDate) {
+                continue;
+            }
+
+            if ($creationCounts[(string) $audit->auditable_id] > 1) {
+                $unverifiable[] = (int) $audit->getKey();
+
                 continue;
             }
 
@@ -93,7 +102,7 @@ final class DailyCardPurchaseOriginAuditQuery
             'purchase_ids' => $ids,
             'unclassified_count' => $unclassified,
             'unverifiable_audit_ids' => $unverifiable,
-            'coverage' => 'audited_card_purchase_creations_only',
+            'coverage' => $unverifiable === [] ? 'audited_card_purchase_creations_only' : 'partial_audited_card_purchase_creations',
         ];
     }
 }
