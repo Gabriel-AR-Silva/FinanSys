@@ -88,4 +88,25 @@ class DailyCardPurchaseAuditStateQueryTest extends TestCase
         $this->assertSame([$legacy->id, $deleted->id], $result['unverifiable_purchase_ids']);
         $this->assertSame('partial_audited_purchase_states', $result['coverage']);
     }
+
+    public function test_unaudited_purchase_moved_to_another_day_keeps_original_day_coverage_partial(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $legacy = CardPurchase::factory()->create(['user_id' => $user->id, 'purchased_on' => '2026-09-21', 'gross_amount' => '75.00']);
+        $legacy->update(['purchased_on' => '2026-09-23', 'gross_amount' => '90.00']);
+        $audited = CardPurchase::factory()->create(['user_id' => $user->id, 'purchased_on' => '2026-09-21', 'gross_amount' => '30.00']);
+        app(AuditRecorder::class)->record($user, AuditAction::Created, $audited);
+        CardPurchase::factory()->create(['user_id' => $other->id, 'purchased_on' => '2026-09-21', 'gross_amount' => '999.00']);
+
+        $query = app(DailyCardPurchaseAuditStateQuery::class);
+        $result = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::now('UTC')->addMinute());
+        $this->assertSame('30.00', $result['ordinary_audited_total']);
+        $this->assertSame([$audited->id], $result['purchase_ids']);
+        $this->assertSame([$legacy->id], $result['unverifiable_purchase_ids']);
+        $this->assertSame('partial_audited_purchase_states', $result['coverage']);
+
+        $otherDay = $query->forUserOnDay($user, '2026-09-23', CarbonImmutable::parse('2026-09-24T04:00:00Z'));
+        $this->assertSame([$legacy->id], $otherDay['unverifiable_purchase_ids']);
+    }
 }
