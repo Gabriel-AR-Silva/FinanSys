@@ -70,6 +70,51 @@ class DailyBudgetVersionSelectorTest extends TestCase
         ]);
     }
 
+    public function test_open_day_reacts_immediately_but_excludes_future_versions(): void
+    {
+        $versions = [
+            $this->version(1, '90.00', '2026-09-20T09:00:00-03:00'),
+            $this->version(2, '120.00', '2026-09-21T15:00:00-03:00'),
+            $this->version(3, '130.00', '2026-09-21T17:00:00-03:00'),
+        ];
+        $selector = new DailyBudgetVersionSelector;
+
+        self::assertSame(['id' => 1, 'amount' => '90.00'], $selector->resolveOpenDay(7, '2026-09-21', '2026-09-21T14:59:59-03:00', $versions));
+        self::assertSame(['id' => 2, 'amount' => '120.00'], $selector->resolveOpenDay(7, '2026-09-21', '2026-09-21T15:00:00-03:00', $versions));
+        self::assertSame(['id' => 3, 'amount' => '130.00'], $selector->resolveOpenDay(7, '2026-09-21', '2026-09-21T17:00:00-03:00', $versions));
+    }
+
+    public function test_open_day_excludes_backfill_not_yet_recorded(): void
+    {
+        $selector = new DailyBudgetVersionSelector;
+        $versions = [$this->version(4, '80.00', '2026-09-20T00:00:00-03:00', '2026-09-21T16:00:00-03:00')];
+
+        self::assertNull($selector->resolveOpenDay(7, '2026-09-21', '2026-09-21T15:00:00-03:00', $versions));
+        self::assertSame(['id' => 4, 'amount' => '80.00'], $selector->resolveOpenDay(7, '2026-09-21', '2026-09-21T16:00:00-03:00', $versions));
+    }
+
+    public function test_open_day_uses_sao_paulo_date_even_when_observed_with_utc_offset(): void
+    {
+        $selector = new DailyBudgetVersionSelector;
+        $versions = [$this->version(1, '90.00', '2026-09-21T08:00:00-03:00')];
+
+        self::assertSame(['id' => 1, 'amount' => '90.00'], $selector->resolveOpenDay(7, '2026-09-21', '2026-09-22T02:59:59+00:00', $versions));
+    }
+
+    public function test_open_day_rejects_observation_after_local_midnight(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        (new DailyBudgetVersionSelector)->resolveOpenDay(7, '2026-09-21', '2026-09-22T03:00:00+00:00', []);
+    }
+
+    public function test_open_day_rejects_observation_before_local_midnight(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        (new DailyBudgetVersionSelector)->resolveOpenDay(7, '2026-09-21', '2026-09-21T02:59:59+00:00', []);
+    }
+
     /** @return array{id:int,user_id:int,amount:string,effective_at:string,recorded_at:string} */
     private function version(int $id, string $amount, string $effectiveAt, ?string $recordedAt = null): array
     {
