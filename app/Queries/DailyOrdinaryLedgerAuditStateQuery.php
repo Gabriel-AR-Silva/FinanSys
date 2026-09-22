@@ -90,8 +90,10 @@ final class DailyOrdinaryLedgerAuditStateQuery
         $present = LedgerEntry::withTrashed()->where('user_id', $user->getKey())
             ->where('created_at', '<=', $cutoff)
             ->get(['id', 'updated_at', 'deleted_at']);
+        $presentIds = [];
         foreach ($present as $entry) {
             $id = (int) $entry->getKey();
+            $presentIds[$id] = true;
             if (! isset($createdIds[$id])) {
                 $invalid[$id] = true;
 
@@ -112,6 +114,15 @@ final class DailyOrdinaryLedgerAuditStateQuery
             // Creation/update events alone cannot reconstruct a deletion.
             $deletedAt = $entry->getRawOriginal('deleted_at');
             if ($deletedAt !== null && $deletedAt <= $cutoff) {
+                $invalid[$id] = true;
+            }
+        }
+
+        // A hard-deleted audited entry has no surviving deletion timestamp.
+        // We cannot establish when it disappeared: mark every observation
+        // with that creation audit partial rather than claiming it is active.
+        foreach ($createdIds as $id => $created) {
+            if (! isset($presentIds[$id])) {
                 $invalid[$id] = true;
             }
         }
