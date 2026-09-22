@@ -13,9 +13,10 @@ use InvalidArgumentException;
 
 /**
  * Card obligations due on one local day, never an additional consumption total.
- * Observation mode is conservative: a later edit can move a due date or change
- * its amount, status, purchase link or classification. Without versions, the
- * previous state cannot be recovered. Neither mode is a check-in input.
+ * Observation mode is conservative: a later edit or soft deletion can move a
+ * due date, hide its purchase, or change its amount, status or classification.
+ * Without versions, the previous state cannot be recovered. Neither mode is
+ * a check-in input.
  */
 final class DailyCardDueCommitmentQuery
 {
@@ -37,8 +38,17 @@ final class DailyCardDueCommitmentQuery
             ->where('user_id', $user->getKey())
             ->whereDate('due_on', $localDate)
             ->whereNotIn('status', $excludedStatuses)
-            ->whereHas('purchase', fn ($query) => $query->where('user_id', $user->getKey()))
-            ->with('purchase')
+            ->whereHas('purchase', function ($query) use ($user, $observed): void {
+                if ($observed !== null) {
+                    $query->withTrashed();
+                }
+                $query->where('user_id', $user->getKey());
+            })
+            ->with(['purchase' => function ($query) use ($observed): void {
+                if ($observed !== null) {
+                    $query->withTrashed();
+                }
+            }])
             ->orderBy('id')
             ->get();
         $charges = CardCharge::query()
@@ -52,15 +62,19 @@ final class DailyCardDueCommitmentQuery
         $unverifiableCharges = [];
         if ($observed !== null) {
             $cutoff = $observed->format('Y-m-d H:i:s');
-            // Search across all dates and statuses: a moved or advanced item
-            // must not silently disappear from the previously queried day.
+            // Search across all dates and statuses: a moved, advanced or
+            // purchase-linked deleted item must not silently disappear.
             $unverifiableInstallments = CardInstallment::query()
                 ->where('user_id', $user->getKey())
                 ->where('created_at', '<=', $cutoff)
                 ->where(function ($query) use ($cutoff): void {
                     $query->where('updated_at', '>', $cutoff)
                         ->orWhereHas('purchase', fn ($purchase) => $purchase
-                            ->where('updated_at', '>', $cutoff));
+                            ->withTrashed()
+                            ->where(function ($purchase) use ($cutoff): void {
+                                $purchase->where('updated_at', '>', $cutoff)
+                                    ->orWhere('deleted_at', '>', $cutoff);
+                            }));
                 })
                 ->orderBy('id')
                 ->pluck('id')
@@ -86,6 +100,7 @@ final class DailyCardDueCommitmentQuery
                 in_array((int) $installment->getKey(), $unverifiableInstallments, true)
                 || $this->recordedAfter($installment->getRawOriginal('created_at'), $observed)
                 || $this->recordedAfter($installment->purchase->getRawOriginal('created_at'), $observed)
+                || $this->recordedOnOrBefore($installment->purchase->getRawOriginal('deleted_at'), $observed)
             )) {
                 continue;
             }
@@ -141,5 +156,11 @@ final class DailyCardDueCommitmentQuery
     {
         return $rawTimestamp !== null
             && CarbonImmutable::parse((string) $rawTimestamp, 'UTC')->greaterThan($observed);
+    }
+
+    private function recordedOnOrBefore(mixed $rawTimestamp, CarbonImmutable $observed): bool
+    {
+        return $rawTimestamp !== null
+            && CarbonImmutable::parse((string) $rawTimestamp, 'UTC')->lessThanOrEqualTo($observed);
     }
 }
