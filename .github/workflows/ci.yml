@@ -149,6 +149,7 @@ jobs:
           tests/Feature/DailyBudgetSnapshotQueryTest.php
           tests/Feature/DailyBudgetEndpointTest.php
           tests/Feature/DailyOrdinaryLedgerExpenseQueryTest.php
+          tests/Feature/DailyFinancialTimestampRoundTripTest.php
           tests/Feature/DailyCardDueCommitmentQueryTest.php
           tests/Feature/DailyCardAdvanceImpactQueryTest.php
           tests/Feature/DailyCardAdvanceObservationTest.php
