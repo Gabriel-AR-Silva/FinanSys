@@ -14,10 +14,12 @@ use InvalidArgumentException;
 /**
  * Card settlements are cash outflows that discharge obligations, not new
  * consumption. This view is never an eligible-spending input. A changed or
- * broken payment/ledger link cannot prove a historical settlement amount.
+ * broken payment/ledger/allocation link cannot prove a settlement amount.
  */
 final class DailyCardPaymentSettlementQuery
 {
+    public function __construct(private DailyCardPaymentAllocationIntegrityQuery $allocations) {}
+
     /** @return array{settled_total:string,payment_ids:list<int>,ledger_entry_ids:list<int>,unverifiable_payment_ids:list<int>,unmatched_ledger_entry_ids:list<int>,coverage:string} */
     public function forUserOnDay(User $user, string $localDate, ?CarbonImmutable $observedAt = null): array
     {
@@ -66,6 +68,15 @@ final class DailyCardPaymentSettlementQuery
                 || (int) $entry->reference_id !== (int) $account->getKey()
                 || substr((string) $entry->getRawOriginal('occurred_at'), 0, 10) !== $payment->paid_on->toDateString()
                 || ! BigDecimal::of($entry->amount)->isEqualTo($payment->amount)) {
+                $unverifiable[] = (int) $payment->getKey();
+
+                continue;
+            }
+
+            // An outflow is not verified when its allocation to obligations is
+            // incomplete, edited after the cutoff, or differs from its amount.
+            // Do not treat either allocation or settlement as daily spending.
+            if ($this->allocations->forPayment($user, $payment, $observed)['coverage'] !== 'card_allocation_amount_verified') {
                 $unverifiable[] = (int) $payment->getKey();
 
                 continue;
