@@ -20,7 +20,7 @@ use InvalidArgumentException;
  */
 final class DailyCardDueCommitmentQuery
 {
-    /** @return array{ordinary_due_total:string,installment_ids:list<int>,charge_ids:list<int>,unclassified_count:int,unverifiable_installment_ids:list<int>,unverifiable_charge_ids:list<int>,coverage:string} */
+    /** @return array{ordinary_due_total:string,fixed_due_total:string,extraordinary_due_total:string,installment_ids:list<int>,charge_ids:list<int>,fixed_installment_ids:list<int>,fixed_charge_ids:list<int>,extraordinary_installment_ids:list<int>,extraordinary_charge_ids:list<int>,unclassified_count:int,unverifiable_installment_ids:list<int>,unverifiable_charge_ids:list<int>,coverage:string} */
     public function forUserOnDay(User $user, string $localDate, ?CarbonImmutable $observedAt = null): array
     {
         $day = CarbonImmutable::createFromFormat('!Y-m-d', $localDate, 'America/Sao_Paulo');
@@ -90,9 +90,17 @@ final class DailyCardDueCommitmentQuery
                 ->all();
         }
 
-        $total = BigDecimal::zero();
+        $totals = [
+            ExpensePlanningType::Ordinary->value => BigDecimal::zero(),
+            ExpensePlanningType::Fixed->value => BigDecimal::zero(),
+            ExpensePlanningType::Extraordinary->value => BigDecimal::zero(),
+        ];
         $installmentIds = [];
         $chargeIds = [];
+        $fixedInstallmentIds = [];
+        $fixedChargeIds = [];
+        $extraordinaryInstallmentIds = [];
+        $extraordinaryChargeIds = [];
         $unclassified = 0;
 
         foreach ($installments as $installment) {
@@ -104,17 +112,18 @@ final class DailyCardDueCommitmentQuery
             )) {
                 continue;
             }
-            if ($installment->purchase->planning_type === null) {
+            $type = $installment->purchase->planning_type;
+            if ($type === null) {
                 $unclassified++;
 
                 continue;
             }
-            if ($installment->purchase->planning_type !== ExpensePlanningType::Ordinary) {
-                continue;
-            }
-
-            $total = $total->plus($installment->gross_amount);
-            $installmentIds[] = (int) $installment->getKey();
+            $totals[$type->value] = $totals[$type->value]->plus($installment->gross_amount);
+            match ($type) {
+                ExpensePlanningType::Ordinary => $installmentIds[] = (int) $installment->getKey(),
+                ExpensePlanningType::Fixed => $fixedInstallmentIds[] = (int) $installment->getKey(),
+                ExpensePlanningType::Extraordinary => $extraordinaryInstallmentIds[] = (int) $installment->getKey(),
+            };
         }
 
         foreach ($charges as $charge) {
@@ -124,23 +133,30 @@ final class DailyCardDueCommitmentQuery
             )) {
                 continue;
             }
-            if ($charge->planning_type === null) {
+            $type = $charge->planning_type;
+            if ($type === null) {
                 $unclassified++;
 
                 continue;
             }
-            if ($charge->planning_type !== ExpensePlanningType::Ordinary) {
-                continue;
-            }
-
-            $total = $total->plus($charge->amount);
-            $chargeIds[] = (int) $charge->getKey();
+            $totals[$type->value] = $totals[$type->value]->plus($charge->amount);
+            match ($type) {
+                ExpensePlanningType::Ordinary => $chargeIds[] = (int) $charge->getKey(),
+                ExpensePlanningType::Fixed => $fixedChargeIds[] = (int) $charge->getKey(),
+                ExpensePlanningType::Extraordinary => $extraordinaryChargeIds[] = (int) $charge->getKey(),
+            };
         }
 
         return [
-            'ordinary_due_total' => (string) $total->toScale(2),
+            'ordinary_due_total' => (string) $totals[ExpensePlanningType::Ordinary->value]->toScale(2),
+            'fixed_due_total' => (string) $totals[ExpensePlanningType::Fixed->value]->toScale(2),
+            'extraordinary_due_total' => (string) $totals[ExpensePlanningType::Extraordinary->value]->toScale(2),
             'installment_ids' => $installmentIds,
             'charge_ids' => $chargeIds,
+            'fixed_installment_ids' => $fixedInstallmentIds,
+            'fixed_charge_ids' => $fixedChargeIds,
+            'extraordinary_installment_ids' => $extraordinaryInstallmentIds,
+            'extraordinary_charge_ids' => $extraordinaryChargeIds,
             'unclassified_count' => $unclassified,
             'unverifiable_installment_ids' => $unverifiableInstallments,
             'unverifiable_charge_ids' => $unverifiableCharges,
