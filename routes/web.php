@@ -46,6 +46,7 @@ Route::get('/dashboard', DashboardController::class)
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/orcamento-diario', [DailyBudgetController::class, 'edit'])->name('daily-budgets.edit');
     Route::post('/orcamento-diario', [DailyBudgetController::class, 'store'])
         ->middleware('throttle:12,1')
         ->name('daily-budgets.store');
@@ -94,7 +95,6 @@ Route::middleware('auth')->group(function () {
         ->parameters(['caixinhas' => 'pocket'])
         ->only(['index', 'store', 'update', 'destroy'])
         ->names('pockets');
-    Route::post('/caixinhas/{pocket}/restauracao', [RestoredPocketController::class, 'store'])->name('pockets.restore');
     Route::resource('lancamentos', LedgerEntryController::class)
         ->parameters(['lancamentos' => 'ledgerEntry'])
         ->only(['index', 'store', 'destroy'])
