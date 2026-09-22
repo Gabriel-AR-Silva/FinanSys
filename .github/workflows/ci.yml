@@ -146,3 +146,5 @@ jobs:
           tests/Feature/CorrectManualLedgerEntryTest.php
           tests/Feature/DailyBudgetVersionTest.php
           tests/Feature/DailyBudgetHistoryQueryTest.php
+          tests/Feature/DailyBudgetSnapshotQueryTest.php
+          tests/Feature/DailyBudgetEndpointTest.php
