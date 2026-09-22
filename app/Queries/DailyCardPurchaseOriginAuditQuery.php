@@ -46,12 +46,15 @@ final class DailyCardPurchaseOriginAuditQuery
 
         foreach ($audits as $audit) {
             $snapshot = $audit->after;
-            if (! is_array($snapshot) || ! isset($snapshot['purchased_on'])) {
+            if (! is_array($snapshot) || ! isset($snapshot['purchased_on']) || ! is_string($snapshot['purchased_on'])
+                || ! preg_match('/\A\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?\z/', $snapshot['purchased_on'])) {
                 $unverifiable[] = (int) $audit->getKey();
 
                 continue;
             }
-            if ($snapshot['purchased_on'] !== $localDate) {
+            // Eloquent serializes immutable_date as ISO UTC; its calendar-date
+            // prefix denotes the original date, not an additional transaction.
+            if (substr($snapshot['purchased_on'], 0, 10) !== $localDate) {
                 continue;
             }
 
