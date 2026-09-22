@@ -34,7 +34,7 @@ class DailyBudgetEndpointTest extends TestCase
             'operation_id' => $operationId,
             'reason' => 'Planejamento',
             'user_id' => $other->id,
-        ])->assertRedirect(route('financial-settings.edit'));
+        ])->assertRedirect(route('daily-budgets.edit'));
 
         $this->assertDatabaseHas('daily_budget_versions', [
             'user_id' => $user->id,
@@ -48,7 +48,7 @@ class DailyBudgetEndpointTest extends TestCase
             'amount' => '90.00',
             'operation_id' => $operationId,
             'reason' => 'Planejamento',
-        ])->assertRedirect(route('financial-settings.edit'));
+        ])->assertRedirect(route('daily-budgets.edit'));
 
         $this->assertDatabaseCount('daily_budget_versions', 1);
         $this->assertSame(1, AuditLog::query()->where('user_id', $user->id)->where('action', AuditAction::Created)->count());
@@ -61,7 +61,7 @@ class DailyBudgetEndpointTest extends TestCase
         $this->actingAs($user)->post(route('daily-budgets.store'), [
             'amount' => '90',
             'operation_id' => $operationId,
-        ])->assertRedirect(route('financial-settings.edit'));
+        ])->assertRedirect(route('daily-budgets.edit'));
 
         $this->post(route('daily-budgets.store'), [
             'amount' => '120',
