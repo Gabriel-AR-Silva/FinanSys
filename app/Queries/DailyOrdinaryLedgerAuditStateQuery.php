@@ -53,10 +53,12 @@ final class DailyOrdinaryLedgerAuditStateQuery
                 $createdIds[$id] = true;
                 if (array_key_exists($id, $states)) {
                     $invalid[$id] = true;
+
                     continue;
                 }
             } elseif (! array_key_exists($id, $states)) {
                 $invalid[$id] = true;
+
                 continue;
             }
 
@@ -73,6 +75,7 @@ final class DailyOrdinaryLedgerAuditStateQuery
                 || (array_key_exists('planning_type', $after) && $after['planning_type'] !== null
                     && ! in_array($after['planning_type'], array_column(ExpensePlanningType::cases(), 'value'), true))) {
                 $invalid[$id] = true;
+
                 continue;
             }
 
@@ -100,6 +103,7 @@ final class DailyOrdinaryLedgerAuditStateQuery
             }
             if (($state['planning_type'] ?? null) === null) {
                 $unclassified++;
+
                 continue;
             }
             if ($state['planning_type'] !== ExpensePlanningType::Ordinary->value) {
