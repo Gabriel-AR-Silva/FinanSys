@@ -15,6 +15,8 @@ use InvalidArgumentException;
  * purchases/installments, card settlements, transfers and fixed/extraordinary
  * expenses. It must NOT be presented as complete daily spending or used to
  * persist a confirmed check-in until the card/coverage adapter is implemented.
+ * The observation cutoff applies to refund links as well as refund entries;
+ * this remains a current-state read, not an immutable historical snapshot.
  */
 final class DailyOrdinaryLedgerExpenseQuery
 {
@@ -49,6 +51,7 @@ final class DailyOrdinaryLedgerExpenseQuery
                 ->where('reversals.created_at', '<=', $observed))
             ->with(['expenseRefunds' => fn ($query) => $query
                 ->where('user_id', $user->getKey())
+                ->where('created_at', '<=', $observed)
                 ->whereHas('refundEntry', fn ($refund) => $refund
                     ->where('user_id', $user->getKey())
                     ->where('type', LedgerEntryType::Refund)
