@@ -52,9 +52,9 @@ class DailyCardAdvanceObservationTest extends TestCase
             'advanced_on' => '2026-09-21',
             'selected_installment_ids' => [$first->id],
             'operation_id' => (string) Str::uuid(),
-            'created_at' => '2026-09-23 10:00:00',
         ]);
-        CardAdvanceAllocation::query()->create([
+        $lateAdvance->forceFill(['created_at' => '2026-09-23 10:00:00'])->save();
+        $firstAllocation = CardAdvanceAllocation::query()->create([
             'user_id' => $user->id,
             'card_advance_id' => $lateAdvance->id,
             'card_installment_id' => $first->id,
@@ -62,8 +62,8 @@ class DailyCardAdvanceObservationTest extends TestCase
             'discount_amount' => '5.00',
             'net_amount' => '95.00',
             'original_due_on' => '2026-11-12',
-            'created_at' => '2026-09-21 17:00:00',
         ]);
+        $firstAllocation->forceFill(['created_at' => '2026-09-21 17:00:00'])->save();
 
         $earlyAdvance = CardAdvance::query()->create([
             'user_id' => $user->id,
@@ -74,9 +74,9 @@ class DailyCardAdvanceObservationTest extends TestCase
             'advanced_on' => '2026-09-21',
             'selected_installment_ids' => [$second->id],
             'operation_id' => (string) Str::uuid(),
-            'created_at' => '2026-09-21 17:00:00',
         ]);
-        CardAdvanceAllocation::query()->create([
+        $earlyAdvance->forceFill(['created_at' => '2026-09-21 17:00:00'])->save();
+        $secondAllocation = CardAdvanceAllocation::query()->create([
             'user_id' => $user->id,
             'card_advance_id' => $earlyAdvance->id,
             'card_installment_id' => $second->id,
@@ -84,8 +84,8 @@ class DailyCardAdvanceObservationTest extends TestCase
             'discount_amount' => '5.00',
             'net_amount' => '95.00',
             'original_due_on' => '2026-12-12',
-            'created_at' => '2026-09-23 10:00:00',
         ]);
+        $secondAllocation->forceFill(['created_at' => '2026-09-23 10:00:00'])->save();
 
         $query = app(DailyCardAdvanceImpactQuery::class);
         $before = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T22:00:00Z'));
@@ -95,7 +95,7 @@ class DailyCardAdvanceObservationTest extends TestCase
         $this->assertSame([], $before['allocation_ids']);
         $this->assertSame('190.00', $after['ordinary_net_advanced']);
         $this->assertSame('200.00', $after['ordinary_future_gross_released']);
-        $this->assertCount(2, $after['allocation_ids']);
+        $this->assertSame([$firstAllocation->id, $secondAllocation->id], $after['allocation_ids']);
     }
 
     public function test_rejects_observation_before_the_local_day(): void
