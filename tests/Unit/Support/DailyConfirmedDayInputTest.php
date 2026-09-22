@@ -10,10 +10,10 @@ class DailyConfirmedDayInputTest extends TestCase
 {
     public function test_builds_confirmed_input_with_the_last_budget_and_explicit_version_reference(): void
     {
-        $input = (new DailyConfirmedDayInput)->build(7, '2026-09-21', '2026-09-22T07:00:00-03:00', '80', [
+        $input = (new DailyConfirmedDayInput)->build(7, '2026-09-21', '2026-09-21T22:00:00-03:00', '80', [
             $this->version(1, '90', '2026-09-20T09:00:00-03:00'),
             $this->version(2, '120', '2026-09-21T15:00:00-03:00'),
-            $this->version(3, '150', '2026-09-22T01:00:00-03:00'),
+            $this->version(3, '150', '2026-09-21T23:00:00-03:00'),
         ]);
 
         self::assertSame([
@@ -49,11 +49,11 @@ class DailyConfirmedDayInputTest extends TestCase
         ]);
     }
 
-    public function test_refuses_unfinished_day_even_with_known_budget(): void
+    public function test_refuses_confirmation_before_the_local_day_begins(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        (new DailyConfirmedDayInput)->build(7, '2026-09-21', '2026-09-21T23:00:00-03:00', '0.00', [
+        (new DailyConfirmedDayInput)->build(7, '2026-09-21', '2026-09-20T23:00:00-03:00', '0.00', [
             $this->version(1, '90.00', '2026-09-20T09:00:00-03:00'),
         ]);
     }
