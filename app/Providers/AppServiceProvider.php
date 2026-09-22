@@ -17,6 +17,7 @@ use App\Models\CardPurchase;
 use App\Models\CardPurchaseReversal;
 use App\Models\Category;
 use App\Models\CreditCard;
+use App\Models\DailyBudgetVersion;
 use App\Models\EssentialBudget;
 use App\Models\ExpenseRefund;
 use App\Models\LedgerEntry;
@@ -76,6 +77,7 @@ class AppServiceProvider extends ServiceProvider
             'ledger_entry' => LedgerEntry::class,
             'social_identity' => SocialIdentity::class,
             'monthly_financial_setting' => MonthlyFinancialSetting::class,
+            'daily_budget_version' => DailyBudgetVersion::class,
             'essential_budget' => EssentialBudget::class,
             'expense_refund' => ExpenseRefund::class,
             'receipt_forecast' => ReceiptForecast::class,
