@@ -17,7 +17,7 @@ use InvalidArgumentException;
  */
 final class DailyCardPaymentAllocationIntegrityQuery
 {
-    /** @return array{allocated_total:string,installment_allocation_ids:list<int>,charge_allocation_ids:list<int>,unverifiable_allocation_ids:list<int>,coverage:string} */
+    /** @return array{allocated_total:string,installment_allocation_ids:list<int>,charge_allocation_ids:list<int>,unverifiable_allocation_ids:list<string>,coverage:string} */
     public function forPayment(User $user, CardPayment $payment, CarbonImmutable $observedAt): array
     {
         if ((int) $payment->user_id !== (int) $user->getKey()) {
@@ -29,6 +29,13 @@ final class DailyCardPaymentAllocationIntegrityQuery
         $installmentIds = [];
         $chargeIds = [];
         $unverifiable = [];
+
+        // A current payment amount cannot validate a past distribution if the
+        // payment itself was created or edited after the observation instant.
+        if ($this->recordedAfter($payment->getRawOriginal('created_at'), $observed)
+            || $this->recordedAfter($payment->getRawOriginal('updated_at'), $observed)) {
+            $unverifiable[] = 'payment:'.$payment->getKey();
+        }
 
         foreach ([
             'installment' => CardPaymentAllocation::query(),
