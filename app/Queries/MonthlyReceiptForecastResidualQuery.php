@@ -5,10 +5,12 @@ namespace App\Queries;
 use App\Actions\RecalculateReceiptForecast;
 use App\Enums\ReceiptForecastStatus;
 use App\Models\ReceiptForecast;
+use App\Models\ReceiptForecastLink;
 use App\Models\User;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
 use InvalidArgumentException;
+use UnexpectedValueException;
 
 /**
  * Read-only, current-state residual of expected receipts in a local month.
@@ -41,6 +43,18 @@ final class MonthlyReceiptForecastResidualQuery
         $items = [];
 
         foreach ($forecasts as $forecast) {
+            // Older or manually imported references might bypass the V1 action's
+            // ownership check. Never count a foreign or missing ledger entry.
+            $invalidLink = ReceiptForecastLink::query()
+                ->whereBelongsTo($user)
+                ->whereBelongsTo($forecast, 'forecast')
+                ->whereNull('unlinked_at')
+                ->whereDoesntHave('ledgerEntry', fn ($query) => $query->whereBelongsTo($user))
+                ->exists();
+            if ($invalidLink) {
+                throw new UnexpectedValueException('Inconsistent receipt forecast linkage.');
+            }
+
             $progress = $this->recalculateForecast->calculate($user, $forecast);
             $pendingTotal = $pendingTotal->plus($progress['pending']);
             $items[] = [
