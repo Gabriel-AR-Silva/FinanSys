@@ -15,6 +15,7 @@ use App\Models\LedgerEntry;
 use App\Models\User;
 use App\Queries\AccountBalanceQuery;
 use App\Queries\DailyCardPaymentSettlementQuery;
+use App\Queries\DailyFinancialFactsQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -99,6 +100,35 @@ class CardPurchaseAndPaymentTest extends TestCase
         $this->assertSame([], $settlement['unverifiable_payment_ids']);
         $this->assertEquals(350, app(AccountBalanceQuery::class)->forUser($user)->sole()->balance);
         $this->assertDatabaseMissing('ledger_entries', ['user_id' => $user->id, 'type' => LedgerEntryType::Expense->value]);
+    }
+
+    public function test_unmatched_card_payment_ledger_is_flagged_without_duplicate_settlement_or_consumption(): void
+    {
+        [$user, $card, $category] = $this->cardContext();
+        $account = $this->fundedAccount($user, '500.00');
+        app(CreateCardPurchase::class)->handle($user, $this->purchasePayload($card, $category, [
+            'purchased_on' => '2026-08-01', 'first_due_on' => '2026-08-12',
+        ]));
+        $payment = app(PayCreditCard::class)->handle($user, $this->paymentPayload($card, $account, '150.00'));
+        $orphan = LedgerEntry::factory()->create([
+            'user_id' => $user->id,
+            'reference_type' => $account->getMorphClass(),
+            'reference_id' => $account->id,
+            'type' => LedgerEntryType::CardPayment,
+            'planning_type' => null,
+            'amount' => '7.00',
+            'occurred_at' => '2026-09-09 10:00:00',
+        ]);
+
+        $facts = app(DailyFinancialFactsQuery::class)->forUserOnDay($user, '2026-09-09');
+
+        $this->assertSame('150.00', $facts['settlement']['settled_total']);
+        $this->assertSame([$payment->id], $facts['settlement']['payment_ids']);
+        $this->assertSame([$payment->ledger_entry_id], $facts['settlement']['ledger_entry_ids']);
+        $this->assertSame([$orphan->id], $facts['settlement']['unmatched_ledger_entry_ids']);
+        $this->assertContains('settlement_unmatched_ledger', $facts['coverage_blockers']);
+        $this->assertSame('0.00', $facts['ledger']['ordinary_total']);
+        $this->assertNull($facts['eligible_spent']);
     }
 
     public function test_payment_replay_and_rejections_never_duplicate_cash_or_allocations(): void
