@@ -100,9 +100,10 @@ class DailyCardDueCommitmentQueryTest extends TestCase
         $after = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-23T11:00:00Z'));
         $current = $query->forUserOnDay($user, '2026-09-21');
 
-        $this->assertSame('30.00', $before['ordinary_due_total']);
-        $this->assertSame([$stable->id, $earlier->id], $before['installment_ids']);
-        $this->assertSame([$removed->id], $before['unverifiable_installment_ids']);
+        $this->assertSame('10.00', $before['ordinary_due_total']);
+        $this->assertSame([$stable->id], $before['installment_ids']);
+        $this->assertSame([$removed->id, $earlier->id], $before['unverifiable_installment_ids']);
+        $this->assertSame('partial_card_due_unverifiable_edits', $before['coverage']);
         $this->assertSame('10.00', $partial['ordinary_due_total']);
         $this->assertSame([$stable->id], $partial['installment_ids']);
         $this->assertSame([$removed->id], $partial['unverifiable_installment_ids']);
