@@ -11,14 +11,13 @@ use InvalidArgumentException;
 
 /**
  * Read-only, current-state view of advances executed on one local date.
- * An observation cutoff excludes advances and allocations recorded later, but
- * mutable purchase classifications mean this is NOT a historical snapshot.
- * This is a commitment-timing adjustment, NOT ordinary daily spending.
- * Never add it to a check-in automatically.
+ * An observation cutoff excludes records created later and flags subsequent
+ * allocation/advance edits. Mutable purchase classifications mean this is NOT
+ * a historical snapshot or ordinary daily spending. Never add to a check-in.
  */
 final class DailyCardAdvanceImpactQuery
 {
-    /** @return array{ordinary_net_advanced:string,ordinary_future_gross_released:string,allocation_ids:list<int>,unclassified_count:int,coverage:string} */
+    /** @return array{ordinary_net_advanced:string,ordinary_future_gross_released:string,allocation_ids:list<int>,unverifiable_allocation_ids:list<int>,unclassified_count:int,coverage:string} */
     public function forUserOnDay(User $user, string $localDate, ?CarbonImmutable $observedAt = null): array
     {
         $day = CarbonImmutable::createFromFormat('!Y-m-d', $localDate, 'America/Sao_Paulo');
@@ -39,16 +38,29 @@ final class DailyCardAdvanceImpactQuery
                 ->whereDate('advanced_on', $localDate)
                 ->where('created_at', '<=', $observed))
             ->whereHas('installment', fn ($query) => $query->where('user_id', $user->getKey())->whereHas('purchase', fn ($purchase) => $purchase->where('user_id', $user->getKey())))
-            ->with('installment.purchase')
+            ->with(['advance', 'installment.purchase'])
             ->orderBy('id')
             ->get();
 
         $net = BigDecimal::zero();
         $released = BigDecimal::zero();
         $ids = [];
+        $unverifiable = [];
         $unclassified = 0;
 
         foreach ($allocations as $allocation) {
+            // Both rows are mutable. A later edit to the allocation amount or
+            // its advance can invalidate an earlier view. DATETIME stores raw
+            // UTC values without a timezone; do not use the cast timezone.
+            $allocationUpdated = $allocation->getRawOriginal('updated_at');
+            $advanceUpdated = $allocation->advance->getRawOriginal('updated_at');
+            if (($allocationUpdated !== null && CarbonImmutable::parse((string) $allocationUpdated, 'UTC')->greaterThan($observed))
+                || ($advanceUpdated !== null && CarbonImmutable::parse((string) $advanceUpdated, 'UTC')->greaterThan($observed))) {
+                $unverifiable[] = (int) $allocation->getKey();
+
+                continue;
+            }
+
             $type = $allocation->installment->purchase->planning_type;
             if ($type === null) {
                 $unclassified++;
@@ -68,8 +80,9 @@ final class DailyCardAdvanceImpactQuery
             'ordinary_net_advanced' => (string) $net->toScale(2),
             'ordinary_future_gross_released' => (string) $released->toScale(2),
             'allocation_ids' => $ids,
+            'unverifiable_allocation_ids' => $unverifiable,
             'unclassified_count' => $unclassified,
-            'coverage' => 'current_card_advance_timing_only',
+            'coverage' => $unverifiable === [] ? 'current_card_advance_timing_only' : 'partial_card_advance_timing_unverifiable_edits',
         ];
     }
 }
