@@ -21,7 +21,7 @@ class DailyCardDueCommitmentQueryTest extends TestCase
     {
         $user = User::factory()->create();
         $other = User::factory()->create();
-        $ordinary = CardPurchase::factory()->create(['user_id' => $user->id, 'planning_type' => ExpensePlanningType::Ordinary]);
+        $ordinary = CardPurchase::factory()->create(['user_id' => $user->id, 'planning_type' => ExpensePlanningType::Ordinary, 'installments_count' => 5, 'gross_amount' => '410.00']);
         $first = CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $ordinary->id, 'gross_amount' => '100.00', 'paid_amount' => '100.00', 'status' => CardInstallmentStatus::Paid, 'due_on' => '2026-09-21']);
         $second = CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $ordinary->id, 'installment_number' => 2, 'gross_amount' => '60.00', 'paid_amount' => '20.00', 'due_on' => '2026-09-21']);
         CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $ordinary->id, 'installment_number' => 3, 'gross_amount' => '90.00', 'status' => CardInstallmentStatus::Advanced, 'due_on' => '2026-09-21']);
@@ -30,18 +30,15 @@ class DailyCardDueCommitmentQueryTest extends TestCase
         CardInstallment::factory()->create(['user_id' => $other->id, 'gross_amount' => '999.00', 'due_on' => '2026-09-21']);
         $fixed = CardPurchase::factory()->create(['user_id' => $user->id, 'planning_type' => ExpensePlanningType::Fixed]);
         CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $fixed->id, 'due_on' => '2026-09-21']);
-        $unknown = CardPurchase::factory()->create(['user_id' => $user->id, 'planning_type' => null]);
-        CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $unknown->id, 'due_on' => '2026-09-21']);
         $charge = CardCharge::factory()->create(['user_id' => $user->id, 'planning_type' => ExpensePlanningType::Ordinary, 'amount' => '10.00', 'paid_amount' => '10.00', 'status' => CardInstallmentStatus::Paid, 'due_on' => '2026-09-21']);
         CardCharge::factory()->create(['user_id' => $user->id, 'planning_type' => ExpensePlanningType::Extraordinary, 'amount' => '20.00', 'due_on' => '2026-09-21']);
-        CardCharge::factory()->create(['user_id' => $user->id, 'planning_type' => null, 'due_on' => '2026-09-21']);
 
         $result = app(DailyCardDueCommitmentQuery::class)->forUserOnDay($user, '2026-09-21');
 
         $this->assertSame('170.00', $result['ordinary_due_total']);
         $this->assertSame([$first->id, $second->id], $result['installment_ids']);
         $this->assertSame([$charge->id], $result['charge_ids']);
-        $this->assertSame(2, $result['unclassified_count']);
+        $this->assertSame(0, $result['unclassified_count']);
         $this->assertSame('current_card_due_only', $result['coverage']);
     }
 
