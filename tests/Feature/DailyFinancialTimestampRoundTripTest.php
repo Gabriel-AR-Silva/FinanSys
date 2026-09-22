@@ -23,7 +23,7 @@ class DailyFinancialTimestampRoundTripTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_real_manual_writer_exposes_timestamp_mismatch_that_blocks_daily_confirmation(): void
+    public function test_manual_expense_is_visible_after_recording_across_local_midnight(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-22T02:59:59+00:00'));
         $user = User::factory()->create();
@@ -49,9 +49,7 @@ class DailyFinancialTimestampRoundTripTest extends TestCase
             ->where('action', AuditAction::Created->value)->firstOrFail();
         $auditRaw = DB::table('audit_logs')->where('id', $audit->id)->value('created_at');
 
-        // V1 stores the local date at naive 00:00; the V2 query currently
-        // compares the column against UTC 03:00. Do not assert that the
-        // missing expense is legitimate or enable check-in from this query.
+        // V1 persists offset-free Sao Paulo wall-clock DATETIME values.
         $this->assertSame('2026-09-21 00:00:00', $raw->occurred_at);
         $this->assertSame('2026-09-21 23:59:59', $raw->created_at);
         $this->assertSame('2026-09-21 23:59:59', $auditRaw);
@@ -61,8 +59,9 @@ class DailyFinancialTimestampRoundTripTest extends TestCase
         $after = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T03:00:00+00:00'));
 
         $this->assertSame('0.00', $before['ordinary_total']);
-        $this->assertSame('0.00', $after['ordinary_total']);
-        $this->assertSame([], $after['entry_ids']);
-        $this->assertDatabaseHas('ledger_entries', ['id' => $entry->id, 'amount' => '80.00']);
+        $this->assertSame([], $before['entry_ids']);
+        $this->assertSame('80.00', $after['ordinary_total']);
+        $this->assertSame([$entry->id], $after['entry_ids']);
+        $this->assertSame('ledger_only', $after['coverage']);
     }
 }
