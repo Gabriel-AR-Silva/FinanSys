@@ -95,6 +95,8 @@ Route::middleware('auth')->group(function () {
         ->parameters(['caixinhas' => 'pocket'])
         ->only(['index', 'store', 'update', 'destroy'])
         ->names('pockets');
+    Route::post('/caixinhas/{pocket}/restauracao', [RestoredPocketController::class, 'store'])
+        ->name('pockets.restore');
     Route::resource('lancamentos', LedgerEntryController::class)
         ->parameters(['lancamentos' => 'ledgerEntry'])
         ->only(['index', 'store', 'destroy'])
