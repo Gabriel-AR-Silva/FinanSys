@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Queries\DailyCardAdvanceImpactQuery;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -96,6 +97,78 @@ class DailyCardAdvanceObservationTest extends TestCase
         $this->assertSame('190.00', $after['ordinary_net_advanced']);
         $this->assertSame('200.00', $after['ordinary_future_gross_released']);
         $this->assertSame([$firstAllocation->id, $secondAllocation->id], $after['allocation_ids']);
+    }
+
+    public function test_later_allocation_or_advance_edit_is_not_counted_as_historical_amount(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T16:00:00Z'));
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $query = app(DailyCardAdvanceImpactQuery::class);
+        $create = function (User $owner, string $amount): array {
+            $purchase = CardPurchase::factory()->create(['user_id' => $owner->id, 'planning_type' => ExpensePlanningType::Ordinary]);
+            $installment = CardInstallment::factory()->create([
+                'user_id' => $owner->id,
+                'card_purchase_id' => $purchase->id,
+                'status' => CardInstallmentStatus::Advanced,
+                'gross_amount' => $amount,
+                'due_on' => '2026-11-12',
+            ]);
+            $advance = CardAdvance::query()->create([
+                'user_id' => $owner->id,
+                'credit_card_id' => $purchase->credit_card_id,
+                'gross_amount' => $amount,
+                'discount_amount' => '0.00',
+                'net_amount' => $amount,
+                'advanced_on' => '2026-09-21',
+                'selected_installment_ids' => [$installment->id],
+                'operation_id' => (string) Str::uuid(),
+            ]);
+            $allocation = CardAdvanceAllocation::query()->create([
+                'user_id' => $owner->id,
+                'card_advance_id' => $advance->id,
+                'card_installment_id' => $installment->id,
+                'gross_amount' => $amount,
+                'discount_amount' => '0.00',
+                'net_amount' => $amount,
+                'original_due_on' => '2026-11-12',
+            ]);
+
+            return [$advance, $allocation];
+        };
+
+        [$editedAdvance, $editedAllocation] = $create($user, '30.00');
+        [$changedAdvance, $advanceAllocation] = $create($user, '20.00');
+        [, $stableAllocation] = $create($user, '5.00');
+        [, $otherAllocation] = $create($other, '999.00');
+        $observed = CarbonImmutable::parse('2026-09-22T15:00:00Z');
+        $this->assertSame('55.00', $query->forUserOnDay($user, '2026-09-21', $observed)['ordinary_net_advanced']);
+
+        DB::table('card_advance_allocations')->where('id', $editedAllocation->id)->update([
+            'net_amount' => '80.00',
+            'gross_amount' => '80.00',
+            'updated_at' => '2026-09-22 16:00:00',
+        ]);
+        DB::table('card_advances')->where('id', $changedAdvance->id)->update([
+            'discount_amount' => '1.00',
+            'updated_at' => '2026-09-22 16:00:00',
+        ]);
+
+        $historical = $query->forUserOnDay($user, '2026-09-21', $observed);
+        $this->assertSame('5.00', $historical['ordinary_net_advanced']);
+        $this->assertSame('5.00', $historical['ordinary_future_gross_released']);
+        $this->assertSame([$stableAllocation->id], $historical['allocation_ids']);
+        $this->assertSame([$editedAllocation->id, $advanceAllocation->id], $historical['unverifiable_allocation_ids']);
+        $this->assertSame('partial_card_advance_timing_unverifiable_edits', $historical['coverage']);
+
+        $current = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T16:00:01Z'));
+        $this->assertSame('105.00', $current['ordinary_net_advanced']);
+        $this->assertSame('105.00', $current['ordinary_future_gross_released']);
+        $this->assertSame([], $current['unverifiable_allocation_ids']);
+        $this->assertSame('current_card_advance_timing_only', $current['coverage']);
+        $this->assertSame('999.00', $query->forUserOnDay($other, '2026-09-21', $observed)['ordinary_net_advanced']);
+        $this->assertNotContains($otherAllocation->id, $historical['allocation_ids']);
+        $this->assertSame($editedAdvance->id, $editedAllocation->card_advance_id);
     }
 
     public function test_rejects_observation_before_the_local_day(): void
