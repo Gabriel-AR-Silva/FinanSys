@@ -19,6 +19,17 @@ class DailyBudgetVersionSelectorTest extends TestCase
         self::assertSame(['id' => 2, 'amount' => '120.00'], $selected);
     }
 
+    public function test_explicit_check_in_at_22h_uses_only_versions_available_by_then(): void
+    {
+        $selected = (new DailyBudgetVersionSelector)->resolve(7, '2026-09-21', '2026-09-21T22:00:00-03:00', [
+            $this->version(1, '90.00', '2026-09-20T09:00:00-03:00'),
+            $this->version(2, '120.00', '2026-09-21T15:00:00-03:00'),
+            $this->version(3, '150.00', '2026-09-21T23:00:00-03:00'),
+        ]);
+
+        self::assertSame(['id' => 2, 'amount' => '120.00'], $selected);
+    }
+
     public function test_earlier_day_keeps_its_original_budget(): void
     {
         $selected = (new DailyBudgetVersionSelector)->resolve(7, '2026-09-20', '2026-09-22T07:00:00-03:00', [
@@ -45,11 +56,11 @@ class DailyBudgetVersionSelectorTest extends TestCase
         self::assertSame(['id' => 4, 'amount' => '80.00'], $selector->resolve(7, '2026-09-19', '2026-09-23T11:00:00-03:00', [$backfill]));
     }
 
-    public function test_refuses_check_in_before_the_day_ends_in_sao_paulo(): void
+    public function test_refuses_check_in_before_the_day_begins_in_sao_paulo(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        (new DailyBudgetVersionSelector)->resolve(7, '2026-09-21', '2026-09-21T23:59:59-03:00', []);
+        (new DailyBudgetVersionSelector)->resolve(7, '2026-09-21', '2026-09-20T23:59:59-03:00', []);
     }
 
     public function test_refuses_cross_user_version_instead_of_leaking_its_amount(): void
