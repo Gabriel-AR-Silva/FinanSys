@@ -13,8 +13,9 @@ use InvalidArgumentException;
 
 /**
  * Read-only reconstruction from recorded purchase creation/update audits only.
- * This is not complete card spending: unaudited legacy purchases moved to a
- * different day, reversals, deletions and linked credits need reconciliation.
+ * This is not complete card spending: reversals, deletions and linked credits
+ * still require reconciliation. Unverifiable IDs are user-wide, not day-only,
+ * because an unaudited purchase may have been moved away from its original day.
  */
 final class DailyCardPurchaseAuditStateQuery
 {
@@ -74,11 +75,11 @@ final class DailyCardPurchaseAuditStateQuery
             $states[$id] = $after;
         }
 
-        // Detect missing creation snapshots without trusting mutable amounts.
-        // Purchases later moved away from this day are not discoverable here.
+        // Do not scope to the mutable purchased_on: an unaudited purchase may
+        // have been moved to a different day. Conservatively mark the entire
+        // historical coverage partial until its creation can be verified.
         $presentIds = CardPurchase::withTrashed()
             ->where('user_id', $user->getKey())
-            ->whereDate('purchased_on', $localDate)
             ->where('created_at', '<=', $observed)
             ->pluck('id');
         foreach ($presentIds as $id) {
