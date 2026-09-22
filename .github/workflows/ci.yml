@@ -155,6 +155,7 @@ jobs:
           tests/Feature/DailyOrdinaryLedgerAuditTypeChangeTest.php
           tests/Feature/DailyLedgerHardDeleteCoverageTest.php
           tests/Feature/DailyCardDueCommitmentQueryTest.php
+          tests/Feature/DailyCardDueClassificationTest.php
           tests/Feature/DailyCardAdvanceImpactQueryTest.php
           tests/Feature/DailyCardAdvanceObservationTest.php
           tests/Feature/DailyCardPurchaseRecognitionQueryTest.php
