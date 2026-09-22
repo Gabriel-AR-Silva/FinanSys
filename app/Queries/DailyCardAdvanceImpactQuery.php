@@ -12,8 +12,8 @@ use InvalidArgumentException;
 /**
  * Read-only, current-state view of advances executed on one local date.
  * An observation cutoff excludes records created later and flags subsequent
- * allocation/advance/purchase edits or purchase deletion. This is NOT a
- * historical snapshot or ordinary daily spending. Never add to a check-in.
+ * allocation/advance/installment/purchase edits or purchase deletion. This is
+ * NOT a historical snapshot or ordinary daily spending. Never add to a check-in.
  */
 final class DailyCardAdvanceImpactQuery
 {
@@ -67,15 +67,17 @@ final class DailyCardAdvanceImpactQuery
                 continue;
             }
 
-            // All three rows can change after an observation. In particular,
-            // current purchase planning_type cannot classify an earlier
-            // advance if the purchase was edited later. DATETIME stores raw
-            // UTC values without an offset: do not use cast timezones here.
+            // All four rows can change after an observation. In particular,
+            // a later installment reassignment can change which purchase
+            // classifies the advance. DATETIME stores raw UTC values without
+            // an offset: do not use cast timezones here.
             $allocationUpdated = $allocation->getRawOriginal('updated_at');
             $advanceUpdated = $allocation->advance->getRawOriginal('updated_at');
+            $installmentUpdated = $allocation->installment->getRawOriginal('updated_at');
             $purchaseUpdated = $purchase->getRawOriginal('updated_at');
             if (($allocationUpdated !== null && CarbonImmutable::parse((string) $allocationUpdated, 'UTC')->greaterThan($observed))
                 || ($advanceUpdated !== null && CarbonImmutable::parse((string) $advanceUpdated, 'UTC')->greaterThan($observed))
+                || ($installmentUpdated !== null && CarbonImmutable::parse((string) $installmentUpdated, 'UTC')->greaterThan($observed))
                 || ($purchaseUpdated !== null && CarbonImmutable::parse((string) $purchaseUpdated, 'UTC')->greaterThan($observed))) {
                 $unverifiable[] = (int) $allocation->getKey();
 
