@@ -19,7 +19,7 @@ class DailyCardPaymentSettlementQueryTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_verified_settlements_are_separate_from_ordinary_expenses_and_broken_or_edited_links_are_flagged(): void
+    public function test_unallocated_settlements_remain_separate_from_expenses_and_broken_or_edited_links_are_flagged(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-21T12:00:00Z'));
         $user = User::factory()->create();
@@ -114,10 +114,11 @@ class DailyCardPaymentSettlementQueryTest extends TestCase
 
         $this->assertSame('12.00', $facts['ledger']['ordinary_total']);
         $this->assertSame([$expense->id], $facts['ledger']['entry_ids']);
-        $this->assertSame('30.00', $settlement['settled_total']);
-        $this->assertSame([$stable->id], $settlement['payment_ids']);
-        $this->assertSame([$stableEntry->id], $settlement['ledger_entry_ids']);
-        $this->assertSame([$edited->id, $broken->id], $settlement['unverifiable_payment_ids']);
+        // A matching ledger entry without allocations is not verified cash settlement.
+        $this->assertSame('0.00', $settlement['settled_total']);
+        $this->assertSame([], $settlement['payment_ids']);
+        $this->assertSame([], $settlement['ledger_entry_ids']);
+        $this->assertSame([$stable->id, $edited->id, $broken->id], $settlement['unverifiable_payment_ids']);
         $this->assertSame('partial_card_settlement_unverifiable_links', $settlement['coverage']);
         $this->assertSame(['settlement_unverifiable'], $facts['coverage_blockers']);
         $this->assertNull($facts['eligible_spent']);
