@@ -6,9 +6,10 @@ use Brick\Math\BigDecimal;
 use InvalidArgumentException;
 
 /**
- * Pure D2 boundary for an explicit check-in after the local day has ended.
+ * Pure D2 boundary for an explicit check-in, including before local midnight.
  * The caller must supply a reconciled, eligible spend amount; this class
  * neither selects ledger facts nor records consent, history or a check-in.
+ * Later expenses require an explicit correction of a persisted snapshot.
  */
 final class DailyConfirmedDayInput
 {
