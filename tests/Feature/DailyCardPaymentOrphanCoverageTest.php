@@ -52,10 +52,10 @@ class DailyCardPaymentOrphanCoverageTest extends TestCase
         $this->assertSame(['settlement_unverifiable'], $before['coverage_blockers']);
         $this->assertNull($before['eligible_spent']);
 
-        // A payment created after observation cannot retroactively remove the
-        // missing-link warning. A matching row before a later observation can.
+        // A later matching payment row removes the orphan warning only after
+        // that row exists. Without allocations it remains an unverified payment.
         $this->travelTo(CarbonImmutable::parse('2026-09-22T12:00:00Z'));
-        CardPayment::factory()->create([
+        $payment = CardPayment::factory()->create([
             'user_id' => $user->id,
             'source_account_id' => $account->id,
             'ledger_entry_id' => $orphan->id,
@@ -68,8 +68,9 @@ class DailyCardPaymentOrphanCoverageTest extends TestCase
 
         $this->assertSame([$orphan->id], $historical['settlement']['unmatched_ledger_entry_ids']);
         $this->assertSame([], $later['settlement']['unmatched_ledger_entry_ids']);
-        $this->assertSame('80.00', $later['settlement']['settled_total']);
-        $this->assertSame([], $later['coverage_blockers']);
+        $this->assertSame('0.00', $later['settlement']['settled_total']);
+        $this->assertSame([$payment->id], $later['settlement']['unverifiable_payment_ids']);
+        $this->assertSame(['settlement_unverifiable'], $later['coverage_blockers']);
     }
 
     public function test_later_moved_orphan_does_not_disappear_from_old_day(): void
