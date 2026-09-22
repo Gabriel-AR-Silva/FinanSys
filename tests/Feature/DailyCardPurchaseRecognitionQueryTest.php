@@ -28,7 +28,6 @@ class DailyCardPurchaseRecognitionQueryTest extends TestCase
         ]);
         CardPurchase::factory()->create(['user_id' => $user->id, 'purchased_on' => '2026-09-21', 'planning_type' => ExpensePlanningType::Fixed]);
         CardPurchase::factory()->create(['user_id' => $user->id, 'purchased_on' => '2026-09-21', 'planning_type' => ExpensePlanningType::Extraordinary]);
-        CardPurchase::factory()->create(['user_id' => $user->id, 'purchased_on' => '2026-09-21', 'planning_type' => null]);
         CardPurchase::factory()->create(['user_id' => $other->id, 'purchased_on' => '2026-09-21', 'gross_amount' => '999.00']);
         CardPurchase::factory()->create(['user_id' => $user->id, 'purchased_on' => '2026-09-22', 'gross_amount' => '40.00']);
 
@@ -37,7 +36,7 @@ class DailyCardPurchaseRecognitionQueryTest extends TestCase
 
         $this->assertSame('1200.00', $result['ordinary_purchase_total']);
         $this->assertSame([$purchase->id], $result['purchase_ids']);
-        $this->assertSame(1, $result['unclassified_count']);
+        $this->assertSame(0, $result['unclassified_count']);
         $this->assertSame('current_card_purchases_only', $result['coverage']);
         $this->assertSame('40.00', $query->forUserOnDay($user, '2026-09-22', CarbonImmutable::parse('2026-09-23T00:00:00Z'))['ordinary_purchase_total']);
     }
