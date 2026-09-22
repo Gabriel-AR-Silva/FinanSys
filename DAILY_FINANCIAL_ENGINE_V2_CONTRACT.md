@@ -78,12 +78,12 @@ Atual = fatos confirmados elegíveis; projetado = atual + previsões/obrigaçõe
 6. Cartão 1.200 em 6×200 → compra total acessível, 200 por mês comprometido, fatura liquida sem duplicar.
 7. Extraordinário 500 → impacta planejamento e caixa, não extrapola média cotidiana.
 8. Previsto 2.000, recebido 600 → atual +600, residual previsto 1.400; cancelamento/não recebimento retira residual da projeção sem apagar 600.
-9. Correção retroativa de 80 → data correta, recálculo e histórico anterior preservados.
-10. Dia sem login/lançamento → pendente, não zero confirmado; check-in individual ou lote confirma; dia sem variável ainda tem estrutural.
-11. Meta 2.400/120 → necessidade teórica 20/dia sem aporte fictício.
-12. Transferência, estorno, reembolso, antecipação, pagamento parcial e dívida entre meses seguem invariantes V1; testes de centavos, fim de mês, datas, usuário e execução duplicada.
+9. Correção retroativa de 80 → data correta, recálculo e auditoria sem sobrescrever versão anterior.
+10. Login com dois dias pendentes → modal, abertura, confirmação individual/lote e zero explícito; dia sem confirmação excluído da média/folga fechada.
+11. Duas abas com indicadores distintos e ajuda acessível por toque; dados incompletos visíveis.
+12. Metas e score não implementados antes de aprovação separada.
 
-## 15. Agentes e responsabilidades
+## 15. Papéis e handoffs
 
 - **Inv:** matemática, fórmulas, denominadores, não duplicidade, folga, metas/score, cenários de fronteira.
 - **Atlas:** fronteiras fato/indicador, seleção, calculadoras puras, contratos de entrada/saída, versionamento e snapshots.
