@@ -2,6 +2,7 @@
 import CashFlowChart from '@/Components/CashFlowChart.vue';
 import CategoryBreakdownChart from '@/Components/CategoryBreakdownChart.vue';
 import GeneralBalanceChart from '@/Components/GeneralBalanceChart.vue';
+import PlanningActualForecastIndicators from '@/Components/PlanningActualForecastIndicators.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, CalendarDays, CircleGauge, Filter, Landmark, ReceiptText, Settings2, Tags, WalletCards } from '@lucide/vue';
@@ -104,6 +105,8 @@ const periodCards = computed(() => [
                 <p v-if="planning.reasons.length" class="text-xs leading-5 text-amber-700 lg:col-span-3">⚠️ {{ planning.reasons.join(' ') }}</p>
             </div>
         </section>
+
+        <PlanningActualForecastIndicators :planning="planning" />
 
         <section class="mt-6 min-w-0"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Evolução financeira</h2><p class="text-sm text-slate-500">Saldo acumulado e entradas versus saídas no período.</p></div><div class="grid min-w-0 gap-4 xl:grid-cols-2"><GeneralBalanceChart :chart="overview.chart" /><CashFlowChart :cash-flow="overview.cash_flow" /></div></section>
 
