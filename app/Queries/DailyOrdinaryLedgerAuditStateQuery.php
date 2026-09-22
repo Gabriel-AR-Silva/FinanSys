@@ -47,8 +47,10 @@ final class DailyOrdinaryLedgerAuditStateQuery
         $states = [];
         $invalid = [];
         $createdIds = [];
+        $lastAuditAt = [];
         foreach ($events as $event) {
             $id = (int) $event->auditable_id;
+            $lastAuditAt[$id] = $event->getRawOriginal('created_at');
             if ($event->action === AuditAction::Created->value) {
                 $createdIds[$id] = true;
                 if (array_key_exists($id, $states)) {
@@ -82,29 +84,36 @@ final class DailyOrdinaryLedgerAuditStateQuery
             $states[$id] = $after;
         }
 
-        // A mutable occurred_at cannot delimit this check. An old expense
-        // without creation audit might have moved out of its original day.
-        $presentIds = LedgerEntry::withTrashed()->where('user_id', $user->getKey())
-            ->where('created_at', '<=', $cutoff)->pluck('id');
-        foreach ($presentIds as $id) {
-            if (! isset($createdIds[(int) $id])) {
-                $invalid[(int) $id] = true;
-            }
-        }
-
-        // Creation/update events alone cannot reconstruct a deletion. A row
-        // soft-deleted by the observation cutoff must not remain in the
-        // audited subtotal merely because its last creation snapshot survived.
-        // Ledger timestamps use the same local DATETIME convention as above.
-        $deletedIds = LedgerEntry::withTrashed()
-            ->where('user_id', $user->getKey())
+        // An expense may have moved away from the requested day. Inspect all
+        // existing user expenses, rather than filtering on mutable occurred_at.
+        $present = LedgerEntry::withTrashed()->where('user_id', $user->getKey())
             ->where('type', LedgerEntryType::Expense)
             ->where('created_at', '<=', $cutoff)
-            ->whereNotNull('deleted_at')
-            ->where('deleted_at', '<=', $cutoff)
-            ->pluck('id');
-        foreach ($deletedIds as $id) {
-            $invalid[(int) $id] = true;
+            ->get(['id', 'updated_at', 'deleted_at']);
+        foreach ($present as $entry) {
+            $id = (int) $entry->getKey();
+            if (! isset($createdIds[$id])) {
+                $invalid[$id] = true;
+
+                continue;
+            }
+
+            // When a later change is not represented by a creation/update
+            // event, the audited subtotal cannot be trusted at that instant.
+            // Changes after the observation must not invalidate the earlier
+            // view. Equal-second events are not provably ordered and remain a
+            // limitation of the V1 DATETIME audit precision.
+            $updatedAt = $entry->getRawOriginal('updated_at');
+            if ($updatedAt !== null && $updatedAt <= $cutoff
+                && $updatedAt > $lastAuditAt[$id]) {
+                $invalid[$id] = true;
+            }
+
+            // Creation/update events alone cannot reconstruct a deletion.
+            $deletedAt = $entry->getRawOriginal('deleted_at');
+            if ($deletedAt !== null && $deletedAt <= $cutoff) {
+                $invalid[$id] = true;
+            }
         }
 
         $total = BigDecimal::zero();
