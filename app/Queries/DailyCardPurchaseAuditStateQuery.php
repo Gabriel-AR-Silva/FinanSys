@@ -32,11 +32,13 @@ final class DailyCardPurchaseAuditStateQuery
             throw new InvalidArgumentException('Não é possível consultar antes do início do dia.');
         }
 
+        // Card purchase and audit DATETIME columns store offset-free UTC.
+        $cutoff = $observed->format('Y-m-d H:i:s');
         $events = AuditLog::query()
             ->where('user_id', $user->getKey())
             ->where('auditable_type', (new CardPurchase)->getMorphClass())
             ->whereIn('action', [AuditAction::Created->value, AuditAction::Updated->value])
-            ->where('created_at', '<=', $observed)
+            ->where('created_at', '<=', $cutoff)
             ->orderBy('created_at')
             ->orderBy('id')
             ->get();
@@ -44,8 +46,10 @@ final class DailyCardPurchaseAuditStateQuery
         $states = [];
         $invalid = [];
         $createdIds = [];
+        $lastAuditAt = [];
         foreach ($events as $event) {
             $id = (int) $event->auditable_id;
+            $lastAuditAt[$id] = $event->getRawOriginal('created_at');
             if ($event->action === AuditAction::Created->value) {
                 $createdIds[$id] = true;
             }
@@ -75,25 +79,32 @@ final class DailyCardPurchaseAuditStateQuery
             $states[$id] = $after;
         }
 
-        // Do not scope to the mutable purchased_on: an unaudited purchase may
-        // have been moved to a different day. Conservatively mark the entire
-        // historical coverage partial until its creation can be verified.
+        // Do not scope to mutable purchased_on: unaudited changes may move a
+        // purchase away from the requested day. The V1 timestamp precision is
+        // one second; equal-second changes cannot be ordered conclusively.
         $present = CardPurchase::withTrashed()
             ->where('user_id', $user->getKey())
-            ->where('created_at', '<=', $observed)
-            ->get(['id', 'deleted_at']);
+            ->where('created_at', '<=', $cutoff)
+            ->get(['id', 'updated_at', 'deleted_at']);
         foreach ($present as $purchase) {
             $id = (int) $purchase->getKey();
             if (! isset($createdIds[$id])) {
                 $invalid[$id] = true;
+
+                continue;
             }
 
-            // This query has no deletion/reversal reconstruction. A creation
-            // snapshot must not remain in its subtotal after the purchase was
-            // deleted, but an observation before deletion stays unchanged.
-            // Card timestamps are stored as offset-free UTC DATETIME values.
+            // An edit that happened by the observation but after its latest
+            // creation/update audit cannot be reconstructed from that audit.
+            // Later edits must not invalidate an earlier observation.
+            $updatedAt = $purchase->getRawOriginal('updated_at');
+            if ($updatedAt !== null && $updatedAt <= $cutoff && $updatedAt > $lastAuditAt[$id]) {
+                $invalid[$id] = true;
+            }
+
+            // Deletions and reversals are not reconstructed by this view.
             $deletedAt = $purchase->getRawOriginal('deleted_at');
-            if ($deletedAt !== null && CarbonImmutable::parse((string) $deletedAt, 'UTC')->lessThanOrEqualTo($observed)) {
+            if ($deletedAt !== null && $deletedAt <= $cutoff) {
                 $invalid[$id] = true;
             }
         }
