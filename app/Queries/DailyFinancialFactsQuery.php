@@ -8,9 +8,10 @@ use Carbon\CarbonImmutable;
 /**
  * Read-only D2 reconciliation boundary. These are different financial views,
  * not additive components of a daily expense: a purchase creates consumption
- * and future obligations, an advance changes obligation timing, and a reversal
- * cancels obligations or credits paid amounts. No check-in can consume this
- * envelope until eligibility, historical coverage and de-duplication are proven.
+ * and future obligations, an advance changes obligation timing, a settlement
+ * discharges obligations, and a reversal cancels obligations or credits paid
+ * amounts. No check-in can consume this envelope until eligibility, historical
+ * coverage and de-duplication are proven.
  */
 final class DailyFinancialFactsQuery
 {
@@ -20,10 +21,11 @@ final class DailyFinancialFactsQuery
         private DailyCardDueCommitmentQuery $due,
         private DailyCardAdvanceImpactQuery $advances,
         private DailyCardPurchaseReversalQuery $reversals,
+        private DailyCardPaymentSettlementQuery $settlements,
     ) {}
 
     /**
-     * @return array{ledger:array<string,mixed>,purchase:array<string,mixed>,due:array<string,mixed>,advance:array<string,mixed>,reversal:array<string,mixed>,observed_at:string,coverage_blockers:list<string>,as_of_unsupported_views:list<string>,eligible_spent:null,reconciliation_status:string}
+     * @return array{ledger:array<string,mixed>,purchase:array<string,mixed>,due:array<string,mixed>,advance:array<string,mixed>,reversal:array<string,mixed>,settlement:array<string,mixed>,observed_at:string,coverage_blockers:list<string>,as_of_unsupported_views:list<string>,eligible_spent:null,reconciliation_status:string}
      */
     public function forUserOnDay(User $user, string $localDate, ?CarbonImmutable $observedAt = null): array
     {
@@ -35,6 +37,7 @@ final class DailyFinancialFactsQuery
         $due = $this->due->forUserOnDay($user, $localDate, $observed);
         $advance = $this->advances->forUserOnDay($user, $localDate, $observed);
         $reversal = $this->reversals->forUserOnDay($user, $localDate, $observed);
+        $settlement = $this->settlements->forUserOnDay($user, $localDate, $observed);
 
         // Preserve the provenance of uncertainty across views. In particular,
         // an unclassified entry must not be mistaken for a verified zero, and
@@ -50,6 +53,7 @@ final class DailyFinancialFactsQuery
             'purchase' => [$purchase, 'unverifiable_purchase_ids'],
             'advance' => [$advance, 'unverifiable_allocation_ids'],
             'reversal' => [$reversal, 'unverifiable_reversal_ids'],
+            'settlement' => [$settlement, 'unverifiable_payment_ids'],
         ] as $name => [$view, $key]) {
             if ($view[$key] !== []) {
                 $blockers[] = $name.'_unverifiable';
@@ -65,6 +69,7 @@ final class DailyFinancialFactsQuery
             'due' => $due,
             'advance' => $advance,
             'reversal' => $reversal,
+            'settlement' => $settlement,
             'observed_at' => $observed->toIso8601String(),
             'coverage_blockers' => $blockers,
             'as_of_unsupported_views' => ['due'],
