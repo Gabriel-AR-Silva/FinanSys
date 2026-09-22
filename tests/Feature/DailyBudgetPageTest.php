@@ -20,6 +20,7 @@ class DailyBudgetPageTest extends TestCase
 
     public function test_page_has_unknown_budget_until_its_owner_explicitly_configures_one(): void
     {
+        $this->withoutVite();
         $user = User::factory()->create();
         app(SetDailyBudget::class)->handle(User::factory()->create(), '999', (string) Str::uuid());
 
@@ -33,6 +34,7 @@ class DailyBudgetPageTest extends TestCase
 
     public function test_owner_can_update_budget_from_http_then_see_the_selected_amount(): void
     {
+        $this->withoutVite();
         $user = User::factory()->create();
         $response = $this->actingAs($user)->post(route('daily-budgets.store'), [
             'amount' => '120.00',
