@@ -15,7 +15,7 @@ use InvalidArgumentException;
  * purchases/installments, card settlements, transfers and fixed/extraordinary
  * expenses. It must NOT be presented as complete daily spending or used to
  * persist a confirmed check-in until the card/coverage adapter is implemented.
- * The observation cutoff applies to refund links as well as refund entries;
+ * The observation cutoff applies to refund links and reversal effective dates;
  * this remains a current-state read, not an immutable historical snapshot.
  */
 final class DailyOrdinaryLedgerExpenseQuery
@@ -48,7 +48,8 @@ final class DailyOrdinaryLedgerExpenseQuery
                 ->whereColumn('reversals.user_id', 'ledger_entries.user_id')
                 ->whereColumn('reversals.reversal_of_operation_id', 'ledger_entries.operation_id')
                 ->whereNull('reversals.deleted_at')
-                ->where('reversals.created_at', '<=', $observed))
+                ->where('reversals.created_at', '<=', $observed)
+                ->where('reversals.occurred_at', '<=', $observed))
             ->with(['expenseRefunds' => fn ($query) => $query
                 ->where('user_id', $user->getKey())
                 ->where('created_at', '<=', $observed)
@@ -63,7 +64,8 @@ final class DailyOrdinaryLedgerExpenseQuery
                         ->whereColumn('refund_reversals.user_id', 'ledger_entries.user_id')
                         ->whereColumn('refund_reversals.reversal_of_operation_id', 'ledger_entries.operation_id')
                         ->whereNull('refund_reversals.deleted_at')
-                        ->where('refund_reversals.created_at', '<=', $observed)))
+                        ->where('refund_reversals.created_at', '<=', $observed)
+                        ->where('refund_reversals.occurred_at', '<=', $observed)))
                 ->with('refundEntry')])
             ->orderBy('id')
             ->get();
