@@ -78,13 +78,23 @@ final class DailyCardPurchaseAuditStateQuery
         // Do not scope to the mutable purchased_on: an unaudited purchase may
         // have been moved to a different day. Conservatively mark the entire
         // historical coverage partial until its creation can be verified.
-        $presentIds = CardPurchase::withTrashed()
+        $present = CardPurchase::withTrashed()
             ->where('user_id', $user->getKey())
             ->where('created_at', '<=', $observed)
-            ->pluck('id');
-        foreach ($presentIds as $id) {
-            if (! isset($createdIds[(int) $id])) {
-                $invalid[(int) $id] = true;
+            ->get(['id', 'deleted_at']);
+        foreach ($present as $purchase) {
+            $id = (int) $purchase->getKey();
+            if (! isset($createdIds[$id])) {
+                $invalid[$id] = true;
+            }
+
+            // This query has no deletion/reversal reconstruction. A creation
+            // snapshot must not remain in its subtotal after the purchase was
+            // deleted, but an observation before deletion stays unchanged.
+            // Card timestamps are stored as offset-free UTC DATETIME values.
+            $deletedAt = $purchase->getRawOriginal('deleted_at');
+            if ($deletedAt !== null && CarbonImmutable::parse((string) $deletedAt, 'UTC')->lessThanOrEqualTo($observed)) {
+                $invalid[$id] = true;
             }
         }
 
