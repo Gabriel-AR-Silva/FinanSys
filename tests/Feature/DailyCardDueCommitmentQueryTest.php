@@ -23,10 +23,10 @@ class DailyCardDueCommitmentQueryTest extends TestCase
         $other = User::factory()->create();
         $ordinary = CardPurchase::factory()->create(['user_id' => $user->id, 'planning_type' => ExpensePlanningType::Ordinary]);
         $first = CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $ordinary->id, 'gross_amount' => '100.00', 'paid_amount' => '100.00', 'status' => CardInstallmentStatus::Paid, 'due_on' => '2026-09-21']);
-        $second = CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $ordinary->id, 'gross_amount' => '60.00', 'paid_amount' => '20.00', 'due_on' => '2026-09-21']);
-        CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $ordinary->id, 'gross_amount' => '90.00', 'status' => CardInstallmentStatus::Advanced, 'due_on' => '2026-09-21']);
-        CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $ordinary->id, 'gross_amount' => '90.00', 'status' => CardInstallmentStatus::Reversed, 'due_on' => '2026-09-21']);
-        CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $ordinary->id, 'gross_amount' => '70.00', 'due_on' => '2026-09-22']);
+        $second = CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $ordinary->id, 'installment_number' => 2, 'gross_amount' => '60.00', 'paid_amount' => '20.00', 'due_on' => '2026-09-21']);
+        CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $ordinary->id, 'installment_number' => 3, 'gross_amount' => '90.00', 'status' => CardInstallmentStatus::Advanced, 'due_on' => '2026-09-21']);
+        CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $ordinary->id, 'installment_number' => 4, 'gross_amount' => '90.00', 'status' => CardInstallmentStatus::Reversed, 'due_on' => '2026-09-21']);
+        CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $ordinary->id, 'installment_number' => 5, 'gross_amount' => '70.00', 'due_on' => '2026-09-22']);
         CardInstallment::factory()->create(['user_id' => $other->id, 'gross_amount' => '999.00', 'due_on' => '2026-09-21']);
         $fixed = CardPurchase::factory()->create(['user_id' => $user->id, 'planning_type' => ExpensePlanningType::Fixed]);
         CardInstallment::factory()->create(['user_id' => $user->id, 'card_purchase_id' => $fixed->id, 'due_on' => '2026-09-21']);
