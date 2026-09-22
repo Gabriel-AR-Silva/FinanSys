@@ -126,7 +126,7 @@ class CardPurchaseAndPaymentTest extends TestCase
         $this->assertSame([$payment->id], $facts['settlement']['payment_ids']);
         $this->assertSame([$payment->ledger_entry_id], $facts['settlement']['ledger_entry_ids']);
         $this->assertSame([$orphan->id], $facts['settlement']['unmatched_ledger_entry_ids']);
-        $this->assertContains('settlement_unmatched_ledger', $facts['coverage_blockers']);
+        $this->assertContains('settlement_unverifiable', $facts['coverage_blockers']);
         $this->assertSame('0.00', $facts['ledger']['ordinary_total']);
         $this->assertNull($facts['eligible_spent']);
     }
