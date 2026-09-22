@@ -151,3 +151,4 @@ jobs:
           tests/Feature/DailyOrdinaryLedgerExpenseQueryTest.php
           tests/Feature/DailyCardDueCommitmentQueryTest.php
           tests/Feature/DailyCardAdvanceImpactQueryTest.php
+          tests/Feature/DailyCardAdvanceObservationTest.php
