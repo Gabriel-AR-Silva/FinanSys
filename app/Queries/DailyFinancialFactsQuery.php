@@ -30,9 +30,9 @@ final class DailyFinancialFactsQuery
         $observed = ($observedAt ?? CarbonImmutable::now('UTC'))->utc();
         $ledger = $this->ledger->forUserOnDay($user, $localDate, $observed);
         $purchase = $this->purchases->forUserOnDay($user, $localDate, $observed);
-        // Due commitments currently have no as-of observation contract.
-        // Explicitly segregate their current-state data from dated facts.
-        $due = $this->due->forUserOnDay($user, $localDate);
+        // Due commitments can filter by observation but cannot reconstruct a
+        // moved due date, removed relationship, or other unversioned old state.
+        $due = $this->due->forUserOnDay($user, $localDate, $observed);
         $advance = $this->advances->forUserOnDay($user, $localDate, $observed);
         $reversal = $this->reversals->forUserOnDay($user, $localDate, $observed);
 
@@ -54,6 +54,9 @@ final class DailyFinancialFactsQuery
             if ($view[$key] !== []) {
                 $blockers[] = $name.'_unverifiable';
             }
+        }
+        if ($due['unverifiable_installment_ids'] !== [] || $due['unverifiable_charge_ids'] !== []) {
+            $blockers[] = 'due_unverifiable';
         }
 
         return [
