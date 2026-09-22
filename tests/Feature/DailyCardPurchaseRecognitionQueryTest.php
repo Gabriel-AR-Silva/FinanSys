@@ -105,6 +105,10 @@ class DailyCardPurchaseRecognitionQueryTest extends TestCase
     {
         $user = User::factory()->create();
         $stable = CardPurchase::factory()->create(['user_id' => $user->id, 'purchased_on' => '2026-09-21', 'gross_amount' => '25.00']);
+        $stable->timestamps = false;
+        $stable->created_at = '2026-09-21 12:00:00';
+        $stable->updated_at = '2026-09-21 12:00:00';
+        $stable->save();
         $changed = CardPurchase::factory()->create([
             'user_id' => $user->id,
             'purchased_on' => '2026-09-21',
