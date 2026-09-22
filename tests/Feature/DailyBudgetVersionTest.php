@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Actions\SetDailyBudget;
 use App\Enums\AuditAction;
 use App\Models\AuditLog;
-use App\Models\DailyBudgetVersion;
 use App\Models\User;
 use App\Support\DailyBudgetVersionSelector;
 use Carbon\CarbonImmutable;
