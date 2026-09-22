@@ -32,10 +32,18 @@ final class DailyCardPurchaseRecognitionQuery
             throw new InvalidArgumentException('Não é possível consultar compras antes do início do dia.');
         }
 
+        // A purchase edited after observation may have moved OFF the queried
+        // date. Include later-edited candidates even if their current date no
+        // longer matches, otherwise the old day looks falsely complete. Since
+        // the original date is not versioned, unrelated edits may conservatively
+        // mark other days partial; never reconstruct an old amount or date.
         $purchases = CardPurchase::withTrashed()
             ->where('user_id', $user->getKey())
-            ->whereDate('purchased_on', $localDate)
             ->where('created_at', '<=', $observed)
+            ->where(function ($query) use ($localDate, $observed): void {
+                $query->whereDate('purchased_on', $localDate)
+                    ->orWhere('updated_at', '>', $observed);
+            })
             ->orderBy('id')
             ->get();
 
