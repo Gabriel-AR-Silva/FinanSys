@@ -82,6 +82,36 @@ class DailyCardPurchaseOriginAuditQueryTest extends TestCase
         $result = app(DailyCardPurchaseOriginAuditQuery::class)->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T11:00:00Z'));
         $this->assertSame('0.00', $result['ordinary_original_total']);
         $this->assertSame([$audit->id], $result['unverifiable_audit_ids']);
+        $this->assertSame('partial_audited_card_purchase_creations', $result['coverage']);
+    }
+
+    public function test_duplicate_creation_audits_are_unverifiable_without_double_counting_or_cross_tenant_leakage(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $purchase = CardPurchase::factory()->create([
+            'user_id' => $user->id,
+            'purchased_on' => '2026-09-21',
+            'gross_amount' => '120.00',
+        ]);
+        $recorder = app(AuditRecorder::class);
+        $first = $recorder->record($user, AuditAction::Created, $purchase);
+        $second = $recorder->record($user, AuditAction::Created, $purchase);
+        $otherPurchase = CardPurchase::factory()->create([
+            'user_id' => $other->id,
+            'purchased_on' => '2026-09-21',
+            'gross_amount' => '50.00',
+        ]);
+        $recorder->record($other, AuditAction::Created, $otherPurchase);
+        $query = app(DailyCardPurchaseOriginAuditQuery::class);
+        $observed = CarbonImmutable::now('UTC')->addMinute();
+
+        $result = $query->forUserOnDay($user, '2026-09-21', $observed);
+        $this->assertSame('0.00', $result['ordinary_original_total']);
+        $this->assertSame([], $result['purchase_ids']);
+        $this->assertSame([$first->id, $second->id], $result['unverifiable_audit_ids']);
+        $this->assertSame('partial_audited_card_purchase_creations', $result['coverage']);
+        $this->assertSame('50.00', $query->forUserOnDay($other, '2026-09-21', $observed)['ordinary_original_total']);
     }
 
     public function test_rejects_invalid_local_date_and_observation_before_midnight(): void
