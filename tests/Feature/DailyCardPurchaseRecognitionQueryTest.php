@@ -39,6 +39,7 @@ class DailyCardPurchaseRecognitionQueryTest extends TestCase
         $this->assertSame('1200.00', $result['ordinary_purchase_total']);
         $this->assertSame([$purchase->id], $result['purchase_ids']);
         $this->assertSame(0, $result['unclassified_count']);
+        $this->assertSame([], $result['unverifiable_purchase_ids']);
         $this->assertSame('gross_card_purchases_with_recorded_reversals', $result['coverage']);
         $this->assertSame('40.00', $query->forUserOnDay($user, '2026-09-22', CarbonImmutable::parse('2026-09-23T00:00:00Z'))['ordinary_purchase_total']);
     }
@@ -97,6 +98,34 @@ class DailyCardPurchaseRecognitionQueryTest extends TestCase
         $this->assertSame([$purchase->id], $before['purchase_ids']);
         $this->assertSame('300.00', $after['ordinary_purchase_total']);
         $this->assertSame([$purchase->id], $after['purchase_ids']);
+    }
+
+    public function test_later_edit_is_reported_as_unverifiable_instead_of_rewriting_an_earlier_observation(): void
+    {
+        $user = User::factory()->create();
+        $stable = CardPurchase::factory()->create(['user_id' => $user->id, 'purchased_on' => '2026-09-21', 'gross_amount' => '25.00']);
+        $changed = CardPurchase::factory()->create([
+            'user_id' => $user->id,
+            'purchased_on' => '2026-09-21',
+            'gross_amount' => '70.00',
+            'planning_type' => ExpensePlanningType::Fixed,
+        ]);
+        $changed->timestamps = false;
+        $changed->created_at = '2026-09-21 12:00:00';
+        $changed->updated_at = '2026-09-23 10:00:00';
+        $changed->save();
+
+        $query = app(DailyCardPurchaseRecognitionQuery::class);
+        $before = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T17:00:00Z'));
+        $after = $query->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-23T11:00:00Z'));
+
+        $this->assertSame('25.00', $before['ordinary_purchase_total']);
+        $this->assertSame([$stable->id], $before['purchase_ids']);
+        $this->assertSame([$changed->id], $before['unverifiable_purchase_ids']);
+        $this->assertSame('partial_gross_card_purchases_unverifiable_edits', $before['coverage']);
+        $this->assertSame('25.00', $after['ordinary_purchase_total']);
+        $this->assertSame([], $after['unverifiable_purchase_ids']);
+        $this->assertSame('gross_card_purchases_with_recorded_reversals', $after['coverage']);
     }
 
     public function test_ordinary_soft_deletion_is_visible_before_but_not_after_deletion(): void
