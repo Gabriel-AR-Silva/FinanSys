@@ -17,6 +17,8 @@ class PatrimonyFeatureTest extends TestCase
 
     public function test_patrimony_uses_current_estimated_value_minus_linked_debt_without_changing_cash(): void
     {
+        $this->withoutExceptionHandling();
+
         $user = User::factory()->create();
         $account = Account::factory()->for($user)->create();
         LedgerEntry::factory()->openingBalance()->create([
