@@ -177,6 +177,47 @@ class DailyFinancialCheckInTest extends TestCase
         }
     }
 
+    public function test_month_history_uses_highest_revision_instead_of_highest_id_assumption(): void
+    {
+        $user = User::factory()->create();
+
+        $olderId = DailyFinancialCheckIn::query()->create([
+            'user_id' => $user->id,
+            'actor_id' => $user->id,
+            'local_date' => '2026-09-22',
+            'revision' => 2,
+            'daily_budget_version_id' => 1,
+            'budget_amount' => '90.00',
+            'eligible_spent' => '100.00',
+            'margin' => '-10.00',
+            'rules_version' => 'test',
+            'source' => 'corrected',
+            'confirmed_at' => '2026-09-23 12:00:00',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+        DailyFinancialCheckIn::query()->create([
+            'user_id' => $user->id,
+            'actor_id' => $user->id,
+            'local_date' => '2026-09-22',
+            'revision' => 1,
+            'daily_budget_version_id' => 1,
+            'budget_amount' => '90.00',
+            'eligible_spent' => '80.00',
+            'margin' => '10.00',
+            'rules_version' => 'test',
+            'source' => 'recorded',
+            'confirmed_at' => '2026-09-23 11:00:00',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $history = app(DailyFinancialCheckInHistoryQuery::class)->latestForMonth($user, '2026-09');
+
+        $this->assertCount(1, $history);
+        $this->assertSame($olderId->id, $history[0]['id']);
+        $this->assertSame(2, $history[0]['revision']);
+        $this->assertSame('100.00', $history[0]['spent']);
+    }
+
     public function test_history_is_isolated_by_user(): void
     {
         $user = User::factory()->create();
