@@ -70,7 +70,7 @@ class DailyCardPurchaseObservationSliceTest extends TestCase
 
         $this->assertSame('0.00', $after['ordinary_purchase_total']);
         $this->assertSame([$purchase->id], $after['reversed_purchase_ids']);
-        $this->assertSame([$purchase->id], $after['purchase_ids']);
+        $this->assertSame([], $after['purchase_ids']);
     }
 
     public function test_late_update_marks_prior_purchase_as_unverifiable_instead_of_reconstructing_old_amount(): void
