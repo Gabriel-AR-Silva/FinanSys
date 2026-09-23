@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Throwable;
 
 class ProfileController extends Controller
@@ -30,13 +30,33 @@ class ProfileController extends Controller
         ]);
     }
 
-    public function avatar(Request $request): StreamedResponse
+    public function avatar(Request $request): HttpResponse
     {
         $path = $request->user()->avatar_path;
         abort_unless($path && Storage::disk('public')->exists($path), 404);
 
-        // A foto pertence somente ao usuário autenticado e não depende de public/storage.
-        return Storage::disk('public')->response($path, null, ['Cache-Control' => 'private, no-store']);
+        try {
+            $contents = Storage::disk('public')->get($path);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            abort(404);
+        }
+
+        abort_if($contents === null, 404);
+
+        $contentType = match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            default => 'application/octet-stream',
+        };
+
+        return response($contents, 200, [
+            'Content-Type' => $contentType,
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function update(ProfileUpdateRequest $request): RedirectResponse

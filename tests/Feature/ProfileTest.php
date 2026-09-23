@@ -54,9 +54,20 @@ class ProfileTest extends TestCase
         $user->refresh();
         $this->assertNotNull($user->avatar_path);
         Storage::disk('public')->assertExists($user->avatar_path);
-        $this->actingAs($user)->get(route('profile.avatar'))->assertOk()->assertHeader('Content-Type', 'image/png');
+        $this->actingAs($user)->get(route('profile.avatar'))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
         $this->actingAs($other)->get(route('profile.avatar'))->assertNotFound();
         $this->get('/profile/avatar')->assertNotFound();
+    }
+
+    public function test_avatar_route_returns_not_found_when_file_is_missing_instead_of_server_error(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create(['avatar_path' => 'avatars/missing.png']);
+
+        $this->actingAs($user)->get(route('profile.avatar'))->assertNotFound();
     }
 
     public function test_removing_avatar_keeps_user_and_removes_old_file(): void
