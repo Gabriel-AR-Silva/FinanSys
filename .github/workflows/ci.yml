@@ -152,3 +152,4 @@ jobs:
           tests/Feature/DailyCardPurchaseObservationSliceTest.php
           tests/Feature/DailyCardChargeRecognitionSliceTest.php
           tests/Feature/DailyEligibleSpendReconciliationTest.php
+          tests/Feature/DailyFinancialCheckInTest.php
