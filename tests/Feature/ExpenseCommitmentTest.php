@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\ExpenseCommitment;
 use App\Models\User;
@@ -37,6 +38,11 @@ class ExpenseCommitmentTest extends TestCase
         $this->actingAs($user)->post(route('expense-commitments.pay', $commitment->id), $first)->assertSessionHasNoErrors();
         $this->assertDatabaseCount('expense_commitment_payments', 1);
         $this->assertDatabaseCount('ledger_entries', 1);
+        $this->assertSame(1, AuditLog::query()
+            ->where('user_id', $user->id)
+            ->where('auditable_type', 'expense_commitment_payment')
+            ->where('action', 'created')
+            ->count());
         $this->actingAs($user)->post(route('expense-commitments.pay', $commitment->id), array_replace($first, ['amount' => '41.00']))->assertSessionHasErrors('operation_id');
         $this->actingAs($user)->post(route('expense-commitments.pay', $commitment->id), ['amount' => '61.00', 'paid_on' => now()->toDateString(), 'operation_id' => (string) Str::uuid()])->assertSessionHasErrors('amount');
 
@@ -79,6 +85,16 @@ class ExpenseCommitmentTest extends TestCase
         $this->assertSame('cancelled', $commitment->fresh()->status);
         $this->assertDatabaseCount('expense_commitments', 1);
         $this->assertDatabaseCount('ledger_entries', 0);
+        $this->assertSame(1, AuditLog::query()
+            ->where('user_id', $user->id)
+            ->where('auditable_type', 'expense_commitment')
+            ->where('action', 'created')
+            ->count());
+        $this->assertSame(1, AuditLog::query()
+            ->where('user_id', $user->id)
+            ->where('auditable_type', 'expense_commitment')
+            ->where('action', 'updated')
+            ->count());
     }
 
     private function schedulePayload(Account $account, Category $category): array

@@ -20,6 +20,8 @@ use App\Models\CreditCard;
 use App\Models\DailyBudgetVersion;
 use App\Models\DailyFinancialCheckIn;
 use App\Models\EssentialBudget;
+use App\Models\ExpenseCommitment;
+use App\Models\ExpenseCommitmentPayment;
 use App\Models\ExpenseRefund;
 use App\Models\FinancialGoal;
 use App\Models\LedgerEntry;
@@ -82,6 +84,8 @@ class AppServiceProvider extends ServiceProvider
             'daily_budget_version' => DailyBudgetVersion::class,
             'daily_financial_check_in' => DailyFinancialCheckIn::class,
             'essential_budget' => EssentialBudget::class,
+            'expense_commitment' => ExpenseCommitment::class,
+            'expense_commitment_payment' => ExpenseCommitmentPayment::class,
             'expense_refund' => ExpenseRefund::class,
             'financial_goal' => FinancialGoal::class,
             'receipt_forecast' => ReceiptForecast::class,

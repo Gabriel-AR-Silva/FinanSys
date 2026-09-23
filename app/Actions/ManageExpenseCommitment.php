@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Enums\ExpensePlanningType;
 use App\Enums\LedgerEntryType;
 use App\Enums\RecordStatus;
@@ -11,6 +12,7 @@ use App\Models\ExpenseCommitment;
 use App\Models\ExpenseCommitmentPayment;
 use App\Models\LedgerEntry;
 use App\Models\User;
+use App\Support\AuditRecorder;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +20,10 @@ use Illuminate\Validation\ValidationException;
 
 class ManageExpenseCommitment
 {
-    public function __construct(private CreateManualLedgerEntry $createLedgerEntry) {}
+    public function __construct(
+        private CreateManualLedgerEntry $createLedgerEntry,
+        private AuditRecorder $auditRecorder,
+    ) {}
 
     /** @param array{account_id:int, category_id:int, description:string, amount:string, due_on:string, planning_type:string, operation_id:string} $data */
     public function schedule(User $user, array $data): ExpenseCommitment
@@ -42,7 +47,7 @@ class ManageExpenseCommitment
                 throw ValidationException::withMessages(['account_id' => 'Selecione conta e categoria de despesa ativas que pertençam a você.']);
             }
 
-            return ExpenseCommitment::query()->create([
+            $commitment = ExpenseCommitment::query()->create([
                 'user_id' => $user->id,
                 'account_id' => $account->id,
                 'category_id' => $category->id,
@@ -54,6 +59,9 @@ class ManageExpenseCommitment
                 'status' => 'pending',
                 'operation_id' => $data['operation_id'],
             ]);
+            $this->auditRecorder->record($user, AuditAction::Created, $commitment);
+
+            return $commitment;
         }, 3);
     }
 
@@ -95,12 +103,15 @@ class ManageExpenseCommitment
                 'paid_on' => $data['paid_on'],
                 'operation_id' => $data['operation_id'],
             ]);
+            $before = $commitment->attributesToArray();
             $paid = BigDecimal::of($commitment->paid_amount)->plus($amount);
             $commitment->update([
                 'paid_amount' => (string) $paid,
                 'status' => $paid->isEqualTo($commitment->amount) ? 'paid' : 'pending',
                 'version' => $commitment->version + 1,
             ]);
+            $this->auditRecorder->record($user, AuditAction::Created, $payment);
+            $this->auditRecorder->record($user, AuditAction::Updated, $commitment, $before);
 
             return $payment;
         }, 3);
@@ -115,7 +126,9 @@ class ManageExpenseCommitment
                 throw ValidationException::withMessages(['expense_commitment' => 'Um compromisso quitado não pode ser cancelado.']);
             }
             if ($commitment->status === 'pending') {
+                $before = $commitment->attributesToArray();
                 $commitment->update(['status' => 'cancelled', 'version' => $commitment->version + 1]);
+                $this->auditRecorder->record($user, AuditAction::Updated, $commitment, $before);
             }
 
             return $commitment;

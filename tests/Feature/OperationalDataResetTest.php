@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class OperationalDataResetTest extends TestCase
@@ -157,6 +158,158 @@ class OperationalDataResetTest extends TestCase
 
         $this->assertDatabaseHas('ledger_entries', ['id' => $otherEntry->getKey(), 'user_id' => $otherUser->getKey()]);
         $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->getKey(),
+            'action' => 'purged',
+        ]);
+    }
+
+    public function test_reset_removes_v2_daily_state_goals_and_future_commitments(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => CategoryType::Expense]);
+        $entry = LedgerEntry::factory()->for($user)->create([
+            'reference_type' => $account->getMorphClass(),
+            'reference_id' => $account->getKey(),
+            'category_id' => $category->getKey(),
+        ]);
+
+        $budgetId = DB::table('daily_budget_versions')->insertGetId([
+            'user_id' => $user->getKey(),
+            'actor_id' => $user->getKey(),
+            'amount' => '90.00',
+            'effective_at' => now(),
+            'recorded_at' => now(),
+            'origin' => 'user',
+            'reason' => null,
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        DB::table('daily_financial_check_ins')->insert([
+            'user_id' => $user->getKey(),
+            'actor_id' => $user->getKey(),
+            'local_date' => now('America/Sao_Paulo')->subDay()->toDateString(),
+            'revision' => 1,
+            'supersedes_id' => null,
+            'daily_budget_version_id' => $budgetId,
+            'budget_amount' => '90.00',
+            'eligible_spent' => '40.00',
+            'margin' => '50.00',
+            'rules_version' => 'test',
+            'source' => 'recorded',
+            'confirmed_at' => now(),
+            'reason' => null,
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        DB::table('financial_goals')->insert([
+            'user_id' => $user->getKey(),
+            'pocket_id' => null,
+            'name' => 'Reserva',
+            'target_amount' => '1000.00',
+            'target_date' => now()->addMonth()->toDateString(),
+            'operation_id' => (string) Str::uuid(),
+            'created_at' => now(),
+            'updated_at' => now(),
+            'deleted_at' => null,
+        ]);
+
+        $commitmentId = DB::table('expense_commitments')->insertGetId([
+            'user_id' => $user->getKey(),
+            'account_id' => $account->getKey(),
+            'category_id' => $category->getKey(),
+            'description' => 'Conta futura',
+            'amount' => '100.00',
+            'paid_amount' => '25.00',
+            'due_on' => now()->addDays(10)->toDateString(),
+            'planning_type' => 'fixed',
+            'status' => 'pending',
+            'version' => 1,
+            'operation_id' => (string) Str::uuid(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('expense_commitment_payments')->insert([
+            'user_id' => $user->getKey(),
+            'expense_commitment_id' => $commitmentId,
+            'ledger_entry_id' => $entry->getKey(),
+            'amount' => '25.00',
+            'paid_on' => now()->toDateString(),
+            'operation_id' => (string) Str::uuid(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $challenge = $this->actingAs($user)->postJson(route('operational-data-reset.challenge'));
+
+        $challenge->assertOk()
+            ->assertJsonPath('counts.daily_planning_records', 2)
+            ->assertJsonPath('counts.financial_goals', 1)
+            ->assertJsonPath('counts.future_commitments', 2);
+
+        $this->actingAs($user)->delete(route('operational-data-reset.destroy'), [
+            'password' => 'password',
+            'confirmation_code' => (string) $challenge->json('code'),
+            'slider_confirmed' => true,
+        ])->assertRedirect()->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('daily_budget_versions', ['user_id' => $user->getKey()]);
+        $this->assertDatabaseMissing('daily_financial_check_ins', ['user_id' => $user->getKey()]);
+        $this->assertDatabaseMissing('financial_goals', ['user_id' => $user->getKey()]);
+        $this->assertDatabaseMissing('expense_commitments', ['user_id' => $user->getKey()]);
+        $this->assertDatabaseMissing('expense_commitment_payments', ['user_id' => $user->getKey()]);
+
+        $this->assertDatabaseHas('users', ['id' => $user->getKey()]);
+        $this->assertDatabaseHas('accounts', ['id' => $account->getKey()]);
+        $this->assertDatabaseHas('categories', ['id' => $category->getKey()]);
+    }
+
+    public function test_reset_rolls_back_all_deletions_when_a_midway_delete_fails(): void
+    {
+        if (DB::getDriverName() !== 'sqlite') {
+            $this->markTestSkipped('Failure injection uses a SQLite trigger in the default feature suite.');
+        }
+
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $entry = LedgerEntry::factory()->for($user)->create([
+            'reference_type' => $account->getMorphClass(),
+            'reference_id' => $account->getKey(),
+        ]);
+
+        DB::table('financial_goals')->insert([
+            'user_id' => $user->getKey(),
+            'pocket_id' => null,
+            'name' => 'Meta que deve sobreviver ao rollback',
+            'target_amount' => '500.00',
+            'target_date' => now()->addMonth()->toDateString(),
+            'operation_id' => (string) Str::uuid(),
+            'created_at' => now(),
+            'updated_at' => now(),
+            'deleted_at' => null,
+        ]);
+
+        DB::statement("CREATE TRIGGER fail_ledger_reset BEFORE DELETE ON ledger_entries BEGIN SELECT RAISE(ABORT, 'forced reset failure'); END");
+
+        $challenge = $this->actingAs($user)->postJson(route('operational-data-reset.challenge'));
+
+        try {
+            $this->actingAs($user)->delete(route('operational-data-reset.destroy'), [
+                'password' => 'password',
+                'confirmation_code' => (string) $challenge->json('code'),
+                'slider_confirmed' => true,
+            ]);
+            $this->fail('A falha injetada deveria abortar o reset.');
+        } catch (\Throwable) {
+            // Expected: the transaction must roll every prior deletion back.
+        } finally {
+            DB::statement('DROP TRIGGER IF EXISTS fail_ledger_reset');
+        }
+
+        $this->assertDatabaseHas('ledger_entries', ['id' => $entry->getKey()]);
+        $this->assertDatabaseHas('financial_goals', ['user_id' => $user->getKey()]);
+        $this->assertDatabaseMissing('audit_logs', [
             'user_id' => $user->getKey(),
             'action' => 'purged',
         ]);

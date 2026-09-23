@@ -2,8 +2,10 @@
 
 namespace App\Actions;
 
+use App\Enums\AuditAction;
 use App\Models\ExpenseCommitment;
 use App\Models\User;
+use App\Support\AuditRecorder;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +13,8 @@ use Illuminate\Validation\ValidationException;
 
 class ReviseExpenseCommitment
 {
+    public function __construct(private AuditRecorder $auditRecorder) {}
+
     /** @param array{description:string,amount:string,due_on:string,version:int} $data */
     public function handle(User $user, int $commitmentId, array $data): ExpenseCommitment
     {
@@ -27,6 +31,7 @@ class ReviseExpenseCommitment
             if (BigDecimal::of($amount)->isLessThan($commitment->paid_amount)) {
                 throw ValidationException::withMessages(['amount' => 'O valor previsto não pode ser inferior ao que já foi pago.']);
             }
+            $before = $commitment->attributesToArray();
             $commitment->update([
                 'description' => $data['description'],
                 'amount' => $amount,
@@ -34,6 +39,7 @@ class ReviseExpenseCommitment
                 'status' => BigDecimal::of($amount)->isEqualTo($commitment->paid_amount) ? 'paid' : 'pending',
                 'version' => $commitment->version + 1,
             ]);
+            $this->auditRecorder->record($user, AuditAction::Updated, $commitment, $before);
 
             return $commitment;
         }, 3);

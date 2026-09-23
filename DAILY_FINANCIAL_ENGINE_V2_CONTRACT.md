@@ -1,6 +1,6 @@
 # FinanSys V2 — Contrato unificado do Motor Financeiro Diário
 
-> Estado em 2026-09-21: **contrato conceitual de produto, com decisões do usuário aprovadas; contrato matemático/técnico e implementação ainda sujeitos à revisão dos agentes**. Não declarar a V2 implementada ou publicada. Até aprovação técnica, `FINANCIAL_PLANNING_CONTRACT.md` permanece o contrato vigente da V1. Este é o **único documento de referência da V2**, consolidando a proposta original e as decisões posteriores; não criar documentos paralelos de decisões. Em conflito, as decisões explícitas mais recentes deste documento prevalecem sobre alternativas da proposta, sem revogar invariantes da V1.
+> Estado em 2026-09-23: **D1–D5 implementados e integrados; fechamento técnico D7 concluído; D6 (score/comportamento) permanece deliberadamente fora do escopo aprovado desta rodada**. A release foi promovida pelo fluxo `develop → build → main`; migrations de produção e smoke manual permanecem gates operacionais separados. Este é o **único documento de referência da V2**, consolidando as decisões do produto e o escopo implementado. Em conflito, decisões explícitas mais recentes deste documento prevalecem sem revogar invariantes da V1.
 
 ## 1. Objetivo e contexto
 
