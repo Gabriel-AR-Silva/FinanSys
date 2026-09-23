@@ -10,6 +10,8 @@ use App\Http\Controllers\CardPurchaseController;
 use App\Http\Controllers\CardPurchaseReversalController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CreditCardController;
+use App\Http\Controllers\DailyBudgetController;
+use App\Http\Controllers\DailyFinancialCheckInController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseRefundController;
 use App\Http\Controllers\FinancialEvaluationController;
@@ -45,6 +47,11 @@ Route::get('/dashboard', DashboardController::class)
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/orcamento-diario', [DailyBudgetController::class, 'edit'])->name('daily-budgets.edit');
+    Route::post('/orcamento-diario', [DailyBudgetController::class, 'store'])->name('daily-budgets.store');
+    Route::post('/check-ins-financeiros', [DailyFinancialCheckInController::class, 'store'])->name('daily-check-ins.store');
+    Route::post('/check-ins-financeiros/lote', [DailyFinancialCheckInController::class, 'storeBatch'])->name('daily-check-ins.batch.store');
+    Route::patch('/check-ins-financeiros/correcao', [DailyFinancialCheckInController::class, 'correct'])->name('daily-check-ins.correct');
     Route::get('/cartoes', [CreditCardController::class, 'index'])->name('credit-cards.index');
     Route::get('/cartoes/correcoes', [CardCorrectionController::class, 'index'])->name('card-corrections.index');
     Route::post('/cartoes', [CreditCardController::class, 'store'])->name('credit-cards.store');

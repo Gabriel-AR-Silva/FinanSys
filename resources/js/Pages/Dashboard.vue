@@ -2,6 +2,7 @@
 import CashFlowChart from '@/Components/CashFlowChart.vue';
 import CategoryBreakdownChart from '@/Components/CategoryBreakdownChart.vue';
 import GeneralBalanceChart from '@/Components/GeneralBalanceChart.vue';
+import DailyCheckInPanel from '@/Components/DailyCheckInPanel.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, CalendarDays, CircleGauge, Filter, Landmark, ReceiptText, Settings2, Tags, WalletCards } from '@lucide/vue';
@@ -12,6 +13,7 @@ const props = defineProps({
     planning: { type: Object, required: true },
     categories: { type: Array, required: true },
     filters: { type: Object, required: true },
+    dailyCheckIns: { type: Array, required: true },
 });
 
 const selectedPeriod = ref(String(props.filters.period));
@@ -68,6 +70,8 @@ const periodCards = computed(() => [
             <div><p class="text-sm font-medium text-emerald-700">Olá, {{ $page.props.auth.user.name }}</p><h1 class="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Painel financeiro</h1><p class="mt-1 text-sm text-slate-500">Uma leitura rápida do seu saldo, fluxo e categorias.</p></div>
             <Link :href="route('ledger-entries.index')" class="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800">Ver lançamentos <ArrowRight :size="16" /></Link>
         </section>
+
+        <DailyCheckInPanel :days="dailyCheckIns" />
 
         <section class="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-row lg:items-center">
             <div class="flex items-center gap-2 px-2 text-sm font-semibold text-slate-700"><Filter :size="16" class="text-emerald-600" />Analisar período</div>
