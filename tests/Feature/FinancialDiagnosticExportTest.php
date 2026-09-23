@@ -62,6 +62,10 @@ class FinancialDiagnosticExportTest extends TestCase
             ->assertJsonPath('meta.contains_credentials', false)
             ->assertJsonPath('raw.accounts.0.name', 'Conta principal')
             ->assertJsonPath('raw.patrimonial_assets.0.name', 'Moto diagnóstico')
+            ->assertJsonPath('derived.patrimony.assets_total', '18000.00')
+            ->assertJsonPath('derived.patrimony.debts_total', '11000.00')
+            ->assertJsonPath('derived.patrimony.asset_equity', '7000.00')
+            ->assertJsonPath('derived.patrimony.available', true)
             ->assertJsonPath('derived.card_limits.0.total', '500.00');
 
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));

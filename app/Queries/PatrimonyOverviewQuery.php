@@ -6,12 +6,30 @@ use App\Models\PatrimonialAsset;
 use App\Models\User;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Illuminate\Support\Facades\Schema;
 
 class PatrimonyOverviewQuery
 {
     /** @return array<string, mixed> */
     public function forUser(User $user, string $financialBalance = '0.00'): array
     {
+        $financial = BigDecimal::of($financialBalance)->toScale(2, RoundingMode::Unnecessary);
+
+        if (! Schema::hasTable('patrimonial_assets')) {
+            return [
+                'summary' => [
+                    'asset_count' => 0,
+                    'financial_balance' => (string) $financial,
+                    'assets_total' => '0.00',
+                    'debts_total' => '0.00',
+                    'asset_equity' => '0.00',
+                    'estimated_net_worth' => (string) $financial,
+                    'available' => false,
+                ],
+                'assets' => [],
+            ];
+        }
+
         $assets = PatrimonialAsset::query()
             ->whereBelongsTo($user)
             ->orderByDesc('valued_on')
@@ -29,7 +47,6 @@ class PatrimonyOverviewQuery
         )->toScale(2, RoundingMode::Unnecessary);
 
         $equity = $gross->minus($debt)->toScale(2, RoundingMode::Unnecessary);
-        $financial = BigDecimal::of($financialBalance)->toScale(2, RoundingMode::Unnecessary);
 
         return [
             'summary' => [
@@ -39,6 +56,7 @@ class PatrimonyOverviewQuery
                 'debts_total' => (string) $debt,
                 'asset_equity' => (string) $equity,
                 'estimated_net_worth' => (string) $financial->plus($equity)->toScale(2, RoundingMode::Unnecessary),
+                'available' => true,
             ],
             'assets' => $assets->map(fn (PatrimonialAsset $asset): array => [
                 'id' => $asset->id,

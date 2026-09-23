@@ -131,10 +131,11 @@ const periodCards = computed(() => [
         </section>
 
         <section class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <Link :href="route('patrimony.index')" class="group flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 hover:bg-emerald-50">
+            <Link v-if="patrimony.available" :href="route('patrimony.index')" class="group flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 hover:bg-emerald-50">
                 <div><p class="text-xs text-emerald-800">Patrimônio estimado</p><p class="mt-1 text-lg font-semibold text-slate-950">{{ formatMoney(patrimony.estimated_net_worth) }}</p><p class="mt-0.5 text-[11px] text-slate-500">Liquidez financeira + valor líquido dos bens cadastrados</p></div>
                 <ArrowRight :size="18" class="shrink-0 text-emerald-600 transition group-hover:translate-x-0.5" />
             </Link>
+            <div v-else class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"><p class="text-xs font-semibold text-amber-900">Patrimônio em atualização</p><p class="mt-1 text-[11px] leading-5 text-amber-800">O saldo financeiro continua funcionando; o indicador patrimonial será liberado após a atualização do banco.</p></div>
             <div class="hidden items-center rounded-xl border border-slate-200 bg-white px-4 text-xs text-slate-500 sm:flex">Bens não contam como dinheiro disponível.</div>
         </section>
 
