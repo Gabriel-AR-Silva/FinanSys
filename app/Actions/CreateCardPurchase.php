@@ -68,7 +68,7 @@ class CreateCardPurchase
                 }
                 if ($card->credit_limit !== null) {
                     $limit = $this->cardLimits->forCard($card);
-                    if (BigDecimal::of($amount)->isGreaterThan(BigDecimal::of($limit['available'] ?? '0.00'))) {
+                    if ($amount->isGreaterThan(BigDecimal::of($limit['available'] ?? '0.00'))) {
                         throw ValidationException::withMessages([
                             'gross_amount' => 'A compra ultrapassa o limite disponível deste cartão.',
                         ]);
