@@ -88,7 +88,6 @@ final class DailyCardPurchaseRecognitionQuery
                 continue;
             }
 
-            $ids[] = $id;
             if ($wasReversed) {
                 $reversed[] = $id;
 
@@ -96,6 +95,7 @@ final class DailyCardPurchaseRecognitionQuery
             }
 
             $total = $total->plus($purchase->gross_amount);
+            $ids[] = $id;
         }
 
         return [
