@@ -155,3 +155,5 @@ jobs:
           tests/Feature/DailyFinancialCheckInTest.php
           tests/Feature/DailyCheckInHttpTest.php
           tests/Feature/MonthlyDailyPlanningDashboardQueryTest.php
+          tests/Feature/FinancialGoalTest.php
+          tests/Feature/PurgeExpiredFinancialRecordsTest.php
