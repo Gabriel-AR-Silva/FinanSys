@@ -97,7 +97,8 @@ class OnboardingProgressQuery
             ->whereBelongsTo($user)
             ->exists();
 
-        $hasPatrimony = Schema::hasTable('patrimonial_assets')
+        $patrimonyAvailable = Schema::hasTable('patrimonial_assets');
+        $hasPatrimony = $patrimonyAvailable
             && PatrimonialAsset::query()
                 ->whereBelongsTo($user)
                 ->exists();
@@ -161,9 +162,11 @@ class OnboardingProgressQuery
             $this->step(
                 'patrimony',
                 'Patrimônio estimado',
-                $hasPatrimony ? 'Você já acompanha ao menos um bem patrimonial.' : 'Opcional: registre bens relevantes pelo valor estimado atual e dívida vinculada.',
+                ! $patrimonyAvailable
+                    ? 'O módulo patrimonial aguarda a atualização do banco de dados.'
+                    : ($hasPatrimony ? 'Você já acompanha ao menos um bem patrimonial.' : 'Opcional: registre bens relevantes pelo valor estimado atual e dívida vinculada.'),
                 $hasPatrimony,
-                $hasPatrimony ? null : ['label' => 'Adicionar patrimônio', 'href' => route('patrimony.index', ['create' => 1, 'from' => 'onboarding'])],
+                ! $patrimonyAvailable || $hasPatrimony ? null : ['label' => 'Adicionar patrimônio', 'href' => route('patrimony.index', ['create' => 1, 'from' => 'onboarding'])],
             ),
             $this->step(
                 'goal',
