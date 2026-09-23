@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class ResetOperationalFinancialData
 {
-    /** @return array{ledger_entries:int,receipt_forecasts:int,card_operations:int,ofx_imports:int,daily_planning_records:int,financial_goals:int,derived_records:int} */
+    /** @return array{ledger_entries:int,receipt_forecasts:int,future_commitments:int,card_operations:int,ofx_imports:int,daily_planning_records:int,financial_goals:int,derived_records:int} */
     public function preview(User $user): array
     {
         $userId = $user->getKey();
@@ -17,6 +17,8 @@ class ResetOperationalFinancialData
         return [
             'ledger_entries' => DB::table('ledger_entries')->where('user_id', $userId)->count(),
             'receipt_forecasts' => DB::table('receipt_forecasts')->where('user_id', $userId)->count(),
+            'future_commitments' => DB::table('expense_commitments')->where('user_id', $userId)->count()
+                + DB::table('expense_commitment_payments')->where('user_id', $userId)->count(),
             'card_operations' => $this->cardOperationsCount($userId),
             'ofx_imports' => DB::table('bank_statement_imports')->where('user_id', $userId)->count(),
             'daily_planning_records' => DB::table('daily_budget_versions')->where('user_id', $userId)->count()
@@ -107,6 +109,8 @@ class ResetOperationalFinancialData
             'daily_budget_version',
             'daily_financial_check_in',
             'financial_goal',
+            'expense_commitment',
+            'expense_commitment_payment',
         ];
     }
 
@@ -114,6 +118,8 @@ class ResetOperationalFinancialData
     private function deletionOrder(): array
     {
         return [
+            'expense_commitment_payments',
+            'expense_commitments',
             'daily_financial_check_ins',
             'daily_budget_versions',
             'financial_goals',
