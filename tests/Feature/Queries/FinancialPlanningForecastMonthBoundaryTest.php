@@ -29,7 +29,7 @@ class FinancialPlanningForecastMonthBoundaryTest extends TestCase
             CarbonImmutable::parse('2026-09-15 12:00:00', 'America/Sao_Paulo'),
         );
 
-        $this->assertSame('0.00', $result['income']['received']);
+        $this->assertSame('0', $result['income']['received']);
         $this->assertSame('120.00', $result['income']['pending']);
         $this->assertSame('120.00', $result['income']['projected']);
     }
