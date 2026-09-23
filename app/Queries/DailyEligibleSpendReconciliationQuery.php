@@ -69,7 +69,7 @@ final class DailyEligibleSpendReconciliationQuery
             'blockers' => $blockers,
             'sources' => [
                 'ledger' => $ledger,
-                'card_purchases_gross_behavior_only' => $purchases,
+                'card_purchases' => $purchases,
                 'card_charges' => $charges,
             ],
         ];
