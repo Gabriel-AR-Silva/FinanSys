@@ -3,13 +3,17 @@
 namespace Tests\Feature;
 
 use App\Actions\CreateFinancialGoal;
+use App\Actions\DeleteFinancialGoal;
+use App\Actions\DeletePocket;
 use App\Actions\SetDailyBudget;
+use App\Models\FinancialGoal;
 use App\Models\LedgerEntry;
 use App\Models\Pocket;
 use App\Models\User;
 use App\Queries\FinancialGoalPlanningQuery;
 use App\Queries\OnboardingProgressQuery;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -111,6 +115,70 @@ class FinancialGoalTest extends TestCase
             $foreignPocket->id,
             (string) Str::uuid(),
         );
+    }
+
+    public function test_same_pocket_cannot_fund_two_active_goals_and_is_released_after_goal_deletion(): void
+    {
+        $user = User::factory()->create();
+        $pocket = Pocket::factory()->create(['user_id' => $user->id]);
+        $action = app(CreateFinancialGoal::class);
+        $date = today('America/Sao_Paulo')->addMonth()->toDateString();
+
+        $first = $action->handle($user, 'Meta A', '500.00', $date, $pocket->id, (string) Str::uuid());
+
+        try {
+            $action->handle($user, 'Meta B', '800.00', $date, $pocket->id, (string) Str::uuid());
+            $this->fail('A mesma reserva não pode financiar duas metas ao mesmo tempo.');
+        } catch (ValidationException) {
+            $this->assertDatabaseCount('financial_goals', 1);
+        }
+
+        app(DeleteFinancialGoal::class)->handle($user, $first->id);
+        $second = $action->handle($user, 'Meta B', '800.00', $date, $pocket->id, (string) Str::uuid());
+
+        $this->assertSame($pocket->id, $second->pocket_id);
+    }
+
+    public function test_database_rejects_cross_user_pocket_link_even_outside_action_layer(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $foreignPocket = Pocket::factory()->create(['user_id' => $other->id]);
+
+        $this->expectException(QueryException::class);
+
+        FinancialGoal::query()->create([
+            'user_id' => $user->id,
+            'pocket_id' => $foreignPocket->id,
+            'name' => 'Ligação inválida',
+            'target_amount' => '500.00',
+            'target_date' => today('America/Sao_Paulo')->addMonth()->toDateString(),
+            'operation_id' => (string) Str::uuid(),
+        ]);
+    }
+
+    public function test_purging_deleted_pocket_unlinks_goal_without_deleting_the_goal(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-23 09:00:00', 'America/Sao_Paulo'));
+        $user = User::factory()->create();
+        $pocket = Pocket::factory()->create(['user_id' => $user->id]);
+
+        $goal = app(CreateFinancialGoal::class)->handle(
+            $user,
+            'Meta persistente',
+            '1000.00',
+            '2026-12-31',
+            $pocket->id,
+            (string) Str::uuid(),
+        );
+
+        app(DeletePocket::class)->handle($user, $pocket->id);
+        $this->assertSame($pocket->id, $goal->fresh()->pocket_id);
+
+        $this->travel(31)->days();
+        $this->artisan('finansys:purge-expired')->assertSuccessful();
+
+        $this->assertDatabaseHas('financial_goals', ['id' => $goal->id, 'pocket_id' => null]);
     }
 
     public function test_goal_endpoints_are_authenticated_and_isolated(): void
