@@ -21,6 +21,7 @@ use App\Models\DailyBudgetVersion;
 use App\Models\DailyFinancialCheckIn;
 use App\Models\EssentialBudget;
 use App\Models\ExpenseRefund;
+use App\Models\FinancialGoal;
 use App\Models\LedgerEntry;
 use App\Models\MonthlyFinancialSetting;
 use App\Models\Pocket;
@@ -82,6 +83,7 @@ class AppServiceProvider extends ServiceProvider
             'daily_financial_check_in' => DailyFinancialCheckIn::class,
             'essential_budget' => EssentialBudget::class,
             'expense_refund' => ExpenseRefund::class,
+            'financial_goal' => FinancialGoal::class,
             'receipt_forecast' => ReceiptForecast::class,
             'receipt_forecast_link' => ReceiptForecastLink::class,
             'credit_card' => CreditCard::class,
