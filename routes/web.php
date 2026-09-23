@@ -15,6 +15,7 @@ use App\Http\Controllers\DailyFinancialCheckInController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseRefundController;
 use App\Http\Controllers\FinancialEvaluationController;
+use App\Http\Controllers\FinancialDiagnosticExportController;
 use App\Http\Controllers\FinancialGoalController;
 use App\Http\Controllers\FinancialSettingsController;
 use App\Http\Controllers\InternalAlertController;
@@ -128,6 +129,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/reembolsos', [ExpenseRefundController::class, 'store'])->name('expense-refunds.store');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::get('/profile/exportacao-financeira.json', FinancialDiagnosticExportController::class)
+        ->middleware('throttle:6,1')
+        ->name('financial-diagnostic-export.show');
     Route::post('/configuracoes-avancadas/limpeza/desafio', [OperationalDataResetController::class, 'challenge'])
         ->middleware('throttle:6,1')
         ->name('operational-data-reset.challenge');
