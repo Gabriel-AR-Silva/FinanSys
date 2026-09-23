@@ -181,13 +181,15 @@ class DailyFinancialCheckInTest extends TestCase
     public function test_month_history_uses_highest_revision_instead_of_highest_id_assumption(): void
     {
         $user = User::factory()->create();
+        $this->travelTo(CarbonImmutable::parse('2026-09-21 09:00:00', 'America/Sao_Paulo'));
+        $budget = app(SetDailyBudget::class)->handle($user, '90.00', (string) Str::uuid());
 
         $olderId = DailyFinancialCheckIn::query()->create([
             'user_id' => $user->id,
             'actor_id' => $user->id,
             'local_date' => '2026-09-22',
             'revision' => 2,
-            'daily_budget_version_id' => 1,
+            'daily_budget_version_id' => $budget->id,
             'budget_amount' => '90.00',
             'eligible_spent' => '100.00',
             'margin' => '-10.00',
@@ -201,7 +203,7 @@ class DailyFinancialCheckInTest extends TestCase
             'actor_id' => $user->id,
             'local_date' => '2026-09-22',
             'revision' => 1,
-            'daily_budget_version_id' => 1,
+            'daily_budget_version_id' => $budget->id,
             'budget_amount' => '90.00',
             'eligible_spent' => '80.00',
             'margin' => '10.00',
