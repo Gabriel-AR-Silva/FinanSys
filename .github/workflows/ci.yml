@@ -148,3 +148,4 @@ jobs:
           tests/Feature/MonthlyReceiptForecastResidualQueryTest.php
           tests/Feature/DailyCardDueSliceTest.php
           tests/Feature/DailyBudgetPersistenceSliceTest.php
+          tests/Feature/DailyOrdinaryLedgerExpenseQueryTest.php
