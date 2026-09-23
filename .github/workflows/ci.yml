@@ -144,3 +144,16 @@ jobs:
           tests/Feature/CardAdvanceTest.php
           tests/Feature/CardPurchaseReversalTest.php
           tests/Feature/CorrectManualLedgerEntryTest.php
+          tests/Feature/Queries/FinancialPlanningForecastMonthBoundaryTest.php
+          tests/Feature/MonthlyReceiptForecastResidualQueryTest.php
+          tests/Feature/DailyCardDueSliceTest.php
+          tests/Feature/DailyBudgetPersistenceSliceTest.php
+          tests/Feature/DailyOrdinaryLedgerExpenseQueryTest.php
+          tests/Feature/DailyCardPurchaseObservationSliceTest.php
+          tests/Feature/DailyCardChargeRecognitionSliceTest.php
+          tests/Feature/DailyEligibleSpendReconciliationTest.php
+          tests/Feature/DailyFinancialCheckInTest.php
+          tests/Feature/DailyCheckInHttpTest.php
+          tests/Feature/MonthlyDailyPlanningDashboardQueryTest.php
+          tests/Feature/FinancialGoalTest.php
+          tests/Feature/PurgeExpiredFinancialRecordsTest.php

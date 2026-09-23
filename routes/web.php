@@ -10,9 +10,12 @@ use App\Http\Controllers\CardPurchaseController;
 use App\Http\Controllers\CardPurchaseReversalController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CreditCardController;
+use App\Http\Controllers\DailyBudgetController;
+use App\Http\Controllers\DailyFinancialCheckInController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseRefundController;
 use App\Http\Controllers\FinancialEvaluationController;
+use App\Http\Controllers\FinancialGoalController;
 use App\Http\Controllers\FinancialSettingsController;
 use App\Http\Controllers\InternalAlertController;
 use App\Http\Controllers\LedgerEntryController;
@@ -45,6 +48,11 @@ Route::get('/dashboard', DashboardController::class)
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/orcamento-diario', [DailyBudgetController::class, 'edit'])->name('daily-budgets.edit');
+    Route::post('/orcamento-diario', [DailyBudgetController::class, 'store'])->name('daily-budgets.store');
+    Route::post('/check-ins-financeiros', [DailyFinancialCheckInController::class, 'store'])->name('daily-check-ins.store');
+    Route::post('/check-ins-financeiros/lote', [DailyFinancialCheckInController::class, 'storeBatch'])->name('daily-check-ins.batch.store');
+    Route::patch('/check-ins-financeiros/correcao', [DailyFinancialCheckInController::class, 'correct'])->name('daily-check-ins.correct');
     Route::get('/cartoes', [CreditCardController::class, 'index'])->name('credit-cards.index');
     Route::get('/cartoes/correcoes', [CardCorrectionController::class, 'index'])->name('card-corrections.index');
     Route::post('/cartoes', [CreditCardController::class, 'store'])->name('credit-cards.store');
@@ -61,6 +69,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/recebimentos-previstos/{forecast}/recebimentos', [ReceiptForecastReceiptController::class, 'store'])->whereNumber('forecast')->name('receipt-forecasts.receipts.store');
     Route::get('/configuracao-financeira', [FinancialSettingsController::class, 'edit'])->name('financial-settings.edit');
     Route::get('/historico-financeiro', [FinancialEvaluationController::class, 'index'])->name('financial-evaluations.index');
+    Route::get('/metas', [FinancialGoalController::class, 'index'])->name('financial-goals.index');
+    Route::post('/metas', [FinancialGoalController::class, 'store'])->name('financial-goals.store');
+    Route::put('/metas/{goal}', [FinancialGoalController::class, 'update'])->whereNumber('goal')->name('financial-goals.update');
+    Route::delete('/metas/{goal}', [FinancialGoalController::class, 'destroy'])->whereNumber('goal')->name('financial-goals.destroy');
     Route::get('/avisos-financeiros', [InternalAlertController::class, 'index'])->name('internal-alerts.index');
     Route::put('/configuracao-financeira', [FinancialSettingsController::class, 'update'])->name('financial-settings.update');
     Route::post('/configuracao-financeira/categorias', [FinancialSettingsController::class, 'storeCategory'])->name('financial-settings.categories.store');
