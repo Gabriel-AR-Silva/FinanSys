@@ -113,7 +113,8 @@ ser tratado como evidência de concorrência do banco escolhido para produção.
   OFX.
 - `V1_ONBOARDING_CONTRACT.md`: onboarding, pré-requisitos, CTAs e Tsuki.
 - `SAFE_DATA_RESET_CONTRACT.md`: limpeza segura de dados financeiros.
-- `DAILY_FINANCIAL_ENGINE_PROPOSAL.md`: proposta futura; não integra a V1.
+- `DAILY_FINANCIAL_ENGINE_V2_CONTRACT.md`: contrato conceitual unificado da V2;
+  não altera a V1 nem autoriza implementação antes da revisão técnica.
 - `docs/BUILD_BRANCH_WORKFLOW.md`: promoção `develop → build → main`.
 
 ## Continuidade de desenvolvimento

@@ -66,7 +66,7 @@ class FinancialPlanningOverviewQuery
         $expenses = $entries->where('type', LedgerEntryType::Expense)
             ->map(fn (LedgerEntry $entry): array => ['entry' => $entry, 'amount' => $this->netExpense($entry, $start, $end, $reversedRefundOperations)]);
         $income = $this->sum($entries->where('type', LedgerEntryType::Income)->pluck('amount'));
-        $pendingIncome = $this->pendingForecastIncome($user, $now->startOfMonth()->toDateString(), $now->endOfMonth()->toDateString());
+        $pendingIncome = $this->pendingForecastIncome($user, $now->startOfMonth()->toDateString(), $now->startOfMonth()->addMonth()->toDateString());
         $projectedIncome = $income->plus($pendingIncome);
         $currentProtection = $this->math->protection([(string) $income], $settings->protection_type, $settings->protection_value);
         $projectedProtection = $this->math->protection([(string) $projectedIncome], $settings->protection_type, $settings->protection_value);
@@ -203,11 +203,12 @@ class FinancialPlanningOverviewQuery
         return $this->math->ordinaryProjection((string) $completed, $now->day - 1, (string) $today, $now->daysInMonth - $now->day);
     }
 
-    private function pendingForecastIncome(User $user, string $start, string $end): BigDecimal
+    private function pendingForecastIncome(User $user, string $start, string $endExclusive): BigDecimal
     {
         return ReceiptForecast::query()->whereBelongsTo($user)
             ->where('status', '!=', ReceiptForecastStatus::Cancelled)
-            ->whereBetween('expected_on', [$start, $end])
+            ->where('expected_on', '>=', $start)
+            ->where('expected_on', '<', $endExclusive)
             ->get()
             ->reduce(fn (BigDecimal $total, ReceiptForecast $forecast): BigDecimal => $total->plus($this->recalculateForecast->calculate($user, $forecast)['pending']), BigDecimal::zero());
     }

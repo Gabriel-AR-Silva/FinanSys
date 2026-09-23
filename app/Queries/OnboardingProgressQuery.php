@@ -10,7 +10,9 @@ use App\Enums\RecordStatus;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\CreditCard;
+use App\Models\DailyBudgetVersion;
 use App\Models\EssentialBudget;
+use App\Models\FinancialGoal;
 use App\Models\LedgerEntry;
 use App\Models\MonthlyFinancialSetting;
 use App\Models\ReceiptForecast;
@@ -85,6 +87,14 @@ class OnboardingProgressQuery
             ->where('status', RecordStatus::Active)
             ->exists();
 
+        $hasDailyBudget = DailyBudgetVersion::query()
+            ->whereBelongsTo($user)
+            ->exists();
+
+        $hasGoal = FinancialGoal::query()
+            ->whereBelongsTo($user)
+            ->exists();
+
         $essentialSteps = [
             $this->step('foundation', 'Base do sistema', 'Moeda BRL e calendário de Brasília já estão definidos.', true, null),
             $this->step(
@@ -128,11 +138,25 @@ class OnboardingProgressQuery
                 $hasPlanning ? null : ['label' => 'Configurar este mês', 'href' => route('financial-settings.edit', ['month' => $month, 'from' => 'onboarding'])],
             ),
             $this->step(
+                'daily_budget',
+                'Orçamento diário',
+                $hasDailyBudget ? 'Seu planejamento diário já possui uma referência voluntária.' : 'Defina quanto pretende gastar por dia para liberar check-ins e comparações da V2.',
+                $hasDailyBudget,
+                $hasDailyBudget ? null : ['label' => 'Definir orçamento diário', 'href' => route('daily-budgets.edit', ['from' => 'onboarding'])],
+            ),
+            $this->step(
                 'card',
                 'Cartão de crédito',
                 $hasCard ? 'Ao menos um cartão está pronto para registrar compras.' : 'Opcional: cadastre somente se você realmente usa cartão.',
                 $hasCard,
                 $hasCard ? null : ['label' => 'Acessar cartões', 'href' => route('credit-cards.index', ['from' => 'onboarding'])],
+            ),
+            $this->step(
+                'goal',
+                'Meta financeira',
+                $hasGoal ? 'Você já acompanha ao menos uma meta.' : 'Opcional: defina um objetivo e, se quiser, vincule uma caixinha real para acompanhar a reserva.',
+                $hasGoal,
+                $hasGoal ? null : ['label' => 'Criar uma meta', 'href' => route('dashboard', ['view' => 'goals', 'from' => 'onboarding'])],
             ),
         ];
 
