@@ -17,13 +17,7 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __invoke(
-        IndexDashboardRequest $request,
-        FinancialOverviewQuery $overview,
-        FinancialPlanningOverviewQuery $planning,
-        RecalculateReceiptForecast $receiptProgress,
-        DailyCheckInCalendarQuery $checkIns,
-    ): Response
+    public function __invoke(IndexDashboardRequest $request, FinancialOverviewQuery $overview, FinancialPlanningOverviewQuery $planning, RecalculateReceiptForecast $receiptProgress, DailyCheckInCalendarQuery $checkIns): Response
     {
         $period = (int) $request->validated('period', 30);
         $period = in_array($period, [7, 15, 30, 60, 365], true) ? $period : 30;
