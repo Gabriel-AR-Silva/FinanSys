@@ -151,3 +151,4 @@ jobs:
           tests/Feature/DailyOrdinaryLedgerExpenseQueryTest.php
           tests/Feature/DailyCardPurchaseObservationSliceTest.php
           tests/Feature/DailyCardChargeRecognitionSliceTest.php
+          tests/Feature/DailyEligibleSpendReconciliationTest.php
