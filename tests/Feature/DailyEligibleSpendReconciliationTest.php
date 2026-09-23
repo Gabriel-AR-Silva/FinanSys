@@ -70,6 +70,47 @@ class DailyEligibleSpendReconciliationTest extends TestCase
         $this->assertSame('1200.00', $result['sources']['card_purchases_gross_behavior_only']['ordinary_purchase_total']);
     }
 
+    public function test_reversed_purchase_corrects_original_day_without_becoming_income_or_second_expense(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-21T18:00:00Z'));
+        $user = User::factory()->create();
+        $purchase = CardPurchase::factory()->create([
+            'user_id' => $user->id,
+            'purchased_on' => '2026-09-21',
+            'gross_amount' => '300.00',
+            'planning_type' => ExpensePlanningType::Ordinary,
+        ]);
+
+        $before = app(DailyEligibleSpendReconciliationQuery::class)->forUserOnDay(
+            $user,
+            '2026-09-21',
+            CarbonImmutable::parse('2026-09-21T19:00:00Z'),
+        );
+        $this->assertSame('300.00', $before['eligible_spent']);
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-22T18:00:00Z'));
+        \App\Models\CardPurchaseReversal::query()->create([
+            'user_id' => $user->id,
+            'credit_card_id' => $purchase->credit_card_id,
+            'card_purchase_id' => $purchase->id,
+            'reversed_on' => '2026-09-22',
+            'cancelled_pending_amount' => '300.00',
+            'credited_paid_amount' => '0.00',
+            'operation_id' => (string) \Illuminate\Support\Str::uuid(),
+        ]);
+        $purchase->delete();
+
+        $after = app(DailyEligibleSpendReconciliationQuery::class)->forUserOnDay(
+            $user,
+            '2026-09-21',
+            CarbonImmutable::parse('2026-09-22T19:00:00Z'),
+        );
+
+        $this->assertSame('0.00', $after['eligible_spent']);
+        $this->assertSame([], $after['blockers']);
+        $this->assertSame([$purchase->id], $after['sources']['card_purchases_gross_behavior_only']['reversed_purchase_ids']);
+    }
+
     public function test_unclassified_or_later_edited_origin_cannot_be_reported_as_zero_spending(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-21T18:00:00Z'));
