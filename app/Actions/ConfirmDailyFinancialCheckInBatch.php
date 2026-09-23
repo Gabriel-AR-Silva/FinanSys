@@ -10,7 +10,9 @@ use Illuminate\Validation\ValidationException;
 
 class ConfirmDailyFinancialCheckInBatch
 {
-    public function __construct(private RecordDailyFinancialCheckIn $recorder) {}
+    public function __construct(
+        private RecordDailyFinancialCheckIn $recorder,
+    ) {}
 
     /**
      * @param list<array{date:string,operation_id:string,reason?:?string}> $items
@@ -25,7 +27,7 @@ class ConfirmDailyFinancialCheckInBatch
         $dates = [];
         $operations = [];
         foreach ($items as $item) {
-            if (!is_array($item) || !isset($item['date'], $item['operation_id'])) {
+            if (! is_array($item) || ! isset($item['date'], $item['operation_id'])) {
                 throw ValidationException::withMessages(['days' => 'Cada dia precisa de data e chave de operação.']);
             }
             if (isset($dates[$item['date']]) || isset($operations[$item['operation_id']])) {
