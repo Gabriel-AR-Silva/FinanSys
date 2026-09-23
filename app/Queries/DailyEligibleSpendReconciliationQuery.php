@@ -39,14 +39,11 @@ final class DailyEligibleSpendReconciliationQuery
         if ($ledger['unclassified_count'] > 0) {
             $blockers[] = 'ledger_classification_missing';
         }
-        if ($purchases['coverage'] !== 'gross_card_purchases_only' || $purchases['unverifiable_purchase_ids'] !== []) {
+        if ($purchases['coverage'] !== 'ordinary_card_purchases_reconciled' || $purchases['unverifiable_purchase_ids'] !== []) {
             $blockers[] = 'card_purchase_history_unverifiable';
         }
         if ($purchases['unclassified_count'] > 0) {
             $blockers[] = 'card_purchase_classification_missing';
-        }
-        if ($purchases['reversed_purchase_ids'] !== []) {
-            $blockers[] = 'card_purchase_reversal_requires_origin_reconciliation';
         }
         if ($charges['coverage'] !== 'card_charges_only' || $charges['unverifiable_charge_ids'] !== []) {
             $blockers[] = 'card_charge_history_unverifiable';
