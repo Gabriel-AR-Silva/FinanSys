@@ -13,9 +13,13 @@ use Illuminate\Validation\ValidationException;
 
 class CreatePatrimonialAsset
 {
-    public function __construct(private AuditRecorder $auditRecorder) {}
+    public function __construct(private AuditRecorder $auditRecorder)
+    {
+    }
 
-    /** @param array<string, mixed> $data */
+    /**
+     * @param  array<string, mixed>  $data
+     */
     public function handle(User $user, array $data): PatrimonialAsset
     {
         $payload = $this->normalize($data);
@@ -28,8 +32,9 @@ class CreatePatrimonialAsset
         }, 3);
     }
 
-    /** @param array<string, mixed> $data
-     *  @return array<string, string|null>
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, string|null>
      */
     private function normalize(array $data): array
     {
