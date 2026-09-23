@@ -145,3 +145,4 @@ jobs:
           tests/Feature/CardPurchaseReversalTest.php
           tests/Feature/CorrectManualLedgerEntryTest.php
           tests/Feature/Queries/FinancialPlanningForecastMonthBoundaryTest.php
+          tests/Feature/MonthlyReceiptForecastResidualQueryTest.php
