@@ -7,6 +7,8 @@ use App\Models\FinancialGoal;
 use App\Models\Pocket;
 use App\Models\User;
 use App\Support\AuditRecorder;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -100,7 +102,7 @@ class CreateFinancialGoal
     {
         if (
             $goal->name !== $name
-            || $goal->target_amount !== number_format((float) $targetAmount, 2, '.', '')
+            || $goal->target_amount !== (string) BigDecimal::of($targetAmount)->toScale(2, RoundingMode::Unnecessary)
             || $goal->target_date->toDateString() !== $targetDate
             || $goal->pocket_id !== $pocketId
         ) {
