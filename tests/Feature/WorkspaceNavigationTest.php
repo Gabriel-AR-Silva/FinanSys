@@ -17,6 +17,10 @@ class WorkspaceNavigationTest extends TestCase
     {
         $user = User::factory()->create();
 
+        if (in_array($routeName, ['patrimony.index', 'help.index'], true)) {
+            $this->withoutVite();
+        }
+
         $response = $this->actingAs($user)->get(route($routeName));
 
         $response->assertInertia(fn (Assert $page) => $page->component($component));
@@ -37,6 +41,8 @@ class WorkspaceNavigationTest extends TestCase
             'accounts' => ['accounts.index', 'Accounts/Index'],
             'pockets' => ['pockets.index', 'Pockets/Index'],
             'ledger entries' => ['ledger-entries.index', 'LedgerEntries/Index'],
+            'patrimony' => ['patrimony.index', 'Patrimony/Index'],
+            'help center' => ['help.index', 'Help/Index'],
         ];
     }
 }

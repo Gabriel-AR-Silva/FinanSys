@@ -92,6 +92,7 @@ final class FinancialDiagnosticExportQuery
             'daily_budget_versions',
             'daily_financial_check_ins',
             'financial_goals',
+            'patrimonial_assets',
             'financial_evaluations',
             'internal_alerts',
         ];
