@@ -17,6 +17,8 @@ const countLabels = {
     receipt_forecasts: 'Recebimentos previstos',
     card_operations: 'Operações de cartão',
     ofx_imports: 'Importações OFX',
+    daily_planning_records: 'Orçamentos diários e check-ins',
+    financial_goals: 'Metas financeiras',
     derived_records: 'Análises e avisos',
 };
 
