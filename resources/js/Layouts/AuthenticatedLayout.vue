@@ -3,7 +3,7 @@ import QuickActionModal from '@/Components/QuickActionModal.vue';
 import ToastHost from '@/Components/ToastHost.vue';
 import TsukiOnboarding from '@/Components/TsukiOnboarding.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, BellRing, ChevronDown, CreditCard, FileUp, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, RotateCcw, Settings, Tags, WalletCards, Wrench, X } from '@lucide/vue';
+import { ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, BellRing, ChevronDown, CircleHelp, CreditCard, FileUp, Landmark, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, RotateCcw, Settings, Tags, WalletCards, Wrench, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const page = usePage();
@@ -27,6 +27,7 @@ const sections = [
         { label: 'Caixinhas', route: 'pockets.index', icon: PiggyBank },
         { label: 'Lançamentos', route: 'ledger-entries.index', icon: ReceiptText },
         { label: 'Cartões', route: 'credit-cards.index', icon: CreditCard },
+        { label: 'Patrimônio', route: 'patrimony.index', icon: Landmark },
     ] },
     { label: 'Organização', items: [{ label: 'Categorias', route: 'categories.index', icon: Tags }] },
 ];
@@ -35,6 +36,7 @@ const tools = computed(() => [
     { label: 'Correções de cartão', route: 'card-corrections.index', icon: RotateCcw },
     { label: 'Configuração financeira', route: 'financial-settings.edit', icon: Settings },
     { label: 'Avisos financeiros', route: 'internal-alerts.index', icon: BellRing },
+    { label: 'Central de ajuda', route: 'help.index', icon: CircleHelp },
 ]);
 const isActive = routeName => route().current(routeName);
 const closeTools = () => { toolsOpen.value = false; };
