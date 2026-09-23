@@ -41,7 +41,7 @@ class CreatePatrimonialAsset
         $value = BigDecimal::of((string) $data['estimated_value'])->toScale(2, RoundingMode::Unnecessary);
         $debt = BigDecimal::of((string) ($data['debt_balance'] ?? '0'))->toScale(2, RoundingMode::Unnecessary);
 
-        if (! $value->isPositive() || $debt->isNegative()) {
+        if ($value->compareTo('0') <= 0 || $debt->compareTo('0') < 0) {
             throw ValidationException::withMessages(['estimated_value' => 'Revise os valores patrimoniais informados.']);
         }
 
