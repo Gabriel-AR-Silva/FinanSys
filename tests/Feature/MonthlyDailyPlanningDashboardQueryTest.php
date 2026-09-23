@@ -49,13 +49,14 @@ class MonthlyDailyPlanningDashboardQueryTest extends TestCase
 
         $this->assertSame('2026-09', $result['month']);
         $this->assertSame(2, $result['confirmed_days']);
-        $this->assertSame(20, $result['pending_days']);
+        $this->assertSame(1, $result['pending_days']);
+        $this->assertSame(3, $result['tracked_completed_days']);
         $this->assertSame('30.00', $result['gross_savings']);
         $this->assertSame('20.00', $result['gross_excess']);
         $this->assertSame('10.00', $result['net_margin']);
         $this->assertSame('170.00', $result['total_spent']);
         $this->assertSame('90.00', $result['current_daily_budget']);
-        $this->assertSame('partial_completed_days_pending', $result['coverage']);
+        $this->assertSame('partial_tracked_days_pending', $result['coverage']);
         $this->assertSame(['30.00', '10.00'], array_column($result['daily'], 'cumulative_margin'));
     }
 
@@ -107,9 +108,11 @@ class MonthlyDailyPlanningDashboardQueryTest extends TestCase
         $result = app(MonthlyDailyPlanningDashboardQuery::class)->forUser($user);
 
         $this->assertSame(0, $result['confirmed_days']);
-        $this->assertSame(22, $result['pending_days']);
+        $this->assertSame(0, $result['pending_days']);
+        $this->assertSame(0, $result['tracked_completed_days']);
         $this->assertSame([], $result['daily']);
         $this->assertSame('0.00', $result['net_margin']);
         $this->assertSame('75.00', $result['current_daily_budget']);
+        $this->assertSame('all_tracked_completed_days_confirmed', $result['coverage']);
     }
 }
