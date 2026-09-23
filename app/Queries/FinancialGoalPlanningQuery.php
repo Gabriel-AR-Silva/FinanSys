@@ -12,7 +12,7 @@ final class FinancialGoalPlanningQuery
 {
     public function __construct(private PocketBalanceQuery $pocketBalances) {}
 
-    /** @return array{goals:list<array<string,mixed>>,summary:array<string,mixed>,evaluated_at:string} */
+    /** @return array{goals:list<array<string,mixed>>,pockets:list<array{id:int,name:string,balance:string}>,summary:array<string,mixed>,evaluated_at:string} */
     public function forUser(User $user, ?CarbonImmutable $evaluatedAt = null): array
     {
         $today = ($evaluatedAt ?? CarbonImmutable::now('America/Sao_Paulo'))
@@ -92,6 +92,11 @@ final class FinancialGoalPlanningQuery
 
         return [
             'goals' => $items,
+            'pockets' => $pockets->values()->map(fn ($pocket): array => [
+                'id' => (int) $pocket->getKey(),
+                'name' => $pocket->name,
+                'balance' => (string) BigDecimal::of($pocket->balance)->toScale(2),
+            ])->all(),
             'summary' => [
                 'count' => count($items),
                 'target_total' => (string) $targetTotal->toScale(2),
