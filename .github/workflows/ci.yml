@@ -149,3 +149,4 @@ jobs:
           tests/Feature/DailyCardDueSliceTest.php
           tests/Feature/DailyBudgetPersistenceSliceTest.php
           tests/Feature/DailyOrdinaryLedgerExpenseQueryTest.php
+          tests/Feature/DailyCardPurchaseObservationSliceTest.php
