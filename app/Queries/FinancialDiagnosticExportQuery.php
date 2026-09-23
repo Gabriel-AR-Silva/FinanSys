@@ -9,14 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 final class FinancialDiagnosticExportQuery
 {
-    public function __construct(
-        private FinancialOverviewQuery $overview,
-        private FinancialPlanningOverviewQuery $planning,
-        private MonthlyDailyPlanningDashboardQuery $dailyPlanning,
-        private FinancialGoalPlanningQuery $goals,
-        private CreditCardLimitQuery $cardLimits,
-        private OnboardingProgressQuery $onboarding,
-    ) {}
+    public function __construct(private FinancialOverviewQuery $overview, private FinancialPlanningOverviewQuery $planning, private MonthlyDailyPlanningDashboardQuery $dailyPlanning, private FinancialGoalPlanningQuery $goals, private CreditCardLimitQuery $cardLimits, private OnboardingProgressQuery $onboarding) {}
 
     /** @return array<string, mixed> */
     public function forUser(User $user): array
@@ -104,8 +97,9 @@ final class FinancialDiagnosticExportQuery
         ];
     }
 
-    /** @param array<string, mixed> $row
-     *  @return array<string, mixed>
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
      */
     private function sanitizeRow(array $row): array
     {
