@@ -192,7 +192,7 @@ onMounted(() => {
                         <div class="rounded-xl bg-slate-50 p-3"><dt class="text-[11px] text-slate-500">Meta</dt><dd class="mt-1 text-sm font-semibold text-slate-900">{{ formatMoney(goal.target_amount) }}</dd></div>
                         <div class="rounded-xl bg-slate-50 p-3"><dt class="text-[11px] text-slate-500">Falta</dt><dd class="mt-1 text-sm font-semibold text-slate-900">{{ formatMoney(goal.remaining_amount) }}</dd></div>
                         <div class="rounded-xl bg-slate-50 p-3">
-                            <dt class="flex items-center gap-1 text-[11px] text-slate-500">Por dia <HelpHint label="">É apenas uma referência para chegar no prazo. O FinanSys não cria aporte nem reduz seu orçamento automaticamente.</HelpHint></dt>
+                            <dt class="flex items-center gap-1 text-[11px] text-slate-500">Por dia <HelpHint label="Como funciona?">É apenas uma referência para chegar no prazo. O FinanSys não cria aporte nem reduz seu orçamento automaticamente.</HelpHint></dt>
                             <dd class="mt-1 text-sm font-semibold text-slate-900">{{ goal.daily_required === null ? '—' : formatMoney(goal.daily_required) }}</dd>
                         </div>
                     </dl>
@@ -226,7 +226,7 @@ onMounted(() => {
                         <div><label class="text-sm font-medium text-slate-700" for="goal-date">Data-alvo</label><input id="goal-date" v-model="form.target_date" type="date" class="mt-2 block w-full rounded-xl border-slate-300 text-sm focus:border-violet-500 focus:ring-violet-500" /><p v-if="errors.target_date" class="mt-1 text-xs text-rose-600">{{ errors.target_date[0] }}</p></div>
                     </div>
                     <div>
-                        <div class="flex items-center gap-1"><label class="text-sm font-medium text-slate-700" for="goal-pocket">Caixinha para acompanhar a reserva</label><HelpHint label="">Opcional. O saldo real da caixinha será usado como “já reservado”. A meta não cria nem transfere dinheiro.</HelpHint></div>
+                        <div class="flex items-center gap-1"><label class="text-sm font-medium text-slate-700" for="goal-pocket">Caixinha para acompanhar a reserva</label><HelpHint label="Entenda">Opcional. O saldo real da caixinha será usado como “já reservado”. A meta não cria nem transfere dinheiro.</HelpHint></div>
                         <select id="goal-pocket" v-model="form.pocket_id" class="mt-2 block w-full rounded-xl border-slate-300 text-sm focus:border-violet-500 focus:ring-violet-500">
                             <option value="">Sem caixinha vinculada</option>
                             <option v-for="pocket in data?.pockets ?? []" :key="pocket.id" :value="pocket.id">{{ pocket.name }} · {{ formatMoney(pocket.balance) }}</option>
