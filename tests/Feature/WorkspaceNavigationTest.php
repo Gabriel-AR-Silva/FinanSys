@@ -18,7 +18,7 @@ class WorkspaceNavigationTest extends TestCase
         $user = User::factory()->create();
 
         if (in_array($routeName, ['patrimony.index', 'help.index'], true)) {
-            $this->withoutExceptionHandling();
+            $this->withoutVite();
         }
 
         $response = $this->actingAs($user)->get(route($routeName));
