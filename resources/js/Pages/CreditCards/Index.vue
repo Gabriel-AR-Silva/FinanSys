@@ -48,7 +48,11 @@ const cardForm = useForm({
     name: "",
     closing_day: 5,
     due_day: 12,
+    credit_limit: "",
     operation_id: crypto.randomUUID(),
+});
+const limitForm = useForm({
+    credit_limit: "",
 });
 const purchaseForm = useForm({
     credit_card_id: selectedCardId.value,
@@ -287,6 +291,11 @@ const advancePreview = computed(() => {
 
 function open(kind, cardId = selectedCardId.value) {
     selectedCardId.value = cardId;
+    if (kind === "limit") {
+        const card = props.cards.find((item) => item.id === Number(cardId));
+        limitForm.credit_limit = card?.limit?.total ? formatMoneyInput(card.limit.total) : "";
+        limitForm.clearErrors();
+    }
     if (kind === "purchase") purchaseForm.credit_card_id = cardId;
     if (kind === "charge") chargeForm.credit_card_id = cardId;
     if (kind === "payment") {
@@ -302,7 +311,7 @@ function open(kind, cardId = selectedCardId.value) {
 
 function close() {
     if (
-        ![cardForm, purchaseForm, chargeForm, paymentForm, advanceForm].some(
+        ![cardForm, limitForm, purchaseForm, chargeForm, paymentForm, advanceForm].some(
             (form) => form.processing,
         )
     )
@@ -331,7 +340,12 @@ function submitCharge() {
 }
 
 function submitCard() {
-    cardForm.post(route("credit-cards.store"), {
+    cardForm
+        .transform((data) => ({
+            ...data,
+            credit_limit: data.credit_limit ? normalizeMoneyInput(data.credit_limit) : null,
+        }))
+        .post(route("credit-cards.store"), {
         preserveScroll: true,
         onSuccess: () => {
             modal.value = null;
@@ -339,11 +353,27 @@ function submitCard() {
                 name: "",
                 closing_day: 5,
                 due_day: 12,
+                credit_limit: "",
                 operation_id: crypto.randomUUID(),
             });
             cardForm.reset();
         },
     });
+}
+
+function submitLimit() {
+    const cardId = Number(selectedCardId.value);
+    limitForm
+        .transform((data) => ({
+            credit_limit: data.credit_limit ? normalizeMoneyInput(data.credit_limit) : null,
+        }))
+        .patch(route("credit-cards.limit.update", cardId), {
+            preserveScroll: true,
+            onSuccess: () => {
+                modal.value = null;
+                limitForm.reset();
+            },
+        });
 }
 
 function submitPurchase() {
@@ -522,6 +552,12 @@ const date = (value) => value.split("-").reverse().join("/");
                             </p>
                         </div>
                     </div>
+                    <div class="grid grid-cols-2 gap-px border-b border-slate-100 bg-slate-100 sm:grid-cols-4">
+                        <div class="bg-white p-3"><p class="text-[11px] uppercase tracking-wide text-slate-500">Limite total</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ card.limit.total === null ? 'Não informado' : `R$ ${formatMoneyInput(card.limit.total)}` }}</p></div>
+                        <div class="bg-white p-3"><p class="text-[11px] uppercase tracking-wide text-slate-500">Em uso</p><p class="mt-1 text-sm font-semibold text-slate-900">R$ {{ formatMoneyInput(card.limit.outstanding) }}</p></div>
+                        <div class="bg-white p-3"><p class="text-[11px] uppercase tracking-wide text-slate-500">Disponível</p><p class="mt-1 text-sm font-semibold" :class="card.limit.total === null ? 'text-slate-500' : 'text-emerald-700'">{{ card.limit.available === null ? 'Sem controle' : `R$ ${formatMoneyInput(card.limit.available)}` }}</p></div>
+                        <div class="bg-white p-3"><p class="text-[11px] uppercase tracking-wide text-slate-500">Excesso</p><p class="mt-1 text-sm font-semibold" :class="Number(card.limit.over_limit) > 0 ? 'text-rose-700' : 'text-slate-500'">R$ {{ formatMoneyInput(card.limit.over_limit) }}</p></div>
+                    </div>
                     <p
                         v-if="card.may_have_unconfirmed_charges"
                         class="border-b border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900"
@@ -531,6 +567,13 @@ const date = (value) => value.split("-").reverse().join("/");
                         pagar. Nenhum valor foi estimado.
                     </p>
                     <div class="flex gap-2 border-b border-slate-100 p-3">
+                        <button
+                            class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700"
+                            type="button"
+                            @click="open('limit', card.id)"
+                        >
+                            Ajustar limite
+                        </button>
                         <button
                             class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700"
                             type="button"
@@ -731,6 +774,19 @@ const date = (value) => value.split("-").reverse().join("/");
                         class="mt-2 w-full"
                     /><InputError :message="cardForm.errors.name" />
                 </div>
+                <div>
+                    <InputLabel for="credit-limit" value="Limite total (opcional)" />
+                    <TextInput
+                        id="credit-limit"
+                        :model-value="cardForm.credit_limit"
+                        inputmode="decimal"
+                        class="mt-2 w-full"
+                        placeholder="Ex.: 5.000,00"
+                        @update:model-value="cardForm.credit_limit = sanitizeMoneyInput($event)"
+                    />
+                    <p class="mt-1 text-xs leading-5 text-slate-500">Se informado, compras novas serão validadas contra o limite disponível. Deixe vazio para não controlar limite.</p>
+                    <InputError :message="cardForm.errors.credit_limit" />
+                </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <InputLabel
@@ -778,6 +834,31 @@ const date = (value) => value.split("-").reverse().join("/");
                 </div>
             </form></Modal
         >
+
+        <Modal :show="modal === 'limit'" max-width="md" @close="close">
+            <form class="flex flex-col gap-4 p-5 sm:p-6" @submit.prevent="submitLimit">
+                <div>
+                    <h2 class="text-xl font-semibold">Ajustar limite do cartão</h2>
+                    <p class="mt-1 text-sm leading-6 text-slate-500">O limite é uma referência operacional. A dívida continua vindo das compras, parcelas e encargos reais.</p>
+                </div>
+                <div>
+                    <InputLabel for="edit-credit-limit" value="Limite total" />
+                    <TextInput
+                        id="edit-credit-limit"
+                        :model-value="limitForm.credit_limit"
+                        inputmode="decimal"
+                        class="mt-2 w-full"
+                        placeholder="Deixe vazio para não controlar"
+                        @update:model-value="limitForm.credit_limit = sanitizeMoneyInput($event)"
+                    />
+                    <InputError :message="limitForm.errors.credit_limit" />
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" class="rounded-xl border px-4 py-3 text-sm font-semibold" @click="close">Cancelar</button>
+                    <button :disabled="limitForm.processing" class="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Salvar limite</button>
+                </div>
+            </form>
+        </Modal>
 
         <Modal :show="modal === 'charge'" max-width="lg" @close="close"
             ><form
