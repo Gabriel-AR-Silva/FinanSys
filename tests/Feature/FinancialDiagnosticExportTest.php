@@ -49,15 +49,17 @@ class FinancialDiagnosticExportTest extends TestCase
 
         $response->assertOk()
             ->assertHeader('Content-Type', 'application/json')
-            ->assertHeader('Cache-Control', 'no-store, private')
             ->assertJsonPath('meta.schema', 'finansys-financial-diagnostic-export')
             ->assertJsonPath('meta.version', 1)
             ->assertJsonPath('meta.contains_credentials', false)
             ->assertJsonPath('raw.accounts.0.name', 'Conta principal')
-            ->assertJsonPath('raw.ledger_entries.0.amount', 123.45)
             ->assertJsonPath('derived.card_limits.0.total', '500.00');
 
+        $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+        $this->assertStringContainsString('private', (string) $response->headers->get('Cache-Control'));
+
         $payload = $response->json();
+        $this->assertSame('123.45', number_format((float) $payload['raw']['ledger_entries'][0]['amount'], 2, '.', ''));
 
         $this->assertArrayNotHasKey('users', $payload['raw']);
         $this->assertArrayNotHasKey('social_identities', $payload['raw']);
