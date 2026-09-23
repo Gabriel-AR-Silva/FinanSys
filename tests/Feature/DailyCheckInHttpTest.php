@@ -110,6 +110,7 @@ class DailyCheckInHttpTest extends TestCase
             'reason' => 'Referência inicial.',
         ])->assertRedirect(route('daily-budgets.edit'));
 
+        $this->withoutVite();
         $this->actingAs($user)->get(route('daily-budgets.edit'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
