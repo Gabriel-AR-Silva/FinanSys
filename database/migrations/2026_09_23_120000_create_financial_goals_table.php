@@ -21,6 +21,7 @@ return new class extends Migration
 
             $table->unique(['user_id', 'operation_id'], 'financial_goals_user_operation_unique');
             $table->index(['user_id', 'target_date'], 'financial_goals_user_target_date_index');
+            $table->unique('pocket_id', 'financial_goals_pocket_unique');
             $table->foreign(['pocket_id', 'user_id'], 'financial_goals_pocket_user_fk')
                 ->references(['id', 'user_id'])
                 ->on('pockets');
