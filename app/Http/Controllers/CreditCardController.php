@@ -60,7 +60,7 @@ class CreditCardController extends Controller
                 'charges' => fn ($query) => $query->with('category:id,name')->latest('charged_on')->latest('id'),
             ])
             ->orderBy('name')->orderBy('id')->get()
-            ->map(function (CreditCard $card): array {
+            ->map(function (CreditCard $card) use ($cardLimits): array {
                 $installments = $card->purchases->pluck('installments')->flatten();
                 $pending = $installments->where('status', CardInstallmentStatus::Pending)->reduce(
                     fn (BigDecimal $total, $installment): BigDecimal => $total->plus(BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)),
@@ -121,9 +121,14 @@ class CreditCardController extends Controller
         return to_route('credit-cards.index')->with('success', '💳 Cartão cadastrado. Bora usar sem fazer merda, hein? 😅');
     }
 
-    public function updateLimit(UpdateCreditCardLimitRequest $request, CreditCard $card, UpdateCreditCardLimit $update): RedirectResponse
+    public function updateLimit(UpdateCreditCardLimitRequest $request, string $card, UpdateCreditCardLimit $update): RedirectResponse
     {
-        $update->handle($request->user(), $card, $request->validated('credit_limit'));
+        $ownedCard = CreditCard::query()
+            ->whereBelongsTo($request->user())
+            ->whereKey($card)
+            ->firstOrFail();
+
+        $update->handle($request->user(), $ownedCard, $request->validated('credit_limit'));
 
         return to_route('credit-cards.index')->with('success', 'Limite do cartão atualizado.');
     }
