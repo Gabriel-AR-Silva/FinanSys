@@ -147,3 +147,4 @@ jobs:
           tests/Feature/Queries/FinancialPlanningForecastMonthBoundaryTest.php
           tests/Feature/MonthlyReceiptForecastResidualQueryTest.php
           tests/Feature/DailyCardDueSliceTest.php
+          tests/Feature/DailyBudgetPersistenceSliceTest.php
