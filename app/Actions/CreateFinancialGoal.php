@@ -29,6 +29,7 @@ class CreateFinancialGoal
     ): FinancialGoal {
         $name = trim($name);
         $operationId = strtolower($operationId);
+
         if ($name === '') {
             throw ValidationException::withMessages(['name' => 'Informe um nome para a meta.']);
         }
@@ -41,16 +42,16 @@ class CreateFinancialGoal
 
         try {
             return DB::transaction(function () use ($user, $name, $targetAmount, $targetDate, $pocketId, $operationId): FinancialGoal {
-                $pocket = $this->resolvePocket($user, $pocketId);
-
                 $existing = FinancialGoal::withTrashed()
                     ->where('user_id', $user->getKey())
                     ->where('operation_id', $operationId)
                     ->first();
 
                 if ($existing !== null) {
-                    return $this->validateReplay($existing, $name, $targetAmount, $targetDate, $pocket?->getKey());
+                    return $this->validateReplay($existing, $name, $targetAmount, $targetDate, $pocketId);
                 }
+
+                $pocket = $this->resolvePocket($user, $pocketId);
 
                 $goal = FinancialGoal::query()->create([
                     'user_id' => $user->getKey(),
@@ -71,11 +72,11 @@ class CreateFinancialGoal
                 ->where('operation_id', $operationId)
                 ->first();
 
-            if ($existing === null) {
-                throw ValidationException::withMessages(['pocket_id' => 'Esta caixinha já está vinculada a outra meta.']);
+            if ($existing !== null) {
+                return $this->validateReplay($existing, $name, $targetAmount, $targetDate, $pocketId);
             }
 
-            return $this->validateReplay($existing, $name, $targetAmount, $targetDate, $pocketId);
+            throw ValidationException::withMessages(['pocket_id' => 'Esta caixinha já está vinculada a outra meta.']);
         }
     }
 
@@ -90,8 +91,7 @@ class CreateFinancialGoal
             throw ValidationException::withMessages(['pocket_id' => 'Selecione uma caixinha válida da sua conta.']);
         }
 
-        $alreadyLinked = FinancialGoal::query()->where('pocket_id', $pocket->getKey())->exists();
-        if ($alreadyLinked) {
+        if (FinancialGoal::query()->where('pocket_id', $pocket->getKey())->exists()) {
             throw ValidationException::withMessages(['pocket_id' => 'Esta caixinha já está vinculada a outra meta.']);
         }
 
