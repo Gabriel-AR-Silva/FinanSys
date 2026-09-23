@@ -18,7 +18,7 @@ class ConfirmDailyFinancialCheckInBatch
     }
 
     /**
-     * @param list<array{date:string,operation_id:string,reason?:?string}> $items
+     * @param  list<array{date:string,operation_id:string,reason?:?string}>  $items
      * @return Collection<int, DailyFinancialCheckIn>
      */
     public function handle(User $actor, array $items): Collection
