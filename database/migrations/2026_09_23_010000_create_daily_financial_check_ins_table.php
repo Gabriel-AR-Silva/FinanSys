@@ -29,6 +29,10 @@ return new class extends Migration
             $table->unique(['user_id', 'local_date', 'revision'], 'dfci_user_date_revision_unique');
             $table->index(['user_id', 'local_date', 'revision'], 'dfci_user_date_revision_index');
             $table->index(['user_id', 'confirmed_at'], 'dfci_user_confirmed_index');
+            $table->foreign(['daily_budget_version_id', 'user_id'], 'dfci_budget_user_fk')
+                ->references(['id', 'user_id'])
+                ->on('daily_budget_versions')
+                ->cascadeOnDelete();
         });
     }
 
