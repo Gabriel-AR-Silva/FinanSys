@@ -29,6 +29,9 @@ class CreateFinancialGoal
     ): FinancialGoal {
         $name = trim($name);
         $operationId = strtolower($operationId);
+        if ($name === '') {
+            throw ValidationException::withMessages(['name' => 'Informe um nome para a meta.']);
+        }
 
         $this->validateDate($targetDate);
 
@@ -69,7 +72,7 @@ class CreateFinancialGoal
                 ->first();
 
             if ($existing === null) {
-                throw ValidationException::withMessages(['operation_id' => 'Não foi possível repetir a operação com segurança.']);
+                throw ValidationException::withMessages(['pocket_id' => 'Esta caixinha já está vinculada a outra meta.']);
             }
 
             return $this->validateReplay($existing, $name, $targetAmount, $targetDate, $pocketId);
@@ -85,6 +88,11 @@ class CreateFinancialGoal
         $pocket = Pocket::query()->whereBelongsTo($user)->find($pocketId);
         if ($pocket === null) {
             throw ValidationException::withMessages(['pocket_id' => 'Selecione uma caixinha válida da sua conta.']);
+        }
+
+        $alreadyLinked = FinancialGoal::query()->where('pocket_id', $pocket->getKey())->exists();
+        if ($alreadyLinked) {
+            throw ValidationException::withMessages(['pocket_id' => 'Esta caixinha já está vinculada a outra meta.']);
         }
 
         return $pocket;
