@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['user_id', 'name', 'closing_day', 'due_day', 'status', 'operation_id'])]
+#[Fillable(['user_id', 'name', 'closing_day', 'due_day', 'credit_limit', 'status', 'operation_id'])]
 class CreditCard extends Model
 {
     /** @use HasFactory<CreditCardFactory> */
@@ -19,7 +19,7 @@ class CreditCard extends Model
 
     protected function casts(): array
     {
-        return ['closing_day' => 'integer', 'due_day' => 'integer', 'status' => RecordStatus::class];
+        return ['closing_day' => 'integer', 'due_day' => 'integer', 'credit_limit' => 'decimal:2', 'status' => RecordStatus::class];
     }
 
     public function user(): BelongsTo
