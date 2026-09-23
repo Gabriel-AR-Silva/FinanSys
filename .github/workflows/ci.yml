@@ -154,3 +154,4 @@ jobs:
           tests/Feature/DailyEligibleSpendReconciliationTest.php
           tests/Feature/DailyFinancialCheckInTest.php
           tests/Feature/DailyCheckInHttpTest.php
+          tests/Feature/MonthlyDailyPlanningDashboardQueryTest.php
