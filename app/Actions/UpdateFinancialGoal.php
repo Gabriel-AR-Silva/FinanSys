@@ -8,6 +8,7 @@ use App\Models\Pocket;
 use App\Models\User;
 use App\Support\AuditRecorder;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -28,7 +29,13 @@ class UpdateFinancialGoal
             throw ValidationException::withMessages(['target_date' => 'Escolha hoje ou uma data futura para a meta.']);
         }
 
-        return DB::transaction(function () use ($user, $goalId, $name, $targetAmount, $targetDate, $pocketId): FinancialGoal {
+        $name = trim($name);
+        if ($name === '') {
+            throw ValidationException::withMessages(['name' => 'Informe um nome para a meta.']);
+        }
+
+        try {
+            return DB::transaction(function () use ($user, $goalId, $name, $targetAmount, $targetDate, $pocketId): FinancialGoal {
             $goal = FinancialGoal::query()
                 ->whereBelongsTo($user)
                 ->lockForUpdate()
@@ -49,9 +56,19 @@ class UpdateFinancialGoal
                 'target_date' => $targetDate,
             ])->save();
 
-            $this->auditRecorder->record($user, AuditAction::Updated, $goal);
+                if ($pocket !== null && FinancialGoal::query()
+                    ->where('pocket_id', $pocket->getKey())
+                    ->whereKeyNot($goal->getKey())
+                    ->exists()) {
+                    throw ValidationException::withMessages(['pocket_id' => 'Esta caixinha já está vinculada a outra meta.']);
+                }
 
-            return $goal;
-        }, 3);
+                $this->auditRecorder->record($user, AuditAction::Updated, $goal);
+
+                return $goal;
+            }, 3);
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages(['pocket_id' => 'Esta caixinha já está vinculada a outra meta.']);
+        }
     }
 }
