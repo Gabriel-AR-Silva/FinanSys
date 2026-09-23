@@ -13,9 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class CreatePatrimonialAsset
 {
-    public function __construct(private AuditRecorder $auditRecorder)
-    {
-    }
+    public function __construct(private AuditRecorder $auditRecorder) {}
 
     /**
      * @param  array<string, mixed>  $data
