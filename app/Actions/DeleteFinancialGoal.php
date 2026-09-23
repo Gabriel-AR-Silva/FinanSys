@@ -20,8 +20,11 @@ class DeleteFinancialGoal
                 ->lockForUpdate()
                 ->findOrFail($goalId);
 
+            $before = $goal->attributesToArray();
+            $goal->pocket_id = null;
+            $goal->saveQuietly();
             $goal->delete();
-            $this->auditRecorder->record($user, AuditAction::Deleted, $goal);
+            $this->auditRecorder->record($user, AuditAction::Deleted, $goal, $before);
         }, 3);
     }
 }
