@@ -8,6 +8,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user ?? {});
+const features = computed(() => page.props.features ?? {});
 const avatar = computed(() => user.value.avatar_path ? `${route('profile.avatar')}?v=${encodeURIComponent(user.value.avatar_path)}` : null);
 const avatarFailed = ref(false);
 const initials = computed(() => (user.value.name || 'U').trim().split(/\s+/).slice(0, 2).map(part => part.charAt(0).toUpperCase()).join(''));
@@ -29,12 +30,12 @@ const sections = [
     ] },
     { label: 'Organização', items: [{ label: 'Categorias', route: 'categories.index', icon: Tags }] },
 ];
-const tools = [
-    { label: 'Importar extrato OFX', route: 'ofx-imports.index', icon: FileUp },
+const tools = computed(() => [
+    ...(features.value.ofx ? [{ label: 'Importar extrato OFX', route: 'ofx-imports.index', icon: FileUp }] : []),
     { label: 'Correções de cartão', route: 'card-corrections.index', icon: RotateCcw },
     { label: 'Configuração financeira', route: 'financial-settings.edit', icon: Settings },
     { label: 'Avisos financeiros', route: 'internal-alerts.index', icon: BellRing },
-];
+]);
 const isActive = routeName => route().current(routeName);
 const closeTools = () => { toolsOpen.value = false; };
 const openMobileNavigation = () => { closeTools(); mobileNavigationOpen.value = true; };

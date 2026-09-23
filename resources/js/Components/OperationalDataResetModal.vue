@@ -15,8 +15,11 @@ const form = useForm({ password: '', confirmation_code: '', slider_confirmed: fa
 const countLabels = {
     ledger_entries: 'Lançamentos',
     receipt_forecasts: 'Recebimentos previstos',
+    future_commitments: 'Compromissos futuros e pagamentos',
     card_operations: 'Operações de cartão',
     ofx_imports: 'Importações OFX',
+    daily_planning_records: 'Orçamentos diários e check-ins',
+    financial_goals: 'Metas financeiras',
     derived_records: 'Análises e avisos',
 };
 
