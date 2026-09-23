@@ -17,6 +17,7 @@ use App\Http\Controllers\ExpenseRefundController;
 use App\Http\Controllers\FinancialDiagnosticExportController;
 use App\Http\Controllers\FinancialEvaluationController;
 use App\Http\Controllers\FinancialGoalController;
+use App\Http\Controllers\HelpCenterController;
 use App\Http\Controllers\FinancialSettingsController;
 use App\Http\Controllers\InternalAlertController;
 use App\Http\Controllers\LedgerEntryController;
@@ -27,6 +28,7 @@ use App\Http\Controllers\OfxImportConfirmationController;
 use App\Http\Controllers\OfxImportController;
 use App\Http\Controllers\OfxImportReviewController;
 use App\Http\Controllers\OperationalDataResetController;
+use App\Http\Controllers\PatrimonialAssetController;
 use App\Http\Controllers\PocketController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReceiptForecastController;
@@ -76,6 +78,11 @@ Route::middleware('auth')->group(function () {
     Route::put('/metas/{goal}', [FinancialGoalController::class, 'update'])->whereNumber('goal')->name('financial-goals.update');
     Route::delete('/metas/{goal}', [FinancialGoalController::class, 'destroy'])->whereNumber('goal')->name('financial-goals.destroy');
     Route::get('/avisos-financeiros', [InternalAlertController::class, 'index'])->name('internal-alerts.index');
+    Route::get('/patrimonio', [PatrimonialAssetController::class, 'index'])->name('patrimony.index');
+    Route::post('/patrimonio', [PatrimonialAssetController::class, 'store'])->name('patrimony.store');
+    Route::put('/patrimonio/{asset}', [PatrimonialAssetController::class, 'update'])->whereNumber('asset')->name('patrimony.update');
+    Route::delete('/patrimonio/{asset}', [PatrimonialAssetController::class, 'destroy'])->whereNumber('asset')->name('patrimony.destroy');
+    Route::get('/ajuda', HelpCenterController::class)->name('help.index');
     Route::put('/configuracao-financeira', [FinancialSettingsController::class, 'update'])->name('financial-settings.update');
     Route::post('/configuracao-financeira/categorias', [FinancialSettingsController::class, 'storeCategory'])->name('financial-settings.categories.store');
     Route::middleware('feature:ofx')->group(function () {
