@@ -15,6 +15,30 @@ class HandleInertiaRequests extends Middleware
      */
     protected $rootView = 'app';
 
+    public function handle(Request $request, Closure $next): Response
+    {
+        if ($request->isMethod('GET') && $request->header('X-Inertia') && $this->isDocumentNavigation($request)) {
+            $request->headers->remove('X-Inertia');
+            $request->headers->remove('X-Inertia-Version');
+            $request->headers->remove('X-Requested-With');
+        }
+
+        $response = parent::handle($request, $next);
+
+        $response->headers->set('Cache-Control', 'no-store, private, max-age=0, must-revalidate');
+        $response->headers->set('Pragma', 'no-cache');
+        $response->headers->set('Expires', '0');
+        $response->headers->set('Vary', 'X-Inertia, X-Inertia-Version, Accept', false);
+
+        return $response;
+    }
+
+    private function isDocumentNavigation(Request $request): bool
+    {
+        return strtolower((string) $request->header('Sec-Fetch-Mode')) === 'navigate'
+            || strtolower((string) $request->header('Sec-Fetch-Dest')) === 'document';
+    }
+
     /**
      * Determine the current asset version.
      */
@@ -34,6 +58,9 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user(),
+            ],
+            'features' => [
+                'ofx' => (bool) config('features.ofx', false),
             ],
             'onboarding' => fn (): ?array => $request->user()
                 ? app(OnboardingProgressQuery::class)->forUser($request->user())
