@@ -52,8 +52,8 @@ class CreditCardLimitQuery
         return [
             'total' => (string) $total,
             'outstanding' => (string) $outstanding,
-            'available' => (string) ($available->isNegative() ? BigDecimal::zero() : $available),
-            'over_limit' => (string) ($available->isNegative() ? $available->negated() : BigDecimal::zero()),
+            'available' => (string) ($available->isNegative() ? BigDecimal::zero()->toScale(2) : $available->toScale(2)),
+            'over_limit' => (string) ($available->isNegative() ? $available->negated()->toScale(2) : BigDecimal::zero()->toScale(2)),
         ];
     }
 }
