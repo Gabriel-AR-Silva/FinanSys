@@ -10,9 +10,12 @@ use Illuminate\Validation\ValidationException;
 
 class ConfirmDailyFinancialCheckInBatch
 {
-    public function __construct(
-        private RecordDailyFinancialCheckIn $recorder,
-    ) {}
+    private RecordDailyFinancialCheckIn $recorder;
+
+    public function __construct(RecordDailyFinancialCheckIn $recorder)
+    {
+        $this->recorder = $recorder;
+    }
 
     /**
      * @param list<array{date:string,operation_id:string,reason?:?string}> $items
