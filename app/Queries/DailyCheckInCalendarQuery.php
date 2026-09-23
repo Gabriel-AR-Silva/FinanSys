@@ -11,6 +11,7 @@ final class DailyCheckInCalendarQuery
     public function __construct(
         private DailyFinancialCheckInHistoryQuery $history,
         private DailyEligibleSpendReconciliationQuery $spending,
+        private DailyBudgetSnapshotQuery $budgets,
     ) {}
 
     /**
@@ -55,6 +56,11 @@ final class DailyCheckInCalendarQuery
                     'blockers' => [],
                 ];
 
+                continue;
+            }
+
+            $budget = $this->budgets->forCheckIn($user, $date, $observed->toIso8601String());
+            if ($budget === null) {
                 continue;
             }
 
