@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\ExpensePlanningType;
-use App\Enums\LedgerEntryType;
 use App\Models\CardCharge;
 use App\Models\CardInstallment;
 use App\Models\CardPurchase;
