@@ -119,7 +119,7 @@ Consultar instruções, contratos e agentes existentes no repositório antes de 
 
 ## 18. Fora do escopo e futura IA
 
-Fora deste incremento: módulo Business/contabilidade empresarial, estoque, WhatsApp, importação OFX, importação/exportação JSON geral e cálculos financeiros livres por IA. **OFX é um módulo isolado**; eventuais correções próprias não devem bloquear a V2. Futuro assistente pode consultar e explicar métricas, resumir tendências e executar ações sob contratos explícitos, **nunca inventar saldo, verba, média, projeção ou score**; números vêm do motor determinístico versionado. Ex.: orçamento 74, gasto hoje 32, restante de referência 42 e projeção do mês 286 abaixo do orçamento atual são dados do motor, não geração livre.
+Fora deste incremento: módulo Business/contabilidade empresarial, estoque, WhatsApp, importação OFX, importação JSON geral e cálculos financeiros livres por IA. A exportação JSON de diagnóstico foi autorizada posteriormente em 2026-09-23 e expõe apenas o domínio financeiro do usuário autenticado e indicadores determinísticos, sem credenciais, para permitir recálculo e comparação de divergências. **OFX é um módulo isolado**; eventuais correções próprias não devem bloquear a V2. Futuro assistente pode consultar e explicar métricas, resumir tendências e executar ações sob contratos explícitos, **nunca inventar saldo, verba, média, projeção ou score**; números vêm do motor determinístico versionado. Ex.: orçamento 74, gasto hoje 32, restante de referência 42 e projeção do mês 286 abaixo do orçamento atual são dados do motor, não geração livre.
 
 ## 19. Gate para contrato técnico e implementação
 

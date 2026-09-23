@@ -23,6 +23,7 @@ class CreditCardFactory extends Factory
             'name' => fake()->randomElement(['Nubank', 'Inter', 'Visa']),
             'closing_day' => 5,
             'due_day' => 12,
+            'credit_limit' => null,
             'status' => 'active',
             'operation_id' => fake()->uuid(),
         ];

@@ -11,6 +11,7 @@ use App\Models\CardPurchase;
 use App\Models\Category;
 use App\Models\CreditCard;
 use App\Models\User;
+use App\Queries\CreditCardLimitQuery;
 use App\Support\AuditRecorder;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -25,6 +26,7 @@ class CreateCardPurchase
     public function __construct(
         private AuditRecorder $auditRecorder,
         private RefreshCurrentInternalAlert $refreshAlert,
+        private CreditCardLimitQuery $cardLimits,
     ) {}
 
     /** @param array{credit_card_id:int,category_id:int,description:string,planning_type:string,gross_amount:string,purchased_on:string,installments_count:int,first_due_on:string,operation_id:string} $data */
@@ -63,6 +65,14 @@ class CreateCardPurchase
                 $card = CreditCard::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->whereKey($data['credit_card_id'])->lockForUpdate()->first();
                 if (! $card) {
                     throw ValidationException::withMessages(['credit_card_id' => 'Escolha um cartão disponível.']);
+                }
+                if ($card->credit_limit !== null) {
+                    $limit = $this->cardLimits->forCard($card);
+                    if ($amount->isGreaterThan(BigDecimal::of($limit['available'] ?? '0.00'))) {
+                        throw ValidationException::withMessages([
+                            'gross_amount' => 'A compra ultrapassa o limite disponível deste cartão.',
+                        ]);
+                    }
                 }
                 $category = Category::query()->whereBelongsTo($user)->where('type', CategoryType::Expense)->where('status', RecordStatus::Active)->whereKey($data['category_id'])->lockForUpdate()->first();
                 if (! $category) {

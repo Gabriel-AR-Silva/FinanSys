@@ -14,6 +14,7 @@ use App\Http\Controllers\DailyBudgetController;
 use App\Http\Controllers\DailyFinancialCheckInController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseRefundController;
+use App\Http\Controllers\FinancialDiagnosticExportController;
 use App\Http\Controllers\FinancialEvaluationController;
 use App\Http\Controllers\FinancialGoalController;
 use App\Http\Controllers\FinancialSettingsController;
@@ -56,6 +57,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/cartoes', [CreditCardController::class, 'index'])->name('credit-cards.index');
     Route::get('/cartoes/correcoes', [CardCorrectionController::class, 'index'])->name('card-corrections.index');
     Route::post('/cartoes', [CreditCardController::class, 'store'])->name('credit-cards.store');
+    Route::patch('/cartoes/{card}/limite', [CreditCardController::class, 'updateLimit'])->whereNumber('card')->name('credit-cards.limit.update');
     Route::post('/cartoes/compras', [CardPurchaseController::class, 'store'])->name('card-purchases.store');
     Route::post('/cartoes/compras/estornos', [CardPurchaseReversalController::class, 'store'])->name('card-purchase-reversals.store');
     Route::post('/cartoes/creditos/aplicacoes', [CardCreditAllocationController::class, 'store'])->name('card-credit-allocations.store');
@@ -127,6 +129,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/reembolsos', [ExpenseRefundController::class, 'store'])->name('expense-refunds.store');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::get('/profile/exportacao-financeira.json', FinancialDiagnosticExportController::class)
+        ->middleware('throttle:6,1')
+        ->name('financial-diagnostic-export.show');
     Route::post('/configuracoes-avancadas/limpeza/desafio', [OperationalDataResetController::class, 'challenge'])
         ->middleware('throttle:6,1')
         ->name('operational-data-reset.challenge');
