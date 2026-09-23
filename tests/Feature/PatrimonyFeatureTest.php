@@ -2,7 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Enums\CategoryType;
+use App\Enums\RecordStatus;
 use App\Models\Account;
+use App\Models\Category;
 use App\Models\LedgerEntry;
 use App\Models\PatrimonialAsset;
 use App\Models\User;
@@ -139,9 +142,9 @@ class PatrimonyFeatureTest extends TestCase
         $user = User::factory()->create();
         Account::factory()->for($user)->create();
 
-        \App\Models\Category::factory()->for($user)->create([
-            'type' => \App\Enums\CategoryType::Expense,
-            'status' => \App\Enums\RecordStatus::Active,
+        Category::factory()->for($user)->create([
+            'type' => CategoryType::Expense,
+            'status' => RecordStatus::Active,
         ]);
 
         $progress = app(OnboardingProgressQuery::class)->forUser($user);
