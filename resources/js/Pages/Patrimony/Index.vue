@@ -5,7 +5,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { formatMoneyInput, normalizeMoneyInput, sanitizeMoneyInput } from '@/Support/money';
 import { Head, useForm } from '@inertiajs/vue3';
 import { CalendarDays, CircleDollarSign, Landmark, Pencil, Plus, Trash2, X } from '@lucide/vue';
-import { computed, reactive, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 const props = defineProps({
     patrimony: { type: Object, required: true },
@@ -15,6 +15,7 @@ const props = defineProps({
 const modalOpen = ref(false);
 const editingAsset = ref(null);
 const deletingAsset = ref(null);
+const deleteForm = useForm({});
 const form = useForm({
     name: '',
     category: '',
@@ -75,11 +76,15 @@ const submit = () => {
 };
 
 const remove = () => {
-    useForm({}).delete(route('patrimony.destroy', deletingAsset.value.id), {
+    deleteForm.delete(route('patrimony.destroy', deletingAsset.value.id), {
         preserveScroll: true,
         onSuccess: () => { deletingAsset.value = null; },
     });
 };
+
+onMounted(() => {
+    if (new URLSearchParams(window.location.search).has('create')) openCreate();
+});
 </script>
 
 <template>
