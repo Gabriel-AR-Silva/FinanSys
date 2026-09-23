@@ -32,7 +32,11 @@ class DailyCheckInHttpTest extends TestCase
                 ->has('dailyCheckIns', 22)
                 ->where('dailyCheckIns.21.date', '2026-09-22')
                 ->where('dailyCheckIns.21.status', 'pending')
-                ->where('dailyCheckIns.21.preview_spent', '0.00'));
+                ->where('dailyCheckIns.21.preview_spent', '0.00')
+                ->where('dailyPlanning.month', '2026-09')
+                ->where('dailyPlanning.confirmed_days', 0)
+                ->where('dailyPlanning.pending_days', 22)
+                ->where('dailyPlanning.current_daily_budget', '90.00'));
 
         $this->assertDatabaseCount('daily_financial_check_ins', 0);
     }
