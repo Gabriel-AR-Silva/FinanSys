@@ -78,12 +78,12 @@ Atual = fatos confirmados elegíveis; projetado = atual + previsões/obrigaçõe
 6. Cartão 1.200 em 6×200 → compra total acessível, 200 por mês comprometido, fatura liquida sem duplicar.
 7. Extraordinário 500 → impacta planejamento e caixa, não extrapola média cotidiana.
 8. Previsto 2.000, recebido 600 → atual +600, residual previsto 1.400; cancelamento/não recebimento retira residual da projeção sem apagar 600.
-9. Correção retroativa de 80 → data correta, recálculo e auditoria sem sobrescrever versão anterior.
-10. Login com dois dias pendentes → modal, abertura, confirmação individual/lote e zero explícito; dia sem confirmação excluído da média/folga fechada.
-11. Duas abas com indicadores distintos e ajuda acessível por toque; dados incompletos visíveis.
-12. Metas e score não implementados antes de aprovação separada.
+9. Correção retroativa de 80 → data correta, recálculo e histórico anterior preservados.
+10. Dia sem login/lançamento → pendente, não zero confirmado; check-in individual ou lote confirma; dia sem variável ainda tem estrutural.
+11. Meta 2.400/120 → necessidade teórica 20/dia sem aporte fictício.
+12. Transferência, estorno, reembolso, antecipação, pagamento parcial e dívida entre meses seguem invariantes V1; testes de centavos, fim de mês, datas, usuário e execução duplicada.
 
-## 15. Papéis e handoffs
+## 15. Agentes e responsabilidades
 
 - **Inv:** matemática, fórmulas, denominadores, não duplicidade, folga, metas/score, cenários de fronteira.
 - **Atlas:** fronteiras fato/indicador, seleção, calculadoras puras, contratos de entrada/saída, versionamento e snapshots.
@@ -120,11 +120,3 @@ Fora deste incremento: módulo Business/contabilidade empresarial, estoque, What
 ## 19. Gate para contrato técnico e implementação
 
 Inv aprova matemática/invariantes; Atlas aprova arquitetura e contratos; Lia aprova semântica e UX; Bento possui cenários independentes; Íris e Nexo revisam isolamento e confiabilidade; conflitos com V1 são enumerados; questões abertas resolvidas ou explicitamente adiadas; escopo do primeiro incremento definido. **Este documento é o contrato conceitual consolidado, não evidência de implementação nem autorização para declarar a V2 pronta.**
-
-## 20. Interface D1a escolhida e fronteira D2 (registro de decisão de 2026-09-21)
-
-O Chefe escolheu preservar os nomes já implementados em `DailyMarginCalculator::calculate(string $month, array $days)`. **Entrada D1a:** competência `YYYY-MM`; dias informados de forma explícita e sem datas duplicadas; para dia `confirmed`, `date`, `status`, `budget` e `spent` são obrigatórios, sendo `budget` e `spent` strings decimais não negativas com até duas casas; para `pending`, somente `date` e `status`, sem montantes. `spent` significa **gasto elegível previamente selecionado**, não saída de caixa genérica. **Saída D1a:** `month`, `days` (`date`, `status`, `margin` decimal ou `null`), `confirmed_days`, `pending_days`, `gross_savings`, `gross_excess` e `net_margin`; dinheiro sempre em strings decimais com duas casas. Dia pendente não contribui para totais. A saída preserva a ordem de entrada e não enumera dias omitidos. `confirmed_days=0` com totais `0.00` significa ausência de dados confirmados, não economia comprovada.
-
-**Fronteira técnica proposta para análise, ainda NÃO aprovada para implementação D2:** um adaptador futuro deve ordenar as datas, fornecer o orçamento voluntário **historicamente aplicável** a cada dia confirmado e selecionar despesas elegíveis sem dupla contagem. A `FinancialPlanningOverviewQuery` V1 calcula `daily.amount` como alocação derivada a partir da margem livre e dos dias restantes; não é o orçamento voluntário fixado da V2. `MonthlyFinancialSetting` não possui campo de orçamento diário voluntário. Snapshots de `CloseFinancialEvaluation` registram situação corrente/projetada, não check-in explícito nem orçamento voluntário diário. Portanto, não inferir `budget` a partir desses valores, nem converter automaticamente fechamento da V1 ou ausência de lançamento em `confirmed`.
-
-**Gate D2 ainda aberto:** definir persistência/versionamento do orçamento e vigência de mudanças; competência temporal e exclusividade entre consumo, obrigação, pagamento de fatura, antecipação, fixos, extraordinários, reembolso e estorno; confirmação explícita e correção retroativa; autorização e isolamento por usuário; testes Feature MySQL A/B, cartão/parcelas/fatura, centavos, dia pendente/zero confirmado e regressão V1. Não implementar D2, migrations, UI ou deploy apenas por esta decisão de nomes. OFX permanece módulo separado.
