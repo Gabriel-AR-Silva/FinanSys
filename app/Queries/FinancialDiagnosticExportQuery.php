@@ -36,7 +36,6 @@ final class FinancialDiagnosticExportQuery
 
         $cards = CreditCard::query()
             ->whereBelongsTo($user)
-            ->withTrashed()
             ->orderBy('id')
             ->get();
 
