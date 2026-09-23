@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Queries\DailyCheckInCalendarQuery;
 use App\Queries\DailyFinancialCheckInHistoryQuery;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -216,6 +217,32 @@ class DailyFinancialCheckInTest extends TestCase
         $this->assertSame($olderId->id, $history[0]['id']);
         $this->assertSame(2, $history[0]['revision']);
         $this->assertSame('100.00', $history[0]['spent']);
+    }
+
+    public function test_database_rejects_budget_version_from_another_user(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-22 09:00:00', 'America/Sao_Paulo'));
+        $foreignBudget = app(SetDailyBudget::class)->handle($other, '40.00', (string) Str::uuid());
+
+        $this->expectException(QueryException::class);
+
+        DailyFinancialCheckIn::query()->create([
+            'user_id' => $user->id,
+            'actor_id' => $user->id,
+            'local_date' => '2026-09-21',
+            'revision' => 1,
+            'daily_budget_version_id' => $foreignBudget->id,
+            'budget_amount' => '40.00',
+            'eligible_spent' => '0.00',
+            'margin' => '40.00',
+            'rules_version' => 'test',
+            'source' => 'recorded',
+            'confirmed_at' => '2026-09-22 12:00:00',
+            'operation_id' => (string) Str::uuid(),
+        ]);
     }
 
     public function test_history_is_isolated_by_user(): void
