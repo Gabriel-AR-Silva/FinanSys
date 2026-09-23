@@ -43,6 +43,7 @@ class PatrimonyFeatureTest extends TestCase
         $this->actingAs($user)->get(route('patrimony.index'))
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Patrimony/Index')
+                ->where('patrimony.summary.available', true)
                 ->where('patrimony.summary.financial_balance', '6000.00')
                 ->where('patrimony.summary.assets_total', '18000.00')
                 ->where('patrimony.summary.debts_total', '11000.00')
@@ -117,6 +118,37 @@ class PatrimonyFeatureTest extends TestCase
 
         $this->assertDatabaseMissing('patrimonial_assets', ['id' => $asset->id]);
         $this->assertDatabaseHas('audit_logs', ['user_id' => $user->id, 'auditable_type' => 'patrimonial_asset', 'auditable_id' => $asset->id, 'action' => 'deleted']);
+    }
+
+    public function test_future_valuation_date_is_rejected(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('patrimony.store'), [
+            'name' => 'Moto futura',
+            'estimated_value' => '18000.00',
+            'debt_balance' => '11000.00',
+            'valued_on' => now('America/Sao_Paulo')->addDay()->toDateString(),
+        ])->assertSessionHasErrors('valued_on');
+
+        $this->assertDatabaseMissing('patrimonial_assets', ['name' => 'Moto futura']);
+    }
+
+    public function test_tsuki_fixed_commitment_cta_opens_future_commitments_domain(): void
+    {
+        $user = User::factory()->create();
+        Account::factory()->for($user)->create();
+
+        \App\Models\Category::factory()->for($user)->create([
+            'type' => \App\Enums\CategoryType::Expense,
+            'status' => \App\Enums\RecordStatus::Active,
+        ]);
+
+        $progress = app(OnboardingProgressQuery::class)->forUser($user);
+        $step = collect($progress['recommendedSteps'])->firstWhere('key', 'fixed_commitments');
+
+        $this->assertSame('Registrar compromisso fixo', $step['cta']['label']);
+        $this->assertSame(route('expense-commitments.index', ['from' => 'onboarding']), $step['cta']['href']);
     }
 
     public function test_tsuki_lists_patrimony_as_optional_recommended_step(): void
