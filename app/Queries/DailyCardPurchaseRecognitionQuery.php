@@ -11,11 +11,11 @@ use Carbon\CarbonImmutable;
 use InvalidArgumentException;
 
 /**
- * Gross card purchase principal on the PURCHASE date (behavior view only).
- * Installment due dates, invoice payments and advances are separate facts.
- * Recorded reversals are identified, not silently deducted from gross; callers
- * must reconcile their effects before deriving eligible spending. This is NOT
- * a check-in input and does not reconstruct edits before an observation.
+ * Ordinary card purchase principal on the PURCHASE date. Installment due
+ * dates, invoice payments and advances are separate obligation/settlement
+ * facts and never create a second consumption event. A recorded full reversal
+ * removes the related purchase from the current eligible consumption view while
+ * preserving its source id for audit. Historical edits remain conservative.
  */
 final class DailyCardPurchaseRecognitionQuery
 {
@@ -88,11 +88,14 @@ final class DailyCardPurchaseRecognitionQuery
                 continue;
             }
 
-            $total = $total->plus($purchase->gross_amount);
-            $ids[] = $id;
             if ($wasReversed) {
                 $reversed[] = $id;
+
+                continue;
             }
+
+            $total = $total->plus($purchase->gross_amount);
+            $ids[] = $id;
         }
 
         return [
@@ -101,7 +104,7 @@ final class DailyCardPurchaseRecognitionQuery
             'reversed_purchase_ids' => $reversed,
             'unclassified_count' => $unclassified,
             'unverifiable_purchase_ids' => $unverifiable,
-            'coverage' => $unverifiable === [] ? 'gross_card_purchases_only' : 'partial_card_purchase_unverifiable_edits',
+            'coverage' => $unverifiable === [] ? 'ordinary_card_purchases_reconciled' : 'partial_card_purchase_unverifiable_edits',
         ];
     }
 }

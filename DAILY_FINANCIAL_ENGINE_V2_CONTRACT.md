@@ -34,7 +34,7 @@ Separar **custo diário equivalente** de **pagamento real na data do vencimento*
 
 ## 5. Cartões — alternativa C aprovada
 
-Separar **compra, compromisso e pagamento**. Compra de R$ 1.200 em 6 × R$ 200: valor total assumido acessível na data da compra, R$ 200 comprometem o orçamento de cada mês de vencimento, e pagamento da fatura liquida obrigação sem nova despesa de consumo. Não lançar R$ 1.200 integralmente no orçamento do mês da compra *e* novamente as parcelas. Respeitar contrato vigente para parcelas, antecipação com desconto, pagamentos parciais, residual, juros, multas, estornos e reembolsos; juros/multas confirmados são despesas próprias. Despesa reconhecida, obrigação e saída de caixa são visões diferentes do mesmo fluxo, não parcelas somáveis sem critério.
+Separar **compra, compromisso e pagamento**. Compra de R$ 1.200 em 6 × R$ 200: a compra é a despesa/consumo e seu principal é reconhecido uma única vez na data da compra para o gasto realizado; R$ 200 permanecem como compromisso de cada mês de vencimento, e pagamento da fatura apenas liquida a obrigação, sem criar nova despesa de consumo. `paid_amount` e o estado da parcela representam quitação parcial/total sem gerar outro fato de despesa. Não somar compra + parcela + pagamento. Respeitar contrato vigente para parcelas, antecipação com desconto, pagamentos parciais, residual, juros, multas, estornos e reembolsos; juros/multas confirmados são despesas próprias. Estorno/reembolso corrige a compra relacionada, não cria renda ou despesa independente. Despesa reconhecida, obrigação e saída de caixa são visões diferentes do mesmo fluxo.
 
 ## 6. Extraordinários — B + C aprovadas
 
@@ -103,7 +103,7 @@ Consultar instruções, contratos e agentes existentes no repositório antes de 
 
 1. Base de dias para custo estrutural (mês-calendário, restantes ou outra).
 2. Momento em que orçamento diário é fixado, e efeito de mutação/receita no meio do dia.
-3. Elegibilidade do gasto por data, cartão, fixos, estornos, transferências e extraordinários; distinguir consumo, obrigação e caixa.
+3. Elegibilidade restante de fixos, estornos/reembolsos, transferências e extraordinários; para cartão ordinário já está decidido que a compra é reconhecida uma única vez na data da compra, enquanto parcelas são compromissos e pagamentos são liquidações.
 4. Como dias não confirmados afetam média, folga e projeção; abertura/fechamento de check-in, lote e correção posterior.
 5. Fórmula da capacidade atual/projetada por data, caixa disponível, compromissos e recebimentos parciais.
 6. Mapeamento «atrasado/não recebido» para estados existentes, cancelamento, reversão e remarcação.

@@ -39,10 +39,10 @@ class DailyCardPurchaseObservationSliceTest extends TestCase
         $this->assertSame('1200.00', $result['ordinary_purchase_total']);
         $this->assertSame([$purchase->id], $result['purchase_ids']);
         $this->assertSame([], $result['reversed_purchase_ids']);
-        $this->assertSame('gross_card_purchases_only', $result['coverage']);
+        $this->assertSame('ordinary_card_purchases_reconciled', $result['coverage']);
     }
 
-    public function test_full_reversal_is_flagged_but_original_purchase_is_not_automatically_counted_twice(): void
+    public function test_full_reversal_corrects_original_purchase_consumption_without_creating_a_second_event(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-21T18:00:00Z'));
         $user = User::factory()->create();
@@ -68,9 +68,9 @@ class DailyCardPurchaseObservationSliceTest extends TestCase
         $purchase->delete();
         $after = app(DailyCardPurchaseRecognitionQuery::class)->forUserOnDay($user, '2026-09-21', CarbonImmutable::parse('2026-09-22T19:00:00Z'));
 
-        $this->assertSame('300.00', $after['ordinary_purchase_total']);
+        $this->assertSame('0.00', $after['ordinary_purchase_total']);
         $this->assertSame([$purchase->id], $after['reversed_purchase_ids']);
-        $this->assertSame([$purchase->id], $after['purchase_ids']);
+        $this->assertSame([], $after['purchase_ids']);
     }
 
     public function test_late_update_marks_prior_purchase_as_unverifiable_instead_of_reconstructing_old_amount(): void
