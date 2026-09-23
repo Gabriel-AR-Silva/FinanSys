@@ -18,6 +18,7 @@ use App\Models\MonthlyFinancialSetting;
 use App\Models\PatrimonialAsset;
 use App\Models\ReceiptForecast;
 use App\Models\User;
+use Illuminate\Support\Facades\Schema;
 
 class OnboardingProgressQuery
 {
@@ -96,9 +97,10 @@ class OnboardingProgressQuery
             ->whereBelongsTo($user)
             ->exists();
 
-        $hasPatrimony = PatrimonialAsset::query()
-            ->whereBelongsTo($user)
-            ->exists();
+        $hasPatrimony = Schema::hasTable('patrimonial_assets')
+            && PatrimonialAsset::query()
+                ->whereBelongsTo($user)
+                ->exists();
 
         $essentialSteps = [
             $this->step('foundation', 'Base do sistema', 'Moeda BRL e calendário de Brasília já estão definidos.', true, null),
@@ -219,9 +221,16 @@ class OnboardingProgressQuery
             return ['label' => 'Criar categoria de despesa', 'href' => route('categories.index', ['create' => 'expense', 'from' => 'onboarding'])];
         }
 
+        if ($fixed) {
+            return [
+                'label' => 'Registrar compromisso fixo',
+                'href' => route('expense-commitments.index', ['from' => 'onboarding']),
+            ];
+        }
+
         return [
-            'label' => $fixed ? 'Registrar compromisso fixo' : 'Registrar despesa',
-            'href' => route('ledger-entries.index', ['create' => 'expense', 'planning_type' => $fixed ? 'fixed' : 'ordinary', 'from' => 'onboarding']),
+            'label' => 'Registrar despesa',
+            'href' => route('ledger-entries.index', ['create' => 'expense', 'from' => 'onboarding']),
         ];
     }
 }
