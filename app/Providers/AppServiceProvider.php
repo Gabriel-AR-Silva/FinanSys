@@ -18,6 +18,7 @@ use App\Models\CardPurchaseReversal;
 use App\Models\Category;
 use App\Models\CreditCard;
 use App\Models\DailyBudgetVersion;
+use App\Models\DailyFinancialCheckIn;
 use App\Models\EssentialBudget;
 use App\Models\ExpenseRefund;
 use App\Models\LedgerEntry;
@@ -78,6 +79,7 @@ class AppServiceProvider extends ServiceProvider
             'social_identity' => SocialIdentity::class,
             'monthly_financial_setting' => MonthlyFinancialSetting::class,
             'daily_budget_version' => DailyBudgetVersion::class,
+            'daily_financial_check_in' => DailyFinancialCheckIn::class,
             'essential_budget' => EssentialBudget::class,
             'expense_refund' => ExpenseRefund::class,
             'receipt_forecast' => ReceiptForecast::class,
