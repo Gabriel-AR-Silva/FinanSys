@@ -6,6 +6,7 @@ use App\Enums\LedgerEntryType;
 use App\Models\Account;
 use App\Models\CreditCard;
 use App\Models\LedgerEntry;
+use App\Models\PatrimonialAsset;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -36,6 +37,13 @@ class FinancialDiagnosticExportTest extends TestCase
             'name' => 'Cartão diagnóstico',
             'credit_limit' => '500.00',
         ]);
+        PatrimonialAsset::query()->create([
+            'user_id' => $user->id,
+            'name' => 'Moto diagnóstico',
+            'estimated_value' => '18000.00',
+            'debt_balance' => '11000.00',
+            'valued_on' => '2026-09-23',
+        ]);
 
         $other = User::factory()->create();
         $otherAccount = Account::factory()->for($other)->create(['name' => 'Conta alheia']);
@@ -53,6 +61,7 @@ class FinancialDiagnosticExportTest extends TestCase
             ->assertJsonPath('meta.version', 1)
             ->assertJsonPath('meta.contains_credentials', false)
             ->assertJsonPath('raw.accounts.0.name', 'Conta principal')
+            ->assertJsonPath('raw.patrimonial_assets.0.name', 'Moto diagnóstico')
             ->assertJsonPath('derived.card_limits.0.total', '500.00');
 
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));

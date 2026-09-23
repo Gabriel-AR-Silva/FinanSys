@@ -26,6 +26,7 @@ use App\Models\ExpenseRefund;
 use App\Models\FinancialGoal;
 use App\Models\LedgerEntry;
 use App\Models\MonthlyFinancialSetting;
+use App\Models\PatrimonialAsset;
 use App\Models\Pocket;
 use App\Models\ReceiptForecast;
 use App\Models\ReceiptForecastLink;
@@ -88,6 +89,7 @@ class AppServiceProvider extends ServiceProvider
             'expense_commitment_payment' => ExpenseCommitmentPayment::class,
             'expense_refund' => ExpenseRefund::class,
             'financial_goal' => FinancialGoal::class,
+            'patrimonial_asset' => PatrimonialAsset::class,
             'receipt_forecast' => ReceiptForecast::class,
             'receipt_forecast_link' => ReceiptForecastLink::class,
             'credit_card' => CreditCard::class,

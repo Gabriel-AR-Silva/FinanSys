@@ -17,6 +17,7 @@ const props = defineProps({
     filters: { type: Object, required: true },
     dailyCheckIns: { type: Array, required: true },
     dailyPlanning: { type: Object, required: true },
+    patrimony: { type: Object, required: true },
 });
 
 const activeView = ref('overview');
@@ -127,6 +128,14 @@ const periodCards = computed(() => [
         <section class="mt-4 grid min-w-0 gap-3 xl:grid-cols-[1.15fr_2fr]">
             <article class="flex min-h-32 flex-col justify-between rounded-2xl bg-slate-950 p-5 text-white shadow-lg shadow-slate-200"><div class="flex items-center justify-between gap-3 text-sm text-slate-400"><span class="flex items-center gap-2"><Landmark :size="17" /> Saldo geral</span><span class="text-xs">Contas + caixinhas</span></div><p class="mt-5 text-3xl font-semibold tracking-tight">{{ formatMoney(overview.general_balance) }}</p></article>
             <div class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4"><article v-for="card in periodCards" :key="card.label" class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><span class="flex h-8 w-8 items-center justify-center rounded-lg" :class="card.tone"><component :is="card.icon" :size="16" /></span><p class="mt-3 text-xs leading-4 text-slate-500">{{ card.label }}</p><p class="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950" :title="formatMoney(card.value)">{{ formatMoney(card.value) }}</p></article></div>
+        </section>
+
+        <section class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <Link :href="route('patrimony.index')" class="group flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 hover:bg-emerald-50">
+                <div><p class="text-xs text-emerald-800">Patrimônio estimado</p><p class="mt-1 text-lg font-semibold text-slate-950">{{ formatMoney(patrimony.estimated_net_worth) }}</p><p class="mt-0.5 text-[11px] text-slate-500">Liquidez financeira + valor líquido dos bens cadastrados</p></div>
+                <ArrowRight :size="18" class="shrink-0 text-emerald-600 transition group-hover:translate-x-0.5" />
+            </Link>
+            <div class="hidden items-center rounded-xl border border-slate-200 bg-white px-4 text-xs text-slate-500 sm:flex">Bens não contam como dinheiro disponível.</div>
         </section>
 
         <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -10,6 +10,7 @@ use App\Models\ReceiptForecast;
 use App\Queries\FinancialOverviewQuery;
 use App\Queries\FinancialPlanningOverviewQuery;
 use App\Queries\MonthlyDailyPlanningDashboardQuery;
+use App\Queries\PatrimonyOverviewQuery;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
 use Inertia\Inertia;
@@ -17,7 +18,7 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __invoke(IndexDashboardRequest $request, FinancialOverviewQuery $overview, FinancialPlanningOverviewQuery $planning, RecalculateReceiptForecast $receiptProgress, MonthlyDailyPlanningDashboardQuery $dailyPlanning): Response
+    public function __invoke(IndexDashboardRequest $request, FinancialOverviewQuery $overview, FinancialPlanningOverviewQuery $planning, RecalculateReceiptForecast $receiptProgress, MonthlyDailyPlanningDashboardQuery $dailyPlanning, PatrimonyOverviewQuery $patrimony): Response
     {
         $period = (int) $request->validated('period', 30);
         $period = in_array($period, [7, 15, 30, 60, 365], true) ? $period : 30;
@@ -43,9 +44,11 @@ class DashboardController extends Controller
         }
 
         $dailyPlanningView = $dailyPlanning->forUser($request->user());
+        $overviewView = $overview->forUser($request->user(), $period, $categoryId);
 
         return Inertia::render('Dashboard', [
-            'overview' => $overview->forUser($request->user(), $period, $categoryId),
+            'overview' => $overviewView,
+            'patrimony' => $patrimony->forUser($request->user(), $overviewView['general_balance'])['summary'],
             'planning' => $planning->forUser($request->user()),
             'receivables' => ['month' => $month, 'pending' => (string) $pending, 'next_due_on' => $nextDueOn],
             'dailyCheckIns' => $dailyPlanningView['check_ins'],

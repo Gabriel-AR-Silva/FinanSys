@@ -53,6 +53,11 @@ class User extends Authenticatable
         return $this->hasMany(InternalAlert::class);
     }
 
+    public function patrimonialAssets(): HasMany
+    {
+        return $this->hasMany(PatrimonialAsset::class);
+    }
+
     public function sendPasswordResetNotification($token): void
     {
         $this->notify((new QueuedResetPassword($token))->afterCommit());
