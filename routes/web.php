@@ -56,6 +56,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/cartoes', [CreditCardController::class, 'index'])->name('credit-cards.index');
     Route::get('/cartoes/correcoes', [CardCorrectionController::class, 'index'])->name('card-corrections.index');
     Route::post('/cartoes', [CreditCardController::class, 'store'])->name('credit-cards.store');
+    Route::patch('/cartoes/{card}/limite', [CreditCardController::class, 'updateLimit'])->whereNumber('card')->name('credit-cards.limit.update');
     Route::post('/cartoes/compras', [CardPurchaseController::class, 'store'])->name('card-purchases.store');
     Route::post('/cartoes/compras/estornos', [CardPurchaseReversalController::class, 'store'])->name('card-purchase-reversals.store');
     Route::post('/cartoes/creditos/aplicacoes', [CardCreditAllocationController::class, 'store'])->name('card-credit-allocations.store');
