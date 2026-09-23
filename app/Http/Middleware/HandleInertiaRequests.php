@@ -35,6 +35,9 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'features' => [
+                'ofx' => (bool) config('features.ofx', false),
+            ],
             'onboarding' => fn (): ?array => $request->user()
                 ? app(OnboardingProgressQuery::class)->forUser($request->user())
                 : null,

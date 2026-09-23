@@ -2,7 +2,7 @@
 
 ## Estado
 
-- **Status:** arquitetura aprovada para implementação em 2026-09-13.
+- **Status:** implementado e revisado contra V1/V2 em 2026-09-23; validação automatizada permanece obrigatória a cada ampliação do schema.
 - **Objetivo:** permitir limpar dados gerados pelo uso real/testes do sistema sem destruir identidade, estrutura básica nem configurações essenciais.
 - **Entrada UI:** Configurações avançadas / Danger Zone.
 - **Risco:** operação destrutiva e irreversível; exige confirmação forte e execução transacional.
@@ -52,7 +52,24 @@ O reset deve remover, de forma coordenada e na ordem exigida pelas dependências
 - avaliações/fechamentos/revisões derivados dos fatos removidos;
 - demais registros auxiliares cuja única origem sejam fatos que serão apagados.
 
-A lista final deve ser confirmada contra as migrations/modelos atuais antes da implementação.
+A matriz vigente deve ser revista sempre que uma migration adicionar novo dado operacional por usuário.
+
+### Matriz vigente de limpeza
+
+| Grupo | Ação | Dependência/ordem |
+| --- | --- | --- |
+| Identidade, autenticação e identidade social | preservar | base do usuário |
+| Categorias, contas, caixinhas e cartões | preservar | estrutura reutilizável |
+| Configuração financeira mensal e essenciais | preservar | configuração estrutural |
+| Metas financeiras | remover | antes de qualquer futura remoção de caixinhas; atualmente caixinhas são preservadas |
+| Check-ins financeiros diários | remover | antes das versões de orçamento referenciadas |
+| Versões de orçamento diário | remover | depois dos check-ins |
+| Compromissos futuros e pagamentos | remover | pagamentos antes dos compromissos e antes dos lançamentos associados |
+| OFX e itens | remover | itens antes da importação |
+| Operações de cartão | remover | alocações/créditos/estornos antes dos agregados-base |
+| Vínculos de previsões, reembolsos e lançamentos | remover | filhos antes dos lançamentos |
+| Alertas e avaliações derivadas | remover | antes de concluir o reset |
+| Auditoria dos fatos removidos | remover | preservar apenas o evento mínimo do reset |
 
 ## Auditoria e snapshots
 
@@ -70,7 +87,7 @@ A política exata deve respeitar criptografia de snapshots e integridade referen
 
 - rota autenticada;
 - reautenticação/senha quando suportado pelo fluxo atual;
-- confirmação textual explícita, por exemplo `LIMPAR MEUS DADOS DE USO`;
+- confirmação forte em três fatores de intenção: senha atual, código aleatório de 10 caracteres com validade de 5 minutos e confirmação explícita do controle deslizante;
 - sem endpoint GET destrutivo;
 - proteção CSRF;
 - rate limit;

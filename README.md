@@ -95,9 +95,9 @@ ser tratado como evidência de concorrência do banco escolhido para produção.
   pagamentos parciais, alocação determinística e juros/multas confirmados como
   obrigações próprias, antecipação, estorno e aplicação de crédito sem criar
   renda ou saldo bancário artificial.
-- A importação OFX oferece preview e revisão humana antes da confirmação, trata
-  Pix no Crédito como uma compra de cartão com efeito bancário líquido zero e
-  protege reimportação/replay contra duplicidade.
+- O módulo OFX permanece implementado e testado, mas fica atrás da feature flag
+  `FEATURE_OFX_ENABLED`, desativada por padrão nesta release. Quando habilitado,
+  oferece preview/revisão humana e protege reimportação/replay contra duplicidade.
 - Fechamento financeiro diário, reconstrução de lacunas, revisões e proveniência
   alimentam o histórico financeiro.
 - Avisos financeiros internos são deduplicados por visão/período, preservam a
@@ -113,8 +113,8 @@ ser tratado como evidência de concorrência do banco escolhido para produção.
   OFX.
 - `V1_ONBOARDING_CONTRACT.md`: onboarding, pré-requisitos, CTAs e Tsuki.
 - `SAFE_DATA_RESET_CONTRACT.md`: limpeza segura de dados financeiros.
-- `DAILY_FINANCIAL_ENGINE_V2_CONTRACT.md`: contrato conceitual unificado da V2;
-  não altera a V1 nem autoriza implementação antes da revisão técnica.
+- `DAILY_FINANCIAL_ENGINE_V2_CONTRACT.md`: contrato canônico da V2 e registro do
+  escopo D1–D5 implementado; score/comportamento permanece fora desta rodada.
 - `docs/BUILD_BRANCH_WORKFLOW.md`: promoção `develop → build → main`.
 
 ## Continuidade de desenvolvimento
