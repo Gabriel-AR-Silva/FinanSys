@@ -11,12 +11,14 @@ final class MonthlyDailyPlanningDashboardQuery
     public function __construct(
         private DailyFinancialCheckInHistoryQuery $history,
         private DailyBudgetSnapshotQuery $budgets,
+        private DailyCheckInCalendarQuery $calendar,
     ) {}
 
     /**
      * @return array{
      *   month:string,
      *   evaluated_at:string,
+     *   tracked_completed_days:int,
      *   confirmed_days:int,
      *   pending_days:int,
      *   gross_savings:string,
@@ -24,6 +26,7 @@ final class MonthlyDailyPlanningDashboardQuery
      *   net_margin:string,
      *   total_spent:string,
      *   current_daily_budget:?string,
+     *   check_ins:list<array<string,mixed>>,
      *   daily:list<array{date:string,budget:string,spent:string,margin:string,cumulative_margin:string,revision:int}>,
      *   coverage:string
      * }
@@ -33,6 +36,7 @@ final class MonthlyDailyPlanningDashboardQuery
         $now = ($evaluatedAt ?? CarbonImmutable::now('UTC'))->setTimezone('America/Sao_Paulo');
         $month = $now->format('Y-m');
         $confirmed = $this->history->latestForMonth($user, $month);
+        $checkIns = $this->calendar->forMonth($user, $month, $now->utc());
 
         $grossSavings = BigDecimal::zero();
         $grossExcess = BigDecimal::zero();
@@ -65,8 +69,9 @@ final class MonthlyDailyPlanningDashboardQuery
             ];
         }
 
-        $completedDays = max(0, $now->day - 1);
+        $trackedCompletedDays = count($checkIns);
         $confirmedDays = count($confirmed);
+        $pendingDays = count(array_filter($checkIns, fn (array $day): bool => $day['status'] === 'pending'));
         $currentBudget = $this->budgets->forOpenDay(
             $user,
             $now->toDateString(),
@@ -76,17 +81,19 @@ final class MonthlyDailyPlanningDashboardQuery
         return [
             'month' => $month,
             'evaluated_at' => $now->toIso8601String(),
+            'tracked_completed_days' => $trackedCompletedDays,
             'confirmed_days' => $confirmedDays,
-            'pending_days' => max(0, $completedDays - $confirmedDays),
+            'pending_days' => $pendingDays,
             'gross_savings' => (string) $grossSavings->toScale(2),
             'gross_excess' => (string) $grossExcess->toScale(2),
             'net_margin' => (string) $netMargin->toScale(2),
             'total_spent' => (string) $totalSpent->toScale(2),
             'current_daily_budget' => $currentBudget['amount'] ?? null,
+            'check_ins' => $checkIns,
             'daily' => $daily,
-            'coverage' => $confirmedDays === $completedDays
-                ? 'all_completed_days_confirmed'
-                : 'partial_completed_days_pending',
+            'coverage' => $pendingDays === 0
+                ? 'all_tracked_completed_days_confirmed'
+                : 'partial_tracked_days_pending',
         ];
     }
 }
