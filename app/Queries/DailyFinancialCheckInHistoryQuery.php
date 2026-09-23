@@ -17,16 +17,20 @@ final class DailyFinancialCheckInHistoryQuery
             throw new InvalidArgumentException('Month must use YYYY-MM.');
         }
 
-        $latestIds = DailyFinancialCheckIn::query()
+        $latestRevisions = DailyFinancialCheckIn::query()
             ->where('user_id', $user->getKey())
             ->where('local_date', '>=', $month.'-01')
             ->where('local_date', '<', $this->nextMonth($month).'-01')
-            ->selectRaw('MAX(id) AS id')
+            ->selectRaw('local_date, MAX(revision) AS revision')
             ->groupBy('local_date');
 
         return DailyFinancialCheckIn::query()
-            ->where('user_id', $user->getKey())
-            ->whereIn('id', $latestIds)
+            ->where('daily_financial_check_ins.user_id', $user->getKey())
+            ->joinSub($latestRevisions, 'latest_check_ins', function ($join): void {
+                $join->on('latest_check_ins.local_date', '=', 'daily_financial_check_ins.local_date')
+                    ->on('latest_check_ins.revision', '=', 'daily_financial_check_ins.revision');
+            })
+            ->select('daily_financial_check_ins.*')
             ->orderBy('local_date')
             ->get()
             ->map(fn (DailyFinancialCheckIn $checkIn): array => $this->serialize($checkIn))
