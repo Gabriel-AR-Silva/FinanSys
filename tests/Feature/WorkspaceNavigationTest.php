@@ -37,6 +37,8 @@ class WorkspaceNavigationTest extends TestCase
             'accounts' => ['accounts.index', 'Accounts/Index'],
             'pockets' => ['pockets.index', 'Pockets/Index'],
             'ledger entries' => ['ledger-entries.index', 'LedgerEntries/Index'],
+            'patrimony' => ['patrimony.index', 'Patrimony/Index'],
+            'help center' => ['help.index', 'Help/Index'],
         ];
     }
 }
