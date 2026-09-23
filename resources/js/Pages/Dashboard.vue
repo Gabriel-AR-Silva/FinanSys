@@ -3,6 +3,7 @@ import CashFlowChart from '@/Components/CashFlowChart.vue';
 import CategoryBreakdownChart from '@/Components/CategoryBreakdownChart.vue';
 import GeneralBalanceChart from '@/Components/GeneralBalanceChart.vue';
 import DailyCheckInPanel from '@/Components/DailyCheckInPanel.vue';
+import AdvancedDailyPlanningPanel from '@/Components/AdvancedDailyPlanningPanel.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, CalendarDays, CircleGauge, Filter, Landmark, ReceiptText, Settings2, Tags, WalletCards } from '@lucide/vue';
@@ -14,8 +15,10 @@ const props = defineProps({
     categories: { type: Array, required: true },
     filters: { type: Object, required: true },
     dailyCheckIns: { type: Array, required: true },
+    dailyPlanning: { type: Object, required: true },
 });
 
+const activeView = ref('overview');
 const selectedPeriod = ref(String(props.filters.period));
 const selectedCategory = ref(props.filters.category_id ? String(props.filters.category_id) : 'all');
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -73,6 +76,30 @@ const periodCards = computed(() => [
 
         <DailyCheckInPanel :days="dailyCheckIns" />
 
+        <div class="mt-5 inline-flex w-full rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:w-auto" role="tablist" aria-label="Modo do dashboard">
+            <button
+                type="button"
+                role="tab"
+                :aria-selected="activeView === 'overview'"
+                class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none"
+                :class="activeView === 'overview' ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'"
+                @click="activeView = 'overview'"
+            >
+                Visão geral
+            </button>
+            <button
+                type="button"
+                role="tab"
+                :aria-selected="activeView === 'advanced'"
+                class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none"
+                :class="activeView === 'advanced' ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'"
+                @click="activeView = 'advanced'"
+            >
+                Análise avançada
+            </button>
+        </div>
+
+        <div v-if="activeView === 'overview'">
         <section class="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-row lg:items-center">
             <div class="flex items-center gap-2 px-2 text-sm font-semibold text-slate-700"><Filter :size="16" class="text-emerald-600" />Analisar período</div>
             <div class="grid flex-1 gap-2 sm:grid-cols-[10rem_minmax(13rem,1fr)]">
@@ -117,5 +144,12 @@ const periodCards = computed(() => [
         </div></section>
 
         <section class="mt-4 grid gap-3 sm:grid-cols-2"><Link :href="route('accounts.index')" class="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:bg-slate-50"><span class="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><WalletCards :size="17" /></span><span class="flex-1 text-sm font-medium text-slate-800">Gerenciar contas</span><ArrowRight :size="16" class="text-slate-300 group-hover:text-slate-600" /></Link><Link :href="route('categories.index')" class="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:bg-slate-50"><span class="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-700"><Tags :size="17" /></span><span class="flex-1 text-sm font-medium text-slate-800">Gerenciar categorias</span><ArrowRight :size="16" class="text-slate-300 group-hover:text-slate-600" /></Link></section>
+        </div>
+
+        <AdvancedDailyPlanningPanel
+            v-else
+            :daily-planning="dailyPlanning"
+            :planning="planning"
+        />
     </AuthenticatedLayout>
 </template>

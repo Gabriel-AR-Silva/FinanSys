@@ -29,10 +29,15 @@ class DailyCheckInHttpTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Dashboard')
-                ->has('dailyCheckIns', 22)
-                ->where('dailyCheckIns.21.date', '2026-09-22')
-                ->where('dailyCheckIns.21.status', 'pending')
-                ->where('dailyCheckIns.21.preview_spent', '0.00'));
+                ->has('dailyCheckIns', 1)
+                ->where('dailyCheckIns.0.date', '2026-09-22')
+                ->where('dailyCheckIns.0.status', 'pending')
+                ->where('dailyCheckIns.0.preview_spent', '0.00')
+                ->where('dailyPlanning.month', '2026-09')
+                ->where('dailyPlanning.confirmed_days', 0)
+                ->where('dailyPlanning.pending_days', 1)
+                ->where('dailyPlanning.tracked_completed_days', 1)
+                ->where('dailyPlanning.current_daily_budget', '90.00'));
 
         $this->assertDatabaseCount('daily_financial_check_ins', 0);
     }
