@@ -38,6 +38,7 @@ const resetForm = () => {
 };
 
 const openCreate = () => {
+    if (!summary.value.available) return;
     resetForm();
     modalOpen.value = true;
 };
@@ -83,7 +84,7 @@ const remove = () => {
 };
 
 onMounted(() => {
-    if (new URLSearchParams(window.location.search).has('create')) openCreate();
+    if (summary.value.available && new URLSearchParams(window.location.search).has('create')) openCreate();
 });
 </script>
 
@@ -96,8 +97,10 @@ onMounted(() => {
                 <h1 class="mt-1 text-3xl font-semibold tracking-tight text-slate-950">Patrimônio estimado</h1>
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Registre bens pelo valor aproximado de hoje e, quando houver, o saldo devedor vinculado. Isso não altera seu saldo nem cria movimentações.</p>
             </div>
-            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800" @click="openCreate"><Plus :size="18" />Adicionar bem</button>
+            <button v-if="summary.available" type="button" class="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800" @click="openCreate"><Plus :size="18" />Adicionar bem</button>
         </section>
+
+        <p v-if="!summary.available" class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">O módulo patrimonial está temporariamente indisponível enquanto a atualização do banco de dados é concluída. Seu saldo financeiro continua disponível normalmente.</p>
 
         <section class="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Resumo patrimonial">
             <article class="rounded-2xl bg-slate-950 p-4 text-white sm:col-span-2 xl:col-span-1"><p class="text-xs text-slate-400">Patrimônio estimado total</p><p class="mt-2 text-2xl font-semibold">{{ formatMoney(summary.estimated_net_worth) }}</p><p class="mt-2 text-[11px] text-slate-400">Financeiro + patrimônio líquido dos bens</p></article>
@@ -127,7 +130,7 @@ onMounted(() => {
             </article>
         </section>
 
-        <div v-else class="mt-8 flex min-h-[25rem] flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
+        <div v-else-if="summary.available" class="mt-8 flex min-h-[25rem] flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
             <span class="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700"><CircleDollarSign :size="29" /></span>
             <h2 class="mt-5 text-xl font-semibold text-slate-950">Nenhum bem cadastrado</h2>
             <p class="mt-2 max-w-lg text-sm leading-6 text-slate-500">Exemplo: uma moto avaliada hoje em R$ 18 mil com R$ 11 mil ainda de saldo devedor representa R$ 7 mil de patrimônio líquido estimado.</p>
@@ -147,8 +150,8 @@ onMounted(() => {
                         <div><label for="asset-value" class="text-sm font-medium text-slate-700">Valor estimado atual</label><input id="asset-value" v-model="form.estimated_value" inputmode="decimal" class="mt-2 block w-full rounded-xl border-slate-300 text-sm focus:border-emerald-500 focus:ring-emerald-500" placeholder="18.000,00" @input="form.estimated_value = sanitizeMoneyInput($event.target.value)" @blur="form.estimated_value = formatMoneyInput(form.estimated_value)" /><InputError class="mt-1" :message="form.errors.estimated_value" /></div>
                         <div><label for="asset-debt" class="text-sm font-medium text-slate-700">Saldo devedor vinculado</label><input id="asset-debt" v-model="form.debt_balance" inputmode="decimal" class="mt-2 block w-full rounded-xl border-slate-300 text-sm focus:border-emerald-500 focus:ring-emerald-500" placeholder="0,00" @input="form.debt_balance = sanitizeMoneyInput($event.target.value)" @blur="form.debt_balance = formatMoneyInput(form.debt_balance)" /><InputError class="mt-1" :message="form.errors.debt_balance" /></div>
                     </div>
-                    <div><label for="asset-date" class="text-sm font-medium text-slate-700">Data da avaliação</label><input id="asset-date" v-model="form.valued_on" type="date" class="mt-2 block w-full rounded-xl border-slate-300 text-sm focus:border-emerald-500 focus:ring-emerald-500" /><InputError class="mt-1" :message="form.errors.valued_on" /></div>
-                    <p class="rounded-xl bg-emerald-50 p-3 text-xs leading-5 text-emerald-900">Use o valor aproximado do bem hoje. Parcelas já pagas não definem o valor patrimonial; juros também não viram patrimônio. O FinanSys calcula: valor estimado − saldo devedor.</p>
+                    <div><label for="asset-date" class="text-sm font-medium text-slate-700">Data da avaliação</label><input id="asset-date" v-model="form.valued_on" type="date" :max="today" class="mt-2 block w-full rounded-xl border-slate-300 text-sm focus:border-emerald-500 focus:ring-emerald-500" /><InputError class="mt-1" :message="form.errors.valued_on" /></div>
+                    <p class="rounded-xl bg-emerald-50 p-3 text-xs leading-5 text-emerald-900">Use o valor aproximado do bem hoje. Parcelas já pagas não definem o valor patrimonial; juros também não viram patrimônio. Use o saldo devedor informado pela financeira/banco, porque a parcela pode incluir juros. O FinanSys calcula: valor estimado − saldo devedor.</p>
                 </div>
                 <div class="mt-6 flex justify-end gap-3"><button type="button" class="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600" @click="closeModal">Cancelar</button><button type="submit" class="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50" :disabled="form.processing">{{ form.processing ? 'Salvando…' : 'Salvar bem' }}</button></div>
             </form>

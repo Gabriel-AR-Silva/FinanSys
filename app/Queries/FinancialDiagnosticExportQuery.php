@@ -6,10 +6,11 @@ use App\Models\CreditCard;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 final class FinancialDiagnosticExportQuery
 {
-    public function __construct(private FinancialOverviewQuery $overview, private FinancialPlanningOverviewQuery $planning, private MonthlyDailyPlanningDashboardQuery $dailyPlanning, private FinancialGoalPlanningQuery $goals, private CreditCardLimitQuery $cardLimits, private OnboardingProgressQuery $onboarding) {}
+    public function __construct(private FinancialOverviewQuery $overview, private FinancialPlanningOverviewQuery $planning, private MonthlyDailyPlanningDashboardQuery $dailyPlanning, private FinancialGoalPlanningQuery $goals, private CreditCardLimitQuery $cardLimits, private OnboardingProgressQuery $onboarding, private PatrimonyOverviewQuery $patrimony) {}
 
     /** @return array<string, mixed> */
     public function forUser(User $user): array
@@ -18,6 +19,12 @@ final class FinancialDiagnosticExportQuery
         $raw = [];
 
         foreach ($this->tables() as $table) {
+            if ($table === 'patrimonial_assets' && ! Schema::hasTable($table)) {
+                $raw[$table] = [];
+
+                continue;
+            }
+
             $raw[$table] = DB::table($table)
                 ->where('user_id', $user->getKey())
                 ->orderBy('id')
@@ -26,6 +33,10 @@ final class FinancialDiagnosticExportQuery
                 ->values()
                 ->all();
         }
+
+        $overview = collect([7, 15, 30, 60, 365])
+            ->mapWithKeys(fn (int $period): array => [(string) $period => $this->overview->forUser($user, $period)])
+            ->all();
 
         $cards = CreditCard::query()
             ->whereBelongsTo($user)
@@ -43,12 +54,11 @@ final class FinancialDiagnosticExportQuery
                 'purpose' => 'Recalcular e comparar indicadores financeiros sem depender da interface.',
             ],
             'derived' => [
-                'overview' => collect([7, 15, 30, 60, 365])
-                    ->mapWithKeys(fn (int $period): array => [(string) $period => $this->overview->forUser($user, $period)])
-                    ->all(),
+                'overview' => $overview,
                 'planning' => $this->planning->forUser($user, $generatedAt),
                 'daily_planning' => $this->dailyPlanning->forUser($user, $generatedAt),
                 'goals' => $this->goals->forUser($user, $generatedAt),
+                'patrimony' => $this->patrimony->forUser($user, $overview['30']['general_balance'])['summary'],
                 'card_limits' => $cards->map(fn (CreditCard $card): array => [
                     'credit_card_id' => (int) $card->getKey(),
                     'name' => $card->name,

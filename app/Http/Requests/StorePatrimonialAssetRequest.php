@@ -18,7 +18,7 @@ class StorePatrimonialAssetRequest extends FormRequest
             'category' => ['nullable', 'string', 'max:80'],
             'estimated_value' => ['required', 'regex:/\A(?:0|[1-9]\d{0,16})(?:\.\d{1,2})?\z/', 'gt:0'],
             'debt_balance' => ['nullable', 'regex:/\A(?:0|[1-9]\d{0,16})(?:\.\d{1,2})?\z/', 'gte:0'],
-            'valued_on' => ['required', 'date_format:Y-m-d'],
+            'valued_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.now('America/Sao_Paulo')->toDateString()],
         ];
     }
 
@@ -28,7 +28,7 @@ class StorePatrimonialAssetRequest extends FormRequest
             'name.required' => 'Informe o nome do bem.',
             'estimated_value.*' => 'Informe um valor estimado positivo com até duas casas decimais.',
             'debt_balance.*' => 'Informe um saldo devedor válido ou deixe zero.',
-            'valued_on.*' => 'Informe a data usada para esta estimativa.',
+            'valued_on.*' => 'Informe uma data de avaliação válida que não esteja no futuro.',
         ];
     }
 }
