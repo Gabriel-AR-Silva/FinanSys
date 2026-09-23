@@ -144,4 +144,6 @@ jobs:
           tests/Feature/CardAdvanceTest.php
           tests/Feature/CardPurchaseReversalTest.php
           tests/Feature/CorrectManualLedgerEntryTest.php
-          tests/Feature/DailyBudgetPersistenceSliceTest.php
+          tests/Feature/Queries/FinancialPlanningForecastMonthBoundaryTest.php
+          tests/Feature/MonthlyReceiptForecastResidualQueryTest.php
+          tests/Feature/DailyCardDueSliceTest.php
