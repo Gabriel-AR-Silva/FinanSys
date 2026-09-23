@@ -265,6 +265,56 @@ class OperationalDataResetTest extends TestCase
         $this->assertDatabaseHas('categories', ['id' => $category->getKey()]);
     }
 
+    public function test_reset_rolls_back_all_deletions_when_a_midway_delete_fails(): void
+    {
+        if (DB::getDriverName() !== 'sqlite') {
+            $this->markTestSkipped('Failure injection uses a SQLite trigger in the default feature suite.');
+        }
+
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $entry = LedgerEntry::factory()->for($user)->create([
+            'reference_type' => $account->getMorphClass(),
+            'reference_id' => $account->getKey(),
+        ]);
+
+        DB::table('financial_goals')->insert([
+            'user_id' => $user->getKey(),
+            'pocket_id' => null,
+            'name' => 'Meta que deve sobreviver ao rollback',
+            'target_amount' => '500.00',
+            'target_date' => now()->addMonth()->toDateString(),
+            'operation_id' => (string) Str::uuid(),
+            'created_at' => now(),
+            'updated_at' => now(),
+            'deleted_at' => null,
+        ]);
+
+        DB::statement("CREATE TRIGGER fail_ledger_reset BEFORE DELETE ON ledger_entries BEGIN SELECT RAISE(ABORT, 'forced reset failure'); END");
+
+        $challenge = $this->actingAs($user)->postJson(route('operational-data-reset.challenge'));
+
+        try {
+            $this->actingAs($user)->delete(route('operational-data-reset.destroy'), [
+                'password' => 'password',
+                'confirmation_code' => (string) $challenge->json('code'),
+                'slider_confirmed' => true,
+            ]);
+            $this->fail('A falha injetada deveria abortar o reset.');
+        } catch (\Throwable) {
+            // Expected: the transaction must roll every prior deletion back.
+        } finally {
+            DB::statement('DROP TRIGGER IF EXISTS fail_ledger_reset');
+        }
+
+        $this->assertDatabaseHas('ledger_entries', ['id' => $entry->getKey()]);
+        $this->assertDatabaseHas('financial_goals', ['user_id' => $user->getKey()]);
+        $this->assertDatabaseMissing('audit_logs', [
+            'user_id' => $user->getKey(),
+            'action' => 'purged',
+        ]);
+    }
+
     public function test_reset_can_be_repeated_after_new_challenge(): void
     {
         $user = User::factory()->create();
