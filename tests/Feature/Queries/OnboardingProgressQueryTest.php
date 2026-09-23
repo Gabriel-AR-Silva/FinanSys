@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Queries;
 
-use App\Enums\ExpensePlanningType;
 use App\Actions\CreateFinancialGoal;
 use App\Actions\SetDailyBudget;
+use App\Enums\ExpensePlanningType;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
 use App\Models\LedgerEntry;
@@ -115,5 +115,4 @@ class OnboardingProgressQueryTest extends TestCase
         $this->assertFalse(collect($after['recommendedSteps'])->firstWhere('key', 'fixed_commitments')['completed']);
         $this->assertFalse(collect($after['recommendedSteps'])->firstWhere('key', 'planning')['completed']);
     }
-
 }
