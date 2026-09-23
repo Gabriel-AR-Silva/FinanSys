@@ -15,6 +15,7 @@ use App\Models\EssentialBudget;
 use App\Models\FinancialGoal;
 use App\Models\LedgerEntry;
 use App\Models\MonthlyFinancialSetting;
+use App\Models\PatrimonialAsset;
 use App\Models\ReceiptForecast;
 use App\Models\User;
 
@@ -95,6 +96,10 @@ class OnboardingProgressQuery
             ->whereBelongsTo($user)
             ->exists();
 
+        $hasPatrimony = PatrimonialAsset::query()
+            ->whereBelongsTo($user)
+            ->exists();
+
         $essentialSteps = [
             $this->step('foundation', 'Base do sistema', 'Moeda BRL e calendário de Brasília já estão definidos.', true, null),
             $this->step(
@@ -150,6 +155,13 @@ class OnboardingProgressQuery
                 $hasCard ? 'Ao menos um cartão está pronto para registrar compras.' : 'Opcional: cadastre somente se você realmente usa cartão.',
                 $hasCard,
                 $hasCard ? null : ['label' => 'Acessar cartões', 'href' => route('credit-cards.index', ['from' => 'onboarding'])],
+            ),
+            $this->step(
+                'patrimony',
+                'Patrimônio estimado',
+                $hasPatrimony ? 'Você já acompanha ao menos um bem patrimonial.' : 'Opcional: registre bens relevantes pelo valor estimado atual e dívida vinculada.',
+                $hasPatrimony,
+                $hasPatrimony ? null : ['label' => 'Adicionar patrimônio', 'href' => route('patrimony.index', ['create' => 1, 'from' => 'onboarding'])],
             ),
             $this->step(
                 'goal',

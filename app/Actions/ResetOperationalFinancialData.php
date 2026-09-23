@@ -61,7 +61,7 @@ class ResetOperationalFinancialData
                 'before' => null,
                 'after' => [
                     'scope' => 'operational_financial_data',
-                    'preserved' => ['identity', 'categories', 'accounts', 'pockets', 'credit_cards', 'financial_settings'],
+                    'preserved' => ['identity', 'categories', 'accounts', 'pockets', 'credit_cards', 'financial_settings', 'patrimonial_assets'],
                 ],
                 'created_at' => now(),
             ]);
