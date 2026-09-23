@@ -3,13 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Actions\CreateCreditCard;
+use App\Actions\UpdateCreditCardLimit;
 use App\Enums\CardInstallmentStatus;
 use App\Enums\CategoryType;
 use App\Enums\RecordStatus;
 use App\Http\Requests\StoreCreditCardRequest;
+use App\Http\Requests\UpdateCreditCardLimitRequest;
 use App\Models\Category;
 use App\Models\CreditCard;
 use App\Queries\AccountBalanceQuery;
+use App\Queries\CreditCardLimitQuery;
 use Brick\Math\BigDecimal;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,7 +21,7 @@ use Inertia\Response;
 
 class CreditCardController extends Controller
 {
-    public function index(Request $request, AccountBalanceQuery $accountBalances): Response
+    public function index(Request $request, AccountBalanceQuery $accountBalances, CreditCardLimitQuery $cardLimits): Response
     {
         if ($request->query('purchase') !== null) {
             $purchaseId = $request->query('purchase');
@@ -57,7 +60,7 @@ class CreditCardController extends Controller
                 'charges' => fn ($query) => $query->with('category:id,name')->latest('charged_on')->latest('id'),
             ])
             ->orderBy('name')->orderBy('id')->get()
-            ->map(function (CreditCard $card): array {
+            ->map(function (CreditCard $card) use ($cardLimits): array {
                 $installments = $card->purchases->pluck('installments')->flatten();
                 $pending = $installments->where('status', CardInstallmentStatus::Pending)->reduce(
                     fn (BigDecimal $total, $installment): BigDecimal => $total->plus(BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)),
@@ -70,6 +73,7 @@ class CreditCardController extends Controller
                 return [
                     'id' => $card->id, 'name' => $card->name, 'closing_day' => $card->closing_day, 'due_day' => $card->due_day,
                     'pending' => (string) $pending,
+                    'limit' => $cardLimits->forCard($card),
                     'charges' => $card->charges->map(fn ($charge): array => [
                         'id' => $charge->id, 'type' => $charge->type->value, 'description' => $charge->description,
                         'category_name' => $charge->category->name, 'planning_type' => $charge->planning_type->value,
@@ -115,5 +119,17 @@ class CreditCardController extends Controller
         $create->handle($request->user(), $request->validated());
 
         return to_route('credit-cards.index')->with('success', '💳 Cartão cadastrado. Bora usar sem fazer merda, hein? 😅');
+    }
+
+    public function updateLimit(UpdateCreditCardLimitRequest $request, string $card, UpdateCreditCardLimit $update): RedirectResponse
+    {
+        $ownedCard = CreditCard::query()
+            ->whereBelongsTo($request->user())
+            ->whereKey($card)
+            ->firstOrFail();
+
+        $update->handle($request->user(), $ownedCard, $request->validated('credit_limit'));
+
+        return to_route('credit-cards.index')->with('success', 'Limite do cartão atualizado.');
     }
 }

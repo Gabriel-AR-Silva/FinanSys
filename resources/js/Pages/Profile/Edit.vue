@@ -5,7 +5,7 @@ import OperationalDataResetModal from '@/Components/OperationalDataResetModal.vu
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { KeyRound, Settings, ShieldCheck, Trash2, Unlink, UserRound } from '@lucide/vue';
+import { Download, KeyRound, Settings, ShieldCheck, Trash2, Unlink, UserRound } from '@lucide/vue';
 import { nextTick, onMounted, ref, watch } from 'vue';
 
 defineProps({
@@ -115,7 +115,12 @@ watch(() => page.props.errors, selectErrorTab);
                             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-50 text-rose-700"><Trash2 :size="20" /></span>
                             <div><h2 class="text-lg font-medium text-gray-900">Configurações avançadas</h2><p class="mt-1 text-sm leading-6 text-gray-600">Limpe somente dados gerados durante uso e testes. Categorias, contas, caixinhas, cartões e configurações básicas permanecem.</p></div>
                         </header>
-                        <div class="mt-6 rounded-2xl border border-rose-200 bg-rose-50/60 p-4">
+                        <div class="mt-6 rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
+                            <h3 class="text-sm font-semibold text-sky-950">Exportação financeira para diagnóstico</h3>
+                            <p class="mt-1 text-sm leading-6 text-sky-900/80">Baixa um JSON com seus dados financeiros e os indicadores calculados pelo FinanSys. Ele serve para recalcular números externamente e comparar divergências. Senha, tokens e credenciais do Google não são exportados.</p>
+                            <a :href="route('financial-diagnostic-export.show')" class="mt-4 inline-flex items-center gap-2 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-600"><Download :size="17" />Baixar JSON de diagnóstico</a>
+                        </div>
+                        <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50/60 p-4">
                             <h3 class="text-sm font-semibold text-rose-950">Limpar dados de uso</h3>
                             <p class="mt-1 text-sm leading-6 text-rose-900/80">Remove movimentações, operações de cartão, previsões, importações OFX e dados derivados. Use para voltar a um estado limpo de teste sem reconstruir sua configuração.</p>
                             <button type="button" class="mt-4 inline-flex items-center gap-2 rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-600" @click="resetModalOpen = true"><Trash2 :size="17" />Preparar limpeza</button>

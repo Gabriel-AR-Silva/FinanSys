@@ -26,6 +26,7 @@ class StoreCreditCardRequest extends FormRequest
             'name' => ['required', 'string', 'max:100'],
             'closing_day' => ['required', 'integer', 'between:1,31'],
             'due_day' => ['required', 'integer', 'between:1,31'],
+            'credit_limit' => ['nullable', 'regex:/\\A\\d{1,17}(?:\\.\\d{1,2})?\\z/', 'gt:0'],
             'operation_id' => ['required', 'uuid'],
         ];
     }
@@ -36,6 +37,7 @@ class StoreCreditCardRequest extends FormRequest
             'name.*' => 'Informe um nome com até 100 caracteres.',
             'closing_day.*' => 'Escolha um dia de fechamento entre 1 e 31.',
             'due_day.*' => 'Escolha um vencimento entre 1 e 31.',
+            'credit_limit.*' => 'Informe um limite positivo com até duas casas decimais ou deixe em branco.',
             'operation_id.*' => 'Reabra o formulário para iniciar uma nova operação.',
         ];
     }
