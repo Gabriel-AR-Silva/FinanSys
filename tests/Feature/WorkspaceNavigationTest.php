@@ -17,6 +17,10 @@ class WorkspaceNavigationTest extends TestCase
     {
         $user = User::factory()->create();
 
+        if (in_array($routeName, ['patrimony.index', 'help.index'], true)) {
+            $this->withoutExceptionHandling();
+        }
+
         $response = $this->actingAs($user)->get(route($routeName));
 
         $response->assertInertia(fn (Assert $page) => $page->component($component));
