@@ -63,12 +63,11 @@ final class FinancialGoalPlanningQuery
                 default => null,
             };
 
-            $progress = $target->isZero()
-                ? '0.00'
-                : (string) $reserved
-                    ->dividedBy($target, 4, RoundingMode::HalfUp)
-                    ->multipliedBy(100)
-                    ->toScale(2, RoundingMode::HalfUp);
+            $progressBase = $reserved->compareTo($target) > 0 ? $target : $reserved;
+            $progress = (string) $progressBase
+                ->dividedBy($target, 4, RoundingMode::HalfUp)
+                ->multipliedBy(100)
+                ->toScale(2, RoundingMode::HalfUp);
 
             $targetTotal = $targetTotal->plus($target);
             $reservedTotal = $reservedTotal->plus($reserved);
