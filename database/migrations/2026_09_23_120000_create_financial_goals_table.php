@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::table('pockets', function (Blueprint $table) {
+            $table->unique(['id', 'user_id'], 'pockets_id_user_unique');
+        });
+
         Schema::create('financial_goals', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
@@ -31,5 +35,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('financial_goals');
+
+        Schema::table('pockets', function (Blueprint $table) {
+            $table->dropUnique('pockets_id_user_unique');
+        });
     }
 };
