@@ -102,6 +102,9 @@ ser tratado como evidência de concorrência do banco escolhido para produção.
   alimentam o histórico financeiro.
 - Avisos financeiros internos são deduplicados por visão/período, preservam a
   pior situação observada e são atualizados por mutações financeiras relevantes.
+- O perfil oferece uma exportação JSON de diagnóstico com fatos financeiros e
+  indicadores derivados para recálculo/comparação externa; credenciais e dados
+  de autenticação não fazem parte do arquivo.
 - WhatsApp permanece fora do núcleo da V1 e, se retomado, será módulo opcional.
 
 ## Documentação canônica
