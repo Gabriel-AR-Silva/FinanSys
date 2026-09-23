@@ -25,6 +25,7 @@ const sections = [
             { title: 'Como adicionar uma receita?', summary: 'Registre dinheiro que realmente entrou.', keywords: 'receita renda entrada salário', steps: ['Tenha uma conta e uma categoria de receita.', 'Abra Lançamentos já no modo Receita.', 'Informe valor, data, conta e categoria.', 'Confirme. A receita recebida passa a afetar o saldo.'], cta: { label: 'Adicionar receita', href: route('ledger-entries.index', { create: 'income', from: 'help' }) } },
             { title: 'Como adicionar uma despesa?', summary: 'Registre o gasto e classifique seu papel no planejamento.', keywords: 'despesa gasto compra saída', steps: ['Tenha uma conta e uma categoria de despesa.', 'Abra Lançamentos no modo Despesa.', 'Informe valor, data, conta e categoria.', 'Escolha a classificação de planejamento adequada e confirme.'], cta: { label: 'Adicionar despesa', href: route('ledger-entries.index', { create: 'expense', from: 'help' }) } },
             { title: 'Como transferir entre conta e caixinha?', summary: 'Mova dinheiro internamente sem criar receita ou despesa.', keywords: 'transferência transferir conta caixinha', steps: ['Abra o fluxo de transferência.', 'Escolha origem e destino.', 'Informe o valor.', 'Confirme. O patrimônio total não aumenta nem diminui por causa da transferência.'], cta: { label: 'Fazer transferência', href: route('ledger-entries.index', { transfer: 1, from: 'help' }) } },
+            { title: 'Como registrar um reembolso?', summary: 'Devolva parte ou todo um gasto sem transformar o valor em renda.', keywords: 'reembolso devolver gasto estorno despesa', steps: ['Abra Lançamentos e localize a despesa original.', 'Use a ação de reembolso quando houver valor elegível.', 'Escolha a conta que recebeu o dinheiro e informe o valor.', 'O reembolso reduz o efeito daquela despesa sem aparecer como nova renda.'], cta: { label: 'Ver Lançamentos', href: route('ledger-entries.index', { from: 'help' }) } },
         ],
     },
     {
@@ -33,6 +34,8 @@ const sections = [
         description: 'Só depois dos fatos básicos vale enriquecer o sistema com previsões, compromissos e orçamento.',
         articles: [
             { title: 'Como cadastrar um recebimento previsto?', summary: 'Planeje uma entrada sem fingir que o dinheiro já chegou.', keywords: 'recebimento previsto salário futuro previsão renda', steps: ['Abra Recebimentos previstos.', 'Cadastre valor e data esperada.', 'Use recorrência quando fizer sentido.', 'Quando receber, registre pelo fluxo próprio para que a previsão vire fato corretamente.'], cta: { label: 'Ir para Recebimentos previstos', href: route('receipt-forecasts.index', { from: 'help' }) } },
+            { title: 'Como cadastrar um compromisso futuro?', summary: 'Registre uma obrigação conhecida sem diminuir o saldo antes do pagamento.', keywords: 'compromisso futuro conta pagar fixo vencimento parcela', steps: ['Abra Compromissos futuros.', 'Informe conta, categoria, descrição, valor e vencimento.', 'Escolha o comportamento no planejamento.', 'Cadastre sem alterar o saldo; o efeito em caixa acontece quando houver pagamento.'], cta: { label: 'Ir para Compromissos futuros', href: route('expense-commitments.index', { from: 'help' }) } },
+            { title: 'Como registrar pagamento parcial de um compromisso?', summary: 'Baixe apenas a parte efetivamente paga e preserve o saldo restante.', keywords: 'compromisso pagamento parcial parcela restante', steps: ['Abra Compromissos futuros.', 'Localize a obrigação.', 'Use a ação de pagamento e informe somente o valor realmente pago.', 'O compromisso mantém o residual até ser quitado, corrigido ou cancelado.'], cta: { label: 'Ver Compromissos futuros', href: route('expense-commitments.index', { from: 'help' }) } },
             { title: 'Como configurar meus gastos essenciais?', summary: 'Reserve parte da verba mensal para categorias essenciais.', keywords: 'essenciais alimentação orçamento planejamento', steps: ['Crie as categorias de despesa necessárias.', 'Abra Configuração financeira.', 'Escolha o mês.', 'Defina proteção e reservas essenciais sem confundir reserva com gasto realizado.'], cta: { label: 'Configurar mês', href: route('financial-settings.edit', { from: 'help' }) } },
             { title: 'Como definir meu orçamento diário?', summary: 'Escolha uma referência diária voluntária para comparar comportamento.', keywords: 'orçamento diário gasto dia margem folga', steps: ['Abra Orçamento diário.', 'Informe quanto pretende gastar por dia.', 'O valor não bloqueia compras nem reduz seu saldo.', 'Use os check-ins para comparar gasto elegível, folga e excesso.'], cta: { label: 'Definir orçamento diário', href: route('daily-budgets.edit', { from: 'help' }) } },
         ],
@@ -43,6 +46,8 @@ const sections = [
         description: 'Cartão é opcional. Cadastre somente se você realmente usa esse fluxo.',
         articles: [
             { title: 'Como cadastrar e usar um cartão?', summary: 'Cadastre datas, limite e depois registre compras.', keywords: 'cartão crédito limite compra parcela fatura', steps: ['Abra Cartões e cadastre o cartão.', 'Informe o limite total se quiser controlar capacidade disponível.', 'Registre compras e parcelas pelo cartão.', 'Pagamentos da fatura liquidam obrigações; não viram uma segunda despesa.'], cta: { label: 'Ir para Cartões', href: route('credit-cards.index', { from: 'help' }) } },
+            { title: 'Como atualizar o limite do cartão?', summary: 'Mantenha o limite total alinhado ao valor real informado pela operadora.', keywords: 'cartão limite atualizar disponível usado', steps: ['Abra Cartões.', 'Localize o cartão.', 'Abra a edição de limite.', 'Informe o limite total atual ou remova o limite configurado quando não quiser controlá-lo.'], cta: { label: 'Ir para Cartões', href: route('credit-cards.index', { from: 'help' }) } },
+            { title: 'Como pagar ou antecipar o cartão?', summary: 'Liquide obrigações do cartão sem gerar uma segunda despesa.', keywords: 'cartão pagamento antecipar parcela fatura antecipação', steps: ['Abra Cartões.', 'Escolha pagamento para liquidar valores já devidos ou antecipação para parcelas elegíveis.', 'Informe o valor conforme o fluxo escolhido.', 'O sistema atualiza obrigações e limite sem contar o pagamento como novo consumo.'], cta: { label: 'Ir para Cartões', href: route('credit-cards.index', { from: 'help' }) } },
             { title: 'Como funciona estorno e crédito do cartão?', summary: 'Crédito nasce de estorno elegível; não é renda nem dinheiro em conta.', keywords: 'estorno crédito cartão correção', steps: ['Abra Correções de cartão.', 'Escolha uma compra elegível.', 'Registre o estorno.', 'Se já havia valor pago elegível, o sistema pode gerar crédito para aplicação futura.'], cta: { label: 'Abrir Correções de cartão', href: route('card-corrections.index', { from: 'help' }) } },
         ],
     },
@@ -53,6 +58,8 @@ const sections = [
         articles: [
             { title: 'Como criar uma meta financeira?', summary: 'Defina objetivo, prazo e vincule uma caixinha se quiser medir reserva real.', keywords: 'meta objetivo reserva prazo caixinha', steps: ['Abra a aba Metas no dashboard.', 'Informe nome, valor-alvo e data.', 'Opcionalmente vincule uma caixinha.', 'Sem caixinha, o FinanSys não presume dinheiro reservado.'], cta: { label: 'Criar uma meta', href: route('dashboard', { view: 'goals', from: 'help' }) } },
             { title: 'Como calcular meu patrimônio estimado?', summary: 'Some patrimônio financeiro e valor líquido dos bens sem tratar bens como dinheiro disponível.', keywords: 'patrimônio bem moto carro imóvel dívida financiamento líquido estimado', steps: ['Abra Patrimônio.', 'Adicione o bem pelo valor aproximado de mercado hoje.', 'Informe o saldo devedor atual caso exista financiamento ou dívida vinculada.', 'O sistema calcula o patrimônio líquido do bem: valor estimado menos dívida.', 'O dashboard soma esse valor ao patrimônio financeiro, mas mantém liquidez separada.'], cta: { label: 'Adicionar bem ao patrimônio', href: route('patrimony.index', { create: 1, from: 'help' }) } },
+            { title: 'Como atualizar um bem financiado?', summary: 'Atualize valor estimado e saldo devedor usando referências atuais, não a soma das parcelas.', keywords: 'patrimônio financiamento dívida moto carro parcela saldo devedor atualizar', steps: ['Abra Patrimônio e edite o bem.', 'Atualize o valor aproximado de mercado se ele mudou.', 'Consulte o saldo devedor atual na financeira ou banco e informe esse valor.', 'Não diminua a dívida pelo valor bruto das parcelas pagas: parte delas pode ser juros e encargos.'], cta: { label: 'Abrir Patrimônio', href: route('patrimony.index', { from: 'help' }) } },
+            { title: 'Qual a diferença entre patrimônio e liquidez?', summary: 'Patrimônio mede valor econômico; liquidez mostra o dinheiro financeiro disponível sem vender bens.', keywords: 'patrimônio liquidez dinheiro disponível bens diferença', steps: ['Liquidez financeira considera contas e caixinhas.', 'Bens entram pelo valor estimado menos a dívida vinculada.', 'Uma moto pode aumentar seu patrimônio sem aumentar o dinheiro disponível hoje.', 'Use os dois indicadores juntos para evitar confundir riqueza estimada com poder de compra imediato.'], cta: { label: 'Ver Patrimônio', href: route('patrimony.index', { from: 'help' }) } },
         ],
     },
     {
@@ -62,6 +69,7 @@ const sections = [
         articles: [
             { title: 'Como corrigir uma movimentação?', summary: 'Use correção ou estorno para preservar rastreabilidade.', keywords: 'corrigir erro lançamento estorno histórico', steps: ['Abra Lançamentos e localize o registro.', 'Use o fluxo de correção quando o dado original estiver incorreto.', 'Use estorno quando precisar desfazer o efeito.', 'Evite criar uma movimentação artificial apenas para “bater” o saldo.'], cta: { label: 'Ver Lançamentos', href: route('ledger-entries.index', { from: 'help' }) } },
             { title: 'Onde vejo meu histórico financeiro?', summary: 'Consulte avaliações e revisões preservadas pelo motor financeiro.', keywords: 'histórico revisão check-in avaliação', steps: ['Abra o Histórico financeiro.', 'Escolha o período relevante.', 'Compare o estado registrado com revisões posteriores.', 'Use a proveniência para entender mudanças sem reescrever silenciosamente o passado.'], cta: { label: 'Abrir Histórico', href: route('financial-evaluations.index', { from: 'help' }) } },
+            { title: 'Como corrigir um check-in diário?', summary: 'Revise um dia sem apagar a proveniência do resultado anterior.', keywords: 'check-in checkin corrigir diário revisão orçamento', steps: ['Abra o orçamento/check-in diário.', 'Localize o dia que precisa de correção.', 'Use a ação de correção em vez de criar um ajuste fictício.', 'A revisão preserva a leitura histórica e recalcula os indicadores atuais conforme as regras da V2.'], cta: { label: 'Abrir Orçamento diário', href: route('daily-budgets.edit', { from: 'help' }) } },
         ],
     },
     {
@@ -76,13 +84,19 @@ const sections = [
     },
 ];
 
-const normalizedSearch = computed(() => search.value.trim().toLocaleLowerCase('pt-BR'));
+const normalizeText = value => value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR')
+    .trim();
+
+const normalizedSearch = computed(() => normalizeText(search.value));
 const visibleSections = computed(() => {
     if (!normalizedSearch.value) return sections;
     return sections
         .map(section => ({
             ...section,
-            articles: section.articles.filter(article => [article.title, article.summary, article.keywords, ...article.steps].join(' ').toLocaleLowerCase('pt-BR').includes(normalizedSearch.value)),
+            articles: section.articles.filter(article => normalizeText([article.title, article.summary, article.keywords, ...article.steps].join(' ')).includes(normalizedSearch.value)),
         }))
         .filter(section => section.articles.length);
 });
