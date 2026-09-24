@@ -980,7 +980,6 @@ const date = (value) => value.split("-").reverse().join("/");
                             v-model="chargeForm.credit_card_id"
                             required
                             class="mt-2 w-full rounded-xl border-slate-300"
-                            @change="refreshFirstDueOn"
                         >
                             <option
                                 v-for="card in cards"
@@ -1127,6 +1126,7 @@ const date = (value) => value.split("-").reverse().join("/");
                             v-model="purchaseForm.credit_card_id"
                             required
                             class="mt-2 w-full rounded-xl border-slate-300"
+                            @change="refreshFirstDueOn"
                         >
                             <option
                                 v-for="card in cards"
