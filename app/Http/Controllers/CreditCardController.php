@@ -105,7 +105,9 @@ class CreditCardController extends Controller
                         'id' => $payment->id,
                         'amount' => $payment->amount,
                         'paid_on' => $payment->paid_on->toDateString(),
+                        'source_account_id' => $payment->source_account_id,
                         'source_account_name' => $payment->sourceAccount?->name ?? 'Conta removida',
+                        'selected_charge_ids' => $payment->selected_charge_ids ?? [],
                     ])->values(),
                     'may_have_unconfirmed_charges' => $installments->contains(fn ($installment): bool => $installment->status->value === 'pending' && $installment->due_on->isBefore(now('America/Sao_Paulo')->startOfDay())),
                 ];
