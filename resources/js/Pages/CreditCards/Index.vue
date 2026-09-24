@@ -1002,8 +1002,8 @@ const date = (value) => value.split("-").reverse().join("/");
                             v-model="chargeForm.category_id"
                             :options="categories"
                             placeholder="Digite para buscar uma categoria..."
-                        
-                        ><InputError :message="chargeForm.errors.category_id" />
+                            class="mt-2"
+                        /><InputError :message="chargeForm.errors.category_id" />
                     </div>
                 </div>
                 <div class="grid gap-4 sm:grid-cols-2">
