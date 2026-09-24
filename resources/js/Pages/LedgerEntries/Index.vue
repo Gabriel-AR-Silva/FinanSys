@@ -27,8 +27,13 @@ const filters = reactive({
     account_id: props.filters.account_id ? String(props.filters.account_id) : 'all',
     category_id: props.filters.category_id ? String(props.filters.category_id) : 'all',
     period: props.filters.period ?? 'all',
+    search: props.filters.search ?? '',
+    sort: props.filters.sort ?? 'occurred_at',
+    direction: props.filters.direction ?? 'desc',
+    per_page: String(props.filters.per_page ?? 15),
 });
 const createModalOpen = ref(false);
+let searchTimer = null;
 const transferModalOpen = ref(false);
 const deletingEntry = ref(null);
 const reversingEntry = ref(null);
@@ -61,6 +66,17 @@ const typeLabels = { income: 'Receita', expense: 'Despesa', refund: 'Reembolso',
 const isIncome = (entry) => positiveTypes.includes(entry.type);
 const accountName = (entry) => entry.reference?.name ?? 'Conta';
 const entryTitle = (entry) => entry.description || entry.category?.name || 'Sem categoria';
+
+function searchEntries() {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => applyFilters(), 350);
+}
+
+function sortEntries(key) {
+    if (filters.sort === key) filters.direction = filters.direction === 'asc' ? 'desc' : 'asc';
+    else { filters.sort = key; filters.direction = 'asc'; }
+    applyFilters();
+}
 
 function applyFilters() {
     const query = Object.fromEntries(Object.entries(filters).filter(([, value]) => value && value !== 'all'));
@@ -203,6 +219,10 @@ watch(sourceKey, () => {
             </section>
 
             <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="Filtros de lançamentos">
+                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div class="w-full sm:max-w-md"><InputLabel for="entry-search" value="Buscar lançamentos" /><input id="entry-search" v-model="filters.search" type="search" placeholder="Descrição, categoria ou conta..." class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500" @input="searchEntries" /></div>
+                    <div class="w-full sm:w-36"><InputLabel for="entry-page-size" value="Por página" /><select id="entry-page-size" v-model="filters.per_page" class="mt-2 block w-full rounded-xl border-slate-300 text-sm" @change="applyFilters"><option value="15">15</option><option value="25">25</option><option value="50">50</option></select></div>
+                </div>
                 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1.2fr_1.2fr_1fr_auto] xl:items-end">
                     <div>
                         <InputLabel for="filter-category" value="Categoria" />
@@ -227,7 +247,7 @@ watch(sourceKey, () => {
             <section v-if="entries.data.length" aria-label="Lista de lançamentos">
                 <div class="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
                     <table class="w-full text-left text-sm">
-                        <thead class="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500"><tr><th class="px-5 py-4">Lançamento</th><th class="px-5 py-4">Conta</th><th class="px-5 py-4">Data</th><th class="px-5 py-4 text-right">Valor</th><th class="w-16 px-5 py-4"><span class="sr-only">Ações</span></th></tr></thead>
+                        <thead class="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500"><tr><th class="px-5 py-4"><button type="button" @click="sortEntries('description')">Lançamento <span v-if="filters.sort === 'description'">{{ filters.direction === 'asc' ? '↑' : '↓' }}</span></button></th><th class="px-5 py-4">Conta</th><th class="px-5 py-4"><button type="button" @click="sortEntries('occurred_at')">Data <span v-if="filters.sort === 'occurred_at'">{{ filters.direction === 'asc' ? '↑' : '↓' }}</span></button></th><th class="px-5 py-4 text-right"><button type="button" @click="sortEntries('amount')">Valor <span v-if="filters.sort === 'amount'">{{ filters.direction === 'asc' ? '↑' : '↓' }}</span></button></th><th class="w-16 px-5 py-4"><span class="sr-only">Ações</span></th></tr></thead>
                         <tbody class="divide-y divide-slate-100">
                             <tr v-for="entry in entries.data" :key="entry.id" class="hover:bg-slate-50/70">
                                 <td class="px-5 py-4"><div class="flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-xl" :class="isIncome(entry) ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'"><ArrowUpCircle v-if="isIncome(entry)" :size="20" /><ArrowDownCircle v-else :size="20" /></span><div><p class="font-semibold text-slate-900">{{ entryTitle(entry) }}</p><p class="mt-0.5 text-xs text-slate-500">{{ entry.category?.name ?? 'Sem categoria' }} · {{ typeLabels[entry.type] ?? 'Lançamento' }}<span v-if="entry.is_reversal" class="ml-1 rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">Estorno</span></p></div></div></td>
