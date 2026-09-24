@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\CreateCreditCard;
+use App\Actions\DeleteCreditCard;
 use App\Actions\UpdateCreditCardLimit;
 use App\Enums\CardInstallmentStatus;
 use App\Enums\CategoryType;
@@ -119,6 +120,17 @@ class CreditCardController extends Controller
         $create->handle($request->user(), $request->validated());
 
         return to_route('credit-cards.index')->with('success', '💳 Cartão cadastrado. Bora usar sem fazer merda, hein? 😅');
+    }
+
+    public function destroy(Request $request, string $card, DeleteCreditCard $delete): RedirectResponse
+    {
+        $error = $delete->handle($request->user(), (int) $card);
+
+        if ($error !== null) {
+            return to_route('credit-cards.index')->with('error', $error);
+        }
+
+        return to_route('credit-cards.index')->with('success', 'Cartão removido com sucesso.');
     }
 
     public function updateLimit(UpdateCreditCardLimitRequest $request, string $card, UpdateCreditCardLimit $update): RedirectResponse
