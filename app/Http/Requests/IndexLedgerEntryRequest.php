@@ -21,6 +21,10 @@ class IndexLedgerEntryRequest extends FormRequest
             'account_id' => ['nullable', 'integer', 'min:1'],
             'category_id' => ['nullable', 'integer', Rule::exists(Category::class, 'id')->where(fn ($query) => $query->where('user_id', $this->user()?->getKey()))],
             'period' => ['nullable', Rule::in(['all', '7', '15', '30', '60', '365'])],
+            'search' => ['nullable', 'string', 'max:100'],
+            'sort' => ['nullable', Rule::in(['occurred_at', 'description', 'amount'])],
+            'direction' => ['nullable', Rule::in(['asc', 'desc'])],
+            'per_page' => ['nullable', 'integer', Rule::in([15, 25, 50])],
             'page' => ['nullable', 'integer', 'min:1'],
         ];
     }
