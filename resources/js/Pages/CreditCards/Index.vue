@@ -48,6 +48,7 @@ const eligibleCharges = computed(() =>
 
 const deletingCardId = ref(null);
 const deletingPaymentId = ref(null);
+const editingPaymentId = ref(null);
 
 const daysInMonth = (year, month) =>
     new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -365,6 +366,7 @@ function open(kind, cardId = selectedCardId.value) {
     }
     if (kind === "charge") chargeForm.credit_card_id = cardId;
     if (kind === "payment") {
+        editingPaymentId.value = null;
         paymentForm.credit_card_id = cardId;
         paymentForm.card_charge_ids = [];
     }
@@ -390,6 +392,19 @@ function destroyCard(card) {
             deletingCardId.value = null;
         },
     });
+}
+
+function editPayment(payment, cardId) {
+    selectedCardId.value = cardId;
+    editingPaymentId.value = payment.id;
+    paymentForm.credit_card_id = cardId;
+    paymentForm.source_account_id = payment.source_account_id;
+    paymentForm.amount = formatMoneyInput(payment.amount);
+    paymentForm.paid_on = payment.paid_on;
+    paymentForm.card_charge_ids = [...(payment.selected_charge_ids ?? [])];
+    paymentForm.operation_id = crypto.randomUUID();
+    paymentForm.clearErrors();
+    modal.value = "payment";
 }
 
 function destroyPayment(payment) {
@@ -512,23 +527,25 @@ function submitPurchase() {
 }
 
 function submitPayment() {
-    paymentForm
-        .transform((data) => ({
-            ...data,
-            amount: normalizeMoneyInput(data.amount),
-        }))
-        .post(route("card-payments.store"), {
-            preserveScroll: true,
-            onSuccess: () => {
-                modal.value = null;
-                paymentForm.defaults({
-                    ...paymentForm.data(),
-                    amount: "0,00",
-                    operation_id: crypto.randomUUID(),
-                });
-                paymentForm.reset();
-            },
-        });
+    const options = {
+        preserveScroll: true,
+        onSuccess: () => {
+            modal.value = null;
+            editingPaymentId.value = null;
+            paymentForm.defaults({
+                ...paymentForm.data(),
+                amount: "0,00",
+                operation_id: crypto.randomUUID(),
+            });
+            paymentForm.reset();
+        },
+    };
+    paymentForm.transform((data) => ({ ...data, amount: normalizeMoneyInput(data.amount) }));
+    if (editingPaymentId.value) {
+        paymentForm.put(route("card-payments.update", editingPaymentId.value), options);
+        return;
+    }
+    paymentForm.post(route("card-payments.store"), options);
 }
 
 function submitAdvance() {
@@ -729,7 +746,10 @@ const date = (value) => value.split("-").reverse().join("/");
                         <div class="mt-2 grid gap-2">
                             <div v-for="payment in card.payments" :key="payment.id" class="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 text-xs">
                                 <span><strong>R$ {{ formatMoneyInput(payment.amount) }}</strong><br><span class="text-slate-500">{{ date(payment.paid_on) }} · {{ payment.source_account_name }}</span></span>
-                                <button type="button" class="rounded-lg px-2 py-1 font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50" :disabled="deletingPaymentId === payment.id" @click="destroyPayment(payment)">Excluir</button>
+                                <span class="flex shrink-0 gap-1">
+                                    <button type="button" class="rounded-lg px-2 py-1 font-semibold text-slate-700 hover:bg-white" @click="editPayment(payment, card.id)">Editar</button>
+                                    <button type="button" class="rounded-lg px-2 py-1 font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50" :disabled="deletingPaymentId === payment.id" @click="destroyPayment(payment)">Excluir</button>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -1264,7 +1284,7 @@ const date = (value) => value.split("-").reverse().join("/");
                 class="flex flex-col gap-4 p-5 sm:p-6"
                 @submit.prevent="submitPayment"
             >
-                <h2 class="text-xl font-semibold">Pagar fatura</h2>
+                <h2 class="text-xl font-semibold">{{ editingPaymentId ? "Editar pagamento da fatura" : "Pagar fatura" }}</h2>
                 <p class="text-sm text-slate-500">
                     O pagamento baixa primeiro as parcelas vencidas e atuais
                     mais antigas. Antecipação futura será um fluxo separado.
@@ -1428,7 +1448,7 @@ const date = (value) => value.split("-").reverse().join("/");
                         "
                         class="rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
                     >
-                        Confirmar pagamento
+                        {{ editingPaymentId ? "Salvar alterações" : "Confirmar pagamento" }}
                     </button>
                 </div>
             </form></Modal
