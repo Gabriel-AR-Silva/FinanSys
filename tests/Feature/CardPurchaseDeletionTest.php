@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\CreateCardPurchase;
+use App\Enums\CategoryType;
 use App\Models\CardInstallment;
 use App\Models\CardPurchase;
 use App\Models\Category;
@@ -20,7 +21,7 @@ class CardPurchaseDeletionTest extends TestCase
     {
         $user = User::factory()->create();
         $card = CreditCard::factory()->for($user)->create();
-        $category = Category::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => CategoryType::Expense]);
         $purchase = app(CreateCardPurchase::class)->handle($user, [
             'credit_card_id' => $card->id,
             'category_id' => $category->id,
