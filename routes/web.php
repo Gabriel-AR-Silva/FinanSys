@@ -67,6 +67,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/cartoes/creditos/aplicacoes', [CardCreditAllocationController::class, 'store'])->name('card-credit-allocations.store');
     Route::post('/cartoes/encargos', [CardChargeController::class, 'store'])->name('card-charges.store');
     Route::post('/cartoes/pagamentos', [CardPaymentController::class, 'store'])->name('card-payments.store');
+    Route::put('/cartoes/pagamentos/{payment}', [CardPaymentController::class, 'update'])->whereNumber('payment')->name('card-payments.update');
     Route::delete('/cartoes/pagamentos/{payment}', [CardPaymentController::class, 'destroy'])->whereNumber('payment')->name('card-payments.destroy');
     Route::post('/cartoes/antecipacoes', [CardAdvanceController::class, 'store'])->name('card-advances.store');
     Route::get('/recebimentos-previstos', [ReceiptForecastController::class, 'index'])->name('receipt-forecasts.index');
