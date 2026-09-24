@@ -1,14 +1,26 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 const props = defineProps({
     card: { type: Object, required: true },
     purchase: { type: Object, required: true },
 });
+const deleting = ref(false);
 const money = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value));
 const date = (value) => value.split('-').reverse().join('/');
 const status = (value) => ({ pending: 'Pendente', paid: 'Paga', advanced: 'Antecipada' }[value] ?? value);
+
+function destroyPurchase() {
+    if (!window.confirm(`Excluir a compra "${props.purchase.description}" e todas as parcelas ainda não pagas?`)) return;
+
+    deleting.value = true;
+    router.delete(route('card-purchases.destroy', props.purchase.id), {
+        preserveScroll: true,
+        onFinish: () => { deleting.value = false; },
+    });
+}
 </script>
 
 <template>
@@ -17,8 +29,15 @@ const status = (value) => ({ pending: 'Pendente', paid: 'Paga', advanced: 'Antec
         <main class="mx-auto max-w-3xl space-y-5">
             <Link :href="route('credit-cards.index')" class="inline-block text-sm font-semibold text-emerald-800 underline underline-offset-2">← Voltar aos cartões</Link>
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" :aria-label="`Compra ${purchase.description}`">
-                <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">{{ card.name }} · compra #{{ purchase.id }}</p>
-                <h1 class="mt-2 break-words text-2xl font-semibold text-slate-950">{{ purchase.description }}</h1>
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">{{ card.name }} · compra #{{ purchase.id }}</p>
+                        <h1 class="mt-2 break-words text-2xl font-semibold text-slate-950">{{ purchase.description }}</h1>
+                    </div>
+                    <button type="button" class="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" :disabled="deleting" @click="destroyPurchase">
+                        {{ deleting ? 'Excluindo…' : 'Excluir compra' }}
+                    </button>
+                </div>
                 <p class="mt-2 text-sm text-slate-600">{{ purchase.category_name }} · {{ date(purchase.purchased_on) }}</p>
                 <p class="mt-4 text-2xl font-bold text-slate-950">{{ money(purchase.gross_amount) }}</p>
                 <h2 class="mt-6 text-lg font-semibold text-slate-900">Parcelas ({{ purchase.installments_count }})</h2>
