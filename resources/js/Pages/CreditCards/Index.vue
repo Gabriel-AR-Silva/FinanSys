@@ -1140,8 +1140,8 @@ const date = (value) => value.split("-").reverse().join("/");
                             v-model="purchaseForm.category_id"
                             :options="categories"
                             placeholder="Digite para buscar uma categoria..."
-                        
-                        ><InputError
+                            class="mt-2"
+                        /><InputError
                             :message="purchaseForm.errors.category_id"
                         />
                     </div>
