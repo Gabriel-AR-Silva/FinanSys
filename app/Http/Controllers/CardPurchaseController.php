@@ -27,8 +27,7 @@ class CardPurchaseController extends Controller
             ->firstOrFail();
 
         $hasFinancialHistory = $ownedPurchase->installments->contains(
-            fn ($installment): bool =>
-                (string) $installment->paid_amount !== '0.00'
+            fn ($installment): bool => (string) $installment->paid_amount !== '0.00'
                 || $installment->allocations->isNotEmpty()
                 || $installment->advanceAllocations->isNotEmpty(),
         );
