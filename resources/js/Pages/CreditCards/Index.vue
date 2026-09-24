@@ -31,6 +31,7 @@ const selectedCardId = ref(props.cards[0]?.id ?? "");
 const selectedCard = computed(() =>
     props.cards.find((card) => card.id === Number(selectedCardId.value)),
 );
+const card = selectedCard;
 const paymentCard = computed(() =>
     props.cards.find((card) => card.id === Number(paymentForm.credit_card_id)),
 );
@@ -46,6 +47,7 @@ const eligibleCharges = computed(() =>
 );
 
 const deletingCardId = ref(null);
+const deletingPaymentId = ref(null);
 
 const daysInMonth = (year, month) =>
     new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -119,6 +121,7 @@ const purchaseForm = useForm({
     gross_amount: "0,00",
     purchased_on: props.today,
     installments_count: 1,
+    paid_installments_count: 0,
     first_due_on: suggestedFirstDueOn(selectedCardId.value, props.today),
     operation_id: crypto.randomUUID(),
 });
@@ -389,6 +392,28 @@ function destroyCard(card) {
     });
 }
 
+function destroyPayment(payment) {
+    if (!window.confirm('Excluir este pagamento de fatura? As baixas vinculadas serão revertidas.')) return;
+    deletingPaymentId.value = payment.id;
+    router.delete(route("card-payments.destroy", payment.id), {
+        preserveScroll: true,
+        onFinish: () => { deletingPaymentId.value = null; },
+    });
+}
+
+const purchaseInstallmentPreview = computed(() => {
+    const total = Math.max(1, Number(purchaseForm.installments_count) || 1);
+    const paid = Math.min(Math.max(0, Number(purchaseForm.paid_installments_count) || 0), total - 1);
+    const totalCents = decimalToCents(normalizeMoneyInput(purchaseForm.gross_amount));
+    const base = totalCents / BigInt(total);
+    const remainder = totalCents % BigInt(total);
+    let remaining = 0n;
+    for (let index = paid; index < total; index += 1) {
+        remaining += base + (BigInt(index) < remainder ? 1n : 0n);
+    }
+    return { total, paid, remainingCount: total - paid, remaining: centsToDecimal(remaining) };
+});
+
 function refreshFirstDueOn() {
     purchaseForm.first_due_on = suggestedFirstDueOn(
         purchaseForm.credit_card_id,
@@ -478,6 +503,7 @@ function submitPurchase() {
                     description: "",
                     gross_amount: "0,00",
                     installments_count: 1,
+                    paid_installments_count: 0,
                     operation_id: crypto.randomUUID(),
                 });
                 purchaseForm.reset();
@@ -554,48 +580,21 @@ const date = (value) => value.split("-").reverse().join("/");
                         apenas liquida a obrigação.
                     </p>
                 </div>
-                <div
-                    class="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-5"
-                >
-                    <button
-                        class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold"
-                        type="button"
-                        @click="open('card')"
-                    >
+                <div class="flex flex-wrap items-center gap-2">
+                    <button class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold" type="button" @click="open('card')">
                         <Plus :size="17" class="mr-1 inline" />Cartão
                     </button>
-                    <button
-                        :disabled="!cards.length || !categories.length"
-                        class="rounded-xl bg-slate-950 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-                        type="button"
-                        @click="open('purchase')"
-                    >
-                        <ReceiptText :size="17" class="mr-1 inline" />Compra
+                    <button :disabled="!cards.length || !categories.length" class="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40" type="button" @click="open('purchase')">
+                        <ReceiptText :size="17" class="mr-1 inline" />Nova compra
                     </button>
-                    <button
-                        :disabled="!cards.length || !categories.length"
-                        class="rounded-xl bg-amber-600 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-                        type="button"
-                        @click="open('charge')"
-                    >
-                        <ReceiptText :size="17" class="mr-1 inline" />Encargo
-                    </button>
-                    <button
-                        :disabled="!cards.length || !accounts.length"
-                        class="rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-                        type="button"
-                        @click="open('payment')"
-                    >
-                        <WalletCards :size="17" class="mr-1 inline" />Pagar
-                    </button>
-                    <button
-                        :disabled="!cards.length || !accounts.length"
-                        class="rounded-xl bg-sky-700 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-                        type="button"
-                        @click="open('advance')"
-                    >
-                        <CalendarDays :size="17" class="mr-1 inline" />Antecipar
-                    </button>
+                    <details v-if="cards.length" class="relative">
+                        <summary class="cursor-pointer list-none rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold">Mais ações ▾</summary>
+                        <div class="absolute right-0 z-20 mt-2 grid min-w-48 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                            <button class="rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50" type="button" @click="open('charge')">Confirmar encargo</button>
+                            <button class="rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50" type="button" @click="open('payment')">Pagar fatura</button>
+                            <button class="rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50" type="button" @click="open('advance')">Antecipar parcelas</button>
+                        </div>
+                    </details>
                 </div>
             </header>
 
@@ -612,9 +611,18 @@ const date = (value) => value.split("-").reverse().join("/");
                 </p>
             </section>
 
-            <section v-else class="grid min-w-0 gap-4 xl:grid-cols-2">
+            <section v-else class="min-w-0">
+                <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div class="w-full sm:max-w-sm">
+                        <label for="active-card" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cartão em visualização</label>
+                        <select id="active-card" v-model="selectedCardId" class="mt-1 w-full rounded-xl border-slate-300 bg-white">
+                            <option v-for="item in cards" :key="item.id" :value="item.id">{{ item.name }}</option>
+                        </select>
+                    </div>
+                    <p class="text-xs text-slate-500">Um cartão por vez para manter o gerenciamento limpo.</p>
+                </div>
                 <article
-                    v-for="card in cards"
+                    v-if="card"
                     :key="card.id"
                     class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
                 >
@@ -653,54 +661,18 @@ const date = (value) => value.split("-").reverse().join("/");
                         ou multa ainda não informados; confira a fatura antes de
                         pagar. Nenhum valor foi estimado.
                     </p>
-                    <div class="flex flex-wrap gap-2 border-b border-slate-100 p-3">
-                        <button
-                            class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700"
-                            type="button"
-                            @click="open('limit', card.id)"
-                        >
-                            Ajustar limite
-                        </button>
-                        <button
-                            class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700"
-                            type="button"
-                            @click="open('purchase', card.id)"
-                        >
-                            Nova compra
-                        </button>
-                        <button
-                            class="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800"
-                            type="button"
-                            @click="open('charge', card.id)"
-                        >
-                            Confirmar encargo
-                        </button>
-                        <button
-                            class="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700"
-                            type="button"
-                            @click="open('payment', card.id)"
-                        >
-                            Pagar fatura
-                        </button>
-                        <button
-                            class="rounded-lg bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700"
-                            type="button"
-                            @click="open('advance', card.id)"
-                        >
-                            Antecipar
-                        </button>
-                        <button
-                            class="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-                            type="button"
-                            :disabled="deletingCardId === card.id"
-                            @click="destroyCard(card)"
-                        >
-                            {{
-                                deletingCardId === card.id
-                                    ? "Excluindo…"
-                                    : "Excluir cartão"
-                            }}
-                        </button>
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-100 p-3">
+                        <button class="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white" type="button" @click="open('purchase', card.id)">Nova compra</button>
+                        <details class="relative">
+                            <summary class="cursor-pointer list-none rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">Gerenciar ▾</summary>
+                            <div class="absolute right-0 z-20 mt-2 grid min-w-52 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                                <button class="rounded-lg px-3 py-2 text-left text-xs hover:bg-slate-50" type="button" @click="open('limit', card.id)">Ajustar limite</button>
+                                <button class="rounded-lg px-3 py-2 text-left text-xs hover:bg-slate-50" type="button" @click="open('charge', card.id)">Confirmar encargo</button>
+                                <button class="rounded-lg px-3 py-2 text-left text-xs hover:bg-slate-50" type="button" @click="open('payment', card.id)">Pagar fatura</button>
+                                <button class="rounded-lg px-3 py-2 text-left text-xs hover:bg-slate-50" type="button" @click="open('advance', card.id)">Antecipar parcelas</button>
+                                <button class="rounded-lg px-3 py-2 text-left text-xs text-rose-700 hover:bg-rose-50 disabled:opacity-50" type="button" :disabled="deletingCardId === card.id" @click="destroyCard(card)">Excluir cartão</button>
+                            </div>
+                        </details>
                     </div>
                     <div
                         v-if="card.charges.length"
@@ -749,6 +721,15 @@ const date = (value) => value.split("-").reverse().join("/");
                                         }}</span
                                     ></span
                                 >
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="card.payments?.length" class="border-b border-slate-100 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Pagamentos de fatura</p>
+                        <div class="mt-2 grid gap-2">
+                            <div v-for="payment in card.payments" :key="payment.id" class="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 text-xs">
+                                <span><strong>R$ {{ formatMoneyInput(payment.amount) }}</strong><br><span class="text-slate-500">{{ date(payment.paid_on) }} · {{ payment.source_account_name }}</span></span>
+                                <button type="button" class="rounded-lg px-2 py-1 font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50" :disabled="deletingPaymentId === payment.id" @click="destroyPayment(payment)">Excluir</button>
                             </div>
                         </div>
                     </div>
@@ -1207,7 +1188,7 @@ const date = (value) => value.split("-").reverse().join("/");
                         />
                     </div>
                 </div>
-                <div class="grid gap-4 sm:grid-cols-3">
+                <div class="grid gap-4 sm:grid-cols-2">
                     <div>
                         <InputLabel
                             for="purchased-on"
@@ -1223,23 +1204,16 @@ const date = (value) => value.split("-").reverse().join("/");
                         />
                     </div>
                     <div>
-                        <InputLabel
-                            for="installments"
-                            value="Parcelas"
-                        /><TextInput
-                            id="installments"
-                            v-model="purchaseForm.installments_count"
-                            type="number"
-                            min="1"
-                            max="120"
-                            required
-                            class="mt-2 w-full"
-                        />
+                        <InputLabel for="installments" value="Parcelas totais" /><TextInput id="installments" v-model="purchaseForm.installments_count" type="number" min="1" max="120" required class="mt-2 w-full" />
+                    </div>
+                    <div>
+                        <InputLabel for="paid-installments" value="Parcelas já pagas antes do FinanSys" /><TextInput id="paid-installments" v-model="purchaseForm.paid_installments_count" type="number" min="0" :max="Math.max(0, Number(purchaseForm.installments_count) - 1)" required class="mt-2 w-full" />
+                        <p class="mt-1 text-xs text-slate-500">Essas parcelas são contexto anterior e não entram nos indicadores atuais.</p>
                     </div>
                     <div>
                         <InputLabel
                             for="first-due"
-                            value="Primeiro vencimento"
+                            value="Próximo vencimento em aberto"
                         /><TextInput
                             id="first-due"
                             v-model="purchaseForm.first_due_on"
@@ -1249,14 +1223,19 @@ const date = (value) => value.split("-").reverse().join("/");
                             class="mt-2 w-full"
                         />
                         <p class="mt-1 text-xs text-slate-500">
-                            Sugerido pelo fechamento e vencimento do cartão. Você pode ajustar manualmente.
+                            Para compra em andamento, informe o vencimento da primeira parcela que ainda falta pagar.
                         </p>
                     </div>
+                </div>
+                <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+                    <strong>{{ purchaseInstallmentPreview.remainingCount }} parcela(s) entrarão no FinanSys</strong>
+                    <span class="block text-xs text-emerald-800">Saldo considerado: R$ {{ formatMoneyInput(purchaseInstallmentPreview.remaining) }}. As {{ purchaseInstallmentPreview.paid }} anteriores ficam fora dos indicadores.</span>
                 </div>
                 <InputError
                     v-for="field in [
                         'purchased_on',
                         'installments_count',
+                        'paid_installments_count',
                         'first_due_on',
                         'operation_id',
                     ]"
