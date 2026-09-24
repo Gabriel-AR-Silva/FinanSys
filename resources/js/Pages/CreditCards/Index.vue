@@ -9,7 +9,7 @@ import {
     normalizeMoneyInput,
     sanitizeMoneyInput,
 } from "@/Support/money";
-import { Head, useForm } from "@inertiajs/vue3";
+import { Head, router, useForm } from "@inertiajs/vue3";
 import {
     CalendarDays,
     CreditCard,
@@ -44,6 +44,63 @@ const eligibleCharges = computed(() =>
             charge.due_on.slice(0, 7) <= paymentForm.paid_on.slice(0, 7),
     ),
 );
+
+const deletingCardId = ref(null);
+
+const daysInMonth = (year, month) =>
+    new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+const monthWithOffset = (year, month, offset) => {
+    const date = new Date(Date.UTC(year, month - 1 + offset, 1));
+    return [date.getUTCFullYear(), date.getUTCMonth() + 1];
+};
+
+const formatIsoDate = (year, month, day) =>
+    `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+function suggestedFirstDueOn(cardId, purchasedOn) {
+    const card = props.cards.find((item) => item.id === Number(cardId));
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(purchasedOn ?? "");
+    if (!card || !match) return purchasedOn || props.today;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const currentClosingDay = Math.min(
+        Number(card.closing_day),
+        daysInMonth(year, month),
+    );
+    const cycleOffset = day > currentClosingDay ? 1 : 0;
+    const [closingYear, closingMonth] = monthWithOffset(
+        year,
+        month,
+        cycleOffset,
+    );
+    const closingDay = Math.min(
+        Number(card.closing_day),
+        daysInMonth(closingYear, closingMonth),
+    );
+
+    let dueYear = closingYear;
+    let dueMonth = closingMonth;
+    let dueDay = Math.min(
+        Number(card.due_day),
+        daysInMonth(dueYear, dueMonth),
+    );
+
+    const closingStamp = Date.UTC(closingYear, closingMonth - 1, closingDay);
+    let dueStamp = Date.UTC(dueYear, dueMonth - 1, dueDay);
+
+    if (dueStamp <= closingStamp) {
+        [dueYear, dueMonth] = monthWithOffset(dueYear, dueMonth, 1);
+        dueDay = Math.min(
+            Number(card.due_day),
+            daysInMonth(dueYear, dueMonth),
+        );
+    }
+
+    return formatIsoDate(dueYear, dueMonth, dueDay);
+}
 const cardForm = useForm({
     name: "",
     closing_day: 5,
@@ -62,7 +119,7 @@ const purchaseForm = useForm({
     gross_amount: "0,00",
     purchased_on: props.today,
     installments_count: 1,
-    first_due_on: props.today,
+    first_due_on: suggestedFirstDueOn(selectedCardId.value, props.today),
     operation_id: crypto.randomUUID(),
 });
 const chargeForm = useForm({
@@ -296,7 +353,13 @@ function open(kind, cardId = selectedCardId.value) {
         limitForm.credit_limit = card?.limit?.total ? formatMoneyInput(card.limit.total) : "";
         limitForm.clearErrors();
     }
-    if (kind === "purchase") purchaseForm.credit_card_id = cardId;
+    if (kind === "purchase") {
+        purchaseForm.credit_card_id = cardId;
+        purchaseForm.first_due_on = suggestedFirstDueOn(
+            cardId,
+            purchaseForm.purchased_on,
+        );
+    }
     if (kind === "charge") chargeForm.credit_card_id = cardId;
     if (kind === "payment") {
         paymentForm.credit_card_id = cardId;
@@ -307,6 +370,30 @@ function open(kind, cardId = selectedCardId.value) {
         advanceForm.installment_ids = [];
     }
     modal.value = kind;
+}
+
+function destroyCard(card) {
+    if (
+        !window.confirm(
+            `Excluir o cartão "${card.name}"? Só cartões sem histórico financeiro podem ser removidos.`,
+        )
+    )
+        return;
+
+    deletingCardId.value = card.id;
+    router.delete(route("credit-cards.destroy", card.id), {
+        preserveScroll: true,
+        onFinish: () => {
+            deletingCardId.value = null;
+        },
+    });
+}
+
+function refreshFirstDueOn() {
+    purchaseForm.first_due_on = suggestedFirstDueOn(
+        purchaseForm.credit_card_id,
+        purchaseForm.purchased_on,
+    );
 }
 
 function close() {
@@ -602,6 +689,18 @@ const date = (value) => value.split("-").reverse().join("/");
                         >
                             Antecipar
                         </button>
+                        <button
+                            class="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            type="button"
+                            :disabled="deletingCardId === card.id"
+                            @click="destroyCard(card)"
+                        >
+                            {{
+                                deletingCardId === card.id
+                                    ? "Excluindo…"
+                                    : "Excluir cartão"
+                            }}
+                        </button>
                     </div>
                     <div
                         v-if="card.charges.length"
@@ -881,6 +980,7 @@ const date = (value) => value.split("-").reverse().join("/");
                             v-model="chargeForm.credit_card_id"
                             required
                             class="mt-2 w-full rounded-xl border-slate-300"
+                            @change="refreshFirstDueOn"
                         >
                             <option
                                 v-for="card in cards"
@@ -1119,6 +1219,7 @@ const date = (value) => value.split("-").reverse().join("/");
                             :max="today"
                             required
                             class="mt-2 w-full"
+                            @change="refreshFirstDueOn"
                         />
                     </div>
                     <div>
@@ -1143,9 +1244,13 @@ const date = (value) => value.split("-").reverse().join("/");
                             id="first-due"
                             v-model="purchaseForm.first_due_on"
                             type="date"
+                            :min="purchaseForm.purchased_on"
                             required
                             class="mt-2 w-full"
                         />
+                        <p class="mt-1 text-xs text-slate-500">
+                            Sugerido pelo fechamento e vencimento do cartão. Você pode ajustar manualmente.
+                        </p>
                     </div>
                 </div>
                 <InputError
