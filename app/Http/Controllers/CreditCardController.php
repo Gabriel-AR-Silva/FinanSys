@@ -59,6 +59,7 @@ class CreditCardController extends Controller
             ->with([
                 'purchases' => fn ($query) => $query->with(['category:id,name', 'installments.advanceAllocations.advance'])->latest('purchased_on')->latest('id'),
                 'charges' => fn ($query) => $query->with('category:id,name')->latest('charged_on')->latest('id'),
+                'payments' => fn ($query) => $query->with('sourceAccount:id,name')->latest('paid_on')->latest('id'),
             ])
             ->orderBy('name')->orderBy('id')->get()
             ->map(function (CreditCard $card) use ($cardLimits): array {
@@ -99,6 +100,12 @@ class CreditCardController extends Controller
                                 'original_due_on' => $advanceAllocation->original_due_on->toDateString(),
                             ] : null,
                         ]),
+                    ])->values(),
+                    'payments' => $card->payments->map(fn ($payment): array => [
+                        'id' => $payment->id,
+                        'amount' => $payment->amount,
+                        'paid_on' => $payment->paid_on->toDateString(),
+                        'source_account_name' => $payment->sourceAccount?->name ?? 'Conta removida',
                     ])->values(),
                     'may_have_unconfirmed_charges' => $installments->contains(fn ($installment): bool => $installment->status->value === 'pending' && $installment->due_on->isBefore(now('America/Sao_Paulo')->startOfDay())),
                 ];
