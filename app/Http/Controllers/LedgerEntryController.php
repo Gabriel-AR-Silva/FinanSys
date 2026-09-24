@@ -29,6 +29,10 @@ class LedgerEntryController extends Controller
             'account_id' => $request->validated('account_id'),
             'category_id' => $request->validated('category_id') === null ? null : (int) $request->validated('category_id'),
             'period' => $request->validated('period', 'all'),
+            'search' => $request->validated('search'),
+            'sort' => $request->validated('sort', 'occurred_at'),
+            'direction' => $request->validated('direction', 'desc'),
+            'per_page' => (int) $request->validated('per_page', 15),
         ];
         $accounts = Account::query()->whereBelongsTo($request->user())->where('status', RecordStatus::Active)
             ->orderBy('name')->orderBy('id')->get(['id', 'name']);
