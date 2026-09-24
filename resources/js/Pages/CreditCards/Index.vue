@@ -3,6 +3,7 @@ import InputError from "@/Components/InputError.vue";
 import InputLabel from "@/Components/InputLabel.vue";
 import Modal from "@/Components/Modal.vue";
 import TextInput from "@/Components/TextInput.vue";
+import SearchableSelect from "@/Components/SearchableSelect.vue";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import {
     formatMoneyInput,
@@ -997,20 +998,11 @@ const date = (value) => value.split("-").reverse().join("/");
                         <InputLabel
                             for="charge-category"
                             value="Categoria"
-                        /><select
-                            id="charge-category"
+                        /><SearchableSelect
                             v-model="chargeForm.category_id"
-                            required
-                            class="mt-2 w-full rounded-xl border-slate-300"
-                        >
-                            <option disabled value="">Selecione</option>
-                            <option
-                                v-for="category in categories"
-                                :key="category.id"
-                                :value="category.id"
-                            >
-                                {{ category.name }}
-                            </option></select
+                            :options="categories"
+                            placeholder="Digite para buscar uma categoria..."
+                        
                         ><InputError :message="chargeForm.errors.category_id" />
                     </div>
                 </div>
@@ -1144,20 +1136,11 @@ const date = (value) => value.split("-").reverse().join("/");
                         <InputLabel
                             for="purchase-category"
                             value="Categoria"
-                        /><select
-                            id="purchase-category"
+                        /><SearchableSelect
                             v-model="purchaseForm.category_id"
-                            required
-                            class="mt-2 w-full rounded-xl border-slate-300"
-                        >
-                            <option disabled value="">Selecione</option>
-                            <option
-                                v-for="category in categories"
-                                :key="category.id"
-                                :value="category.id"
-                            >
-                                {{ category.name }}
-                            </option></select
+                            :options="categories"
+                            placeholder="Digite para buscar uma categoria..."
+                        
                         ><InputError
                             :message="purchaseForm.errors.category_id"
                         />
