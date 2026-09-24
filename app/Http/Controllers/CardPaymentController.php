@@ -4,11 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Actions\PayCreditCard;
 use App\Actions\ReverseCardPayment;
+use App\Http\Requests\StoreCardPaymentRequest;
 use App\Models\CardPayment;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Http\Requests\StoreCardPaymentRequest;
-use Illuminate\Http\RedirectResponse;
 
 class CardPaymentController extends Controller
 {
