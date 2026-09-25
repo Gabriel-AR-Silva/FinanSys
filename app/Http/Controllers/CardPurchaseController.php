@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\CreateCardPurchase;
+use App\Actions\UpdateCardPurchase;
 use App\Http\Requests\StoreCardPurchaseRequest;
 use App\Models\CardPurchase;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +17,18 @@ class CardPurchaseController extends Controller
         $create->handle($request->user(), $request->validated());
 
         return to_route('credit-cards.index')->with('success', '🧾 Compra parcelada registrada. O futuro já foi avisado 😅');
+    }
+
+    public function update(StoreCardPurchaseRequest $request, string $purchase, UpdateCardPurchase $update): RedirectResponse
+    {
+        $ownedPurchase = CardPurchase::query()
+            ->whereBelongsTo($request->user())
+            ->whereKey($purchase)
+            ->firstOrFail();
+
+        $update->handle($request->user(), $ownedPurchase, $request->validated());
+
+        return to_route('credit-cards.index')->with('success', 'Compra atualizada e parcelas recalculadas.');
     }
 
     public function destroy(Request $request, string $purchase): RedirectResponse
