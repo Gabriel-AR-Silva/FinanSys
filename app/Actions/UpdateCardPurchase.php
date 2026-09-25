@@ -74,7 +74,11 @@ class UpdateCardPurchase
 
             $amounts = $this->split($amount, $count);
             $remainingAmounts = array_slice($amounts, $paidCount);
-            $remaining = array_reduce($remainingAmounts, fn (BigDecimal $carry, string $value): BigDecimal => $carry->plus($value), BigDecimal::zero()->toScale(2));
+            $remaining = array_reduce(
+                $remainingAmounts,
+                fn (BigDecimal $carry, string $value): BigDecimal => $carry->plus($value),
+                BigDecimal::zero()->toScale(2),
+            );
 
             if ($card->credit_limit !== null) {
                 $available = BigDecimal::of($this->cardLimits->forCard($card)['available'] ?? '0.00');
@@ -131,6 +135,7 @@ class UpdateCardPurchase
     {
         $base = $amount->dividedBy($count, 2, RoundingMode::Floor);
         $remainderCents = (int) (string) $amount->minus($base->multipliedBy($count))->multipliedBy(100);
+
         return array_map(fn (int $index): string => (string) ($index < $remainderCents ? $base->plus('0.01') : $base), range(0, $count - 1));
     }
 
@@ -140,6 +145,7 @@ class UpdateCardPurchase
         if ($month->year > 9999) {
             throw ValidationException::withMessages(['first_due_on' => 'As parcelas ultrapassam o calendário suportado.']);
         }
+
         return $month->day(min($firstDueOn->day, $month->daysInMonth))->toDateString();
     }
 
@@ -152,6 +158,7 @@ class UpdateCardPurchase
         if (! $amount->isPositive()) {
             throw ValidationException::withMessages(['gross_amount' => 'O valor deve ser maior que zero.']);
         }
+
         return $amount;
     }
 
@@ -161,6 +168,7 @@ class UpdateCardPurchase
         if ($date === false || $date->format('Y-m-d') !== $value) {
             throw ValidationException::withMessages([$field => 'Informe uma data válida.']);
         }
+
         return $date;
     }
 }
