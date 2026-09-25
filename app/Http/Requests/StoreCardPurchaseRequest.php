@@ -30,6 +30,7 @@ class StoreCardPurchaseRequest extends FormRequest
             'gross_amount' => ['required', 'regex:/^\d{1,17}(?:\.\d{1,2})?$/', 'decimal:0,2', 'gt:0'],
             'purchased_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
             'installments_count' => ['required', 'integer', 'between:1,120'],
+            'paid_installments_count' => ['sometimes', 'integer', 'min:0', 'lt:installments_count'],
             'first_due_on' => ['required', 'date_format:Y-m-d', 'after_or_equal:purchased_on'],
             'operation_id' => ['required', 'uuid'],
         ];
@@ -41,7 +42,9 @@ class StoreCardPurchaseRequest extends FormRequest
             'credit_card_id.*' => 'Escolha um cartão disponível.', 'category_id.*' => 'Escolha uma categoria de despesa.',
             'description.*' => 'Informe uma descrição com até 255 caracteres.', 'planning_type.*' => 'Escolha se a compra é cotidiana ou extraordinária.',
             'gross_amount.*' => 'Informe um valor positivo com até duas casas decimais.', 'purchased_on.*' => 'Informe uma data de compra válida.',
-            'installments_count.*' => 'Escolha entre 1 e 120 parcelas.', 'first_due_on.*' => 'Informe um primeiro vencimento igual ou posterior à compra.',
+            'installments_count.*' => 'Escolha entre 1 e 120 parcelas.',
+            'paid_installments_count.*' => 'As parcelas já pagas devem ser menores que o total de parcelas.',
+            'first_due_on.*' => 'Informe o vencimento da próxima parcela em aberto.',
             'operation_id.*' => 'Reabra o formulário para iniciar uma nova operação.',
         ];
     }

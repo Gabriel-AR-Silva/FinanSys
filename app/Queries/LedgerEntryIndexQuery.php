@@ -17,7 +17,7 @@ use Illuminate\Support\Collection;
 
 class LedgerEntryIndexQuery
 {
-    /** @param array{type?: string, account_id?: int|string, category_id?: int|string, period?: string} $filters */
+    /** @param array{type?: string, account_id?: int|string, category_id?: int|string, period?: string, search?: string, sort?: string, direction?: string, per_page?: int} $filters */
     public function paginateForUser(User $user, array $filters): LengthAwarePaginator
     {
         $reversedOperationIds = LedgerEntry::query()
@@ -28,9 +28,9 @@ class LedgerEntryIndexQuery
 
         return $this->filteredQuery($user, $filters)
             ->with(['reference', 'category:id,name', 'expenseRefunds.refundEntry'])
-            ->orderByDesc('occurred_at')
+            ->orderBy($filters['sort'] ?? 'occurred_at', $filters['direction'] ?? 'desc')
             ->orderByDesc('id')
-            ->paginate(15)
+            ->paginate($filters['per_page'] ?? 15)
             ->withQueryString()
             ->through(fn (LedgerEntry $entry): array => $this->serialize($entry, $reversedOperationIds));
     }
@@ -62,6 +62,14 @@ class LedgerEntryIndexQuery
     {
         return LedgerEntry::query()
             ->whereBelongsTo($user)
+            ->when(trim((string) ($filters['search'] ?? '')) !== '', function (Builder $query) use ($filters): void {
+                $search = trim((string) $filters['search']);
+                $query->where(function (Builder $matches) use ($search): void {
+                    $matches->where('description', 'like', '%'.$search.'%')
+                        ->orWhereHas('category', fn (Builder $category) => $category->where('name', 'like', '%'.$search.'%'))
+                        ->orWhereHasMorph('reference', [Account::class, Pocket::class], fn (Builder $reference) => $reference->where('name', 'like', '%'.$search.'%'));
+                });
+            })
             ->when(($filters['type'] ?? 'all') !== 'all', fn (Builder $query) => $query->where('type', $filters['type']))
             ->when(($filters['period'] ?? 'all') !== 'all', fn (Builder $query) => $query->where('occurred_at', '>=', now()->subDays(((int) $filters['period']) - 1)->startOfDay()))
             ->when(isset($filters['category_id']), fn (Builder $query) => $query->where('category_id', (int) $filters['category_id']))

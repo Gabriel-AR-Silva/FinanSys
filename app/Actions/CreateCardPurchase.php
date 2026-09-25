@@ -29,14 +29,20 @@ class CreateCardPurchase
         private CreditCardLimitQuery $cardLimits,
     ) {}
 
-    /** @param array{credit_card_id:int,category_id:int,description:string,planning_type:string,gross_amount:string,purchased_on:string,installments_count:int,first_due_on:string,operation_id:string} $data */
+    /** @param array{credit_card_id:int,category_id:int,description:string,planning_type:string,gross_amount:string,purchased_on:string,installments_count:int,paid_installments_count?:int,first_due_on:string,operation_id:string} $data */
     public function handle(User $user, array $data): CardPurchase
     {
         $amount = $this->money($data['gross_amount']);
         $installmentsCount = (int) $data['installments_count'];
+        $paidInstallmentsCount = (int) ($data['paid_installments_count'] ?? 0);
+
         if ($installmentsCount < 1 || $installmentsCount > 120) {
             throw ValidationException::withMessages(['installments_count' => 'Escolha entre 1 e 120 parcelas.']);
         }
+        if ($paidInstallmentsCount < 0 || $paidInstallmentsCount >= $installmentsCount) {
+            throw ValidationException::withMessages(['paid_installments_count' => 'As parcelas já pagas devem ser menores que o total de parcelas.']);
+        }
+
         $description = trim($data['description']);
         if ($description === '' || mb_strlen($description) > 255) {
             throw ValidationException::withMessages(['description' => 'Informe uma descrição com até 255 caracteres.']);
@@ -53,31 +59,42 @@ class CreateCardPurchase
         if (! in_array($planningType, [ExpensePlanningType::Ordinary, ExpensePlanningType::Extraordinary], true)) {
             throw ValidationException::withMessages(['planning_type' => 'Compra parcelada deve ser cotidiana ou extraordinária.']);
         }
+
         $operationId = strtolower($data['operation_id']);
+        $installmentAmounts = $this->split($amount, $installmentsCount);
+        $remainingAmounts = array_slice($installmentAmounts, $paidInstallmentsCount);
+        $remainingAmount = array_reduce(
+            $remainingAmounts,
+            fn (BigDecimal $carry, string $value): BigDecimal => $carry->plus($value),
+            BigDecimal::zero()->toScale(2),
+        );
 
         try {
-            return DB::transaction(function () use ($user, $data, $amount, $installmentsCount, $description, $purchasedOn, $firstDueOn, $planningType, $operationId): CardPurchase {
+            return DB::transaction(function () use ($user, $data, $amount, $installmentsCount, $paidInstallmentsCount, $remainingAmounts, $remainingAmount, $description, $purchasedOn, $firstDueOn, $planningType, $operationId): CardPurchase {
                 User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
                 $existing = CardPurchase::query()->whereBelongsTo($user)->where('operation_id', $operationId)->with('installments')->first();
                 if ($existing) {
-                    return $this->validateReplay($existing, $data, $amount, $installmentsCount, $description, $purchasedOn, $firstDueOn, $planningType);
+                    return $this->validateReplay($existing, $data, $amount, $installmentsCount, $paidInstallmentsCount, $description, $purchasedOn, $firstDueOn, $planningType);
                 }
+
                 $card = CreditCard::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->whereKey($data['credit_card_id'])->lockForUpdate()->first();
                 if (! $card) {
                     throw ValidationException::withMessages(['credit_card_id' => 'Escolha um cartão disponível.']);
                 }
                 if ($card->credit_limit !== null) {
                     $limit = $this->cardLimits->forCard($card);
-                    if ($amount->isGreaterThan(BigDecimal::of($limit['available'] ?? '0.00'))) {
+                    if ($remainingAmount->isGreaterThan(BigDecimal::of($limit['available'] ?? '0.00'))) {
                         throw ValidationException::withMessages([
-                            'gross_amount' => 'A compra ultrapassa o limite disponível deste cartão.',
+                            'gross_amount' => 'O saldo restante da compra ultrapassa o limite disponível deste cartão.',
                         ]);
                     }
                 }
+
                 $category = Category::query()->whereBelongsTo($user)->where('type', CategoryType::Expense)->where('status', RecordStatus::Active)->whereKey($data['category_id'])->lockForUpdate()->first();
                 if (! $category) {
                     throw ValidationException::withMessages(['category_id' => 'Escolha uma categoria de despesa disponível.']);
                 }
+
                 $purchase = CardPurchase::query()->create([
                     'user_id' => $user->id,
                     'credit_card_id' => $card->id,
@@ -90,11 +107,12 @@ class CreateCardPurchase
                     'operation_id' => $operationId,
                 ]);
                 $this->auditRecorder->record($user, AuditAction::Created, $purchase);
-                foreach ($this->split($amount, $installmentsCount) as $index => $installmentAmount) {
-                    $dueOn = $this->installmentDate($firstDueOn, $index);
+
+                foreach ($remainingAmounts as $remainingIndex => $installmentAmount) {
+                    $dueOn = $this->installmentDate($firstDueOn, $remainingIndex);
                     $installment = $purchase->installments()->create([
                         'user_id' => $user->id,
-                        'installment_number' => $index + 1,
+                        'installment_number' => $paidInstallmentsCount + $remainingIndex + 1,
                         'gross_amount' => $installmentAmount,
                         'paid_amount' => '0.00',
                         'due_on' => $dueOn,
@@ -111,7 +129,7 @@ class CreateCardPurchase
         } catch (UniqueConstraintViolationException) {
             $existing = CardPurchase::query()->whereBelongsTo($user)->where('operation_id', $operationId)->with('installments')->first();
             if ($existing) {
-                return $this->validateReplay($existing, $data, $amount, $installmentsCount, $description, $purchasedOn, $firstDueOn, $planningType);
+                return $this->validateReplay($existing, $data, $amount, $installmentsCount, $paidInstallmentsCount, $description, $purchasedOn, $firstDueOn, $planningType);
             }
 
             throw ValidationException::withMessages(['operation_id' => 'Não foi possível repetir a compra com segurança.']);
@@ -160,12 +178,16 @@ class CreateCardPurchase
         return $date;
     }
 
-    private function validateReplay(CardPurchase $purchase, array $data, BigDecimal $amount, int $count, string $description, CarbonImmutable $purchasedOn, CarbonImmutable $firstDueOn, ExpensePlanningType $planningType): CardPurchase
+    private function validateReplay(CardPurchase $purchase, array $data, BigDecimal $amount, int $count, int $paidInstallmentsCount, string $description, CarbonImmutable $purchasedOn, CarbonImmutable $firstDueOn, ExpensePlanningType $planningType): CardPurchase
     {
+        $firstPersistedInstallment = $purchase->installments->sortBy('installment_number')->first();
+        $persistedPaidInstallmentsCount = max(0, ((int) ($firstPersistedInstallment?->installment_number ?? 1)) - 1);
+
         if ($purchase->credit_card_id !== (int) $data['credit_card_id'] || $purchase->category_id !== (int) $data['category_id']
             || $purchase->description !== $description || $purchase->planning_type !== $planningType || $purchase->gross_amount !== (string) $amount
             || $purchase->purchased_on->toDateString() !== $purchasedOn->toDateString() || $purchase->installments_count !== $count
-            || $purchase->installments->first()?->due_on->toDateString() !== $firstDueOn->toDateString()) {
+            || $persistedPaidInstallmentsCount !== $paidInstallmentsCount
+            || $firstPersistedInstallment?->due_on->toDateString() !== $firstDueOn->toDateString()) {
             throw ValidationException::withMessages(['operation_id' => 'Esta chave já foi usada com dados diferentes.']);
         }
 
