@@ -65,8 +65,12 @@ class UpdateCardPurchase
 
             $card = CreditCard::query()->whereBelongsTo($user)->where('status', RecordStatus::Active)->whereKey($data['credit_card_id'])->lockForUpdate()->first();
             $category = Category::query()->whereBelongsTo($user)->where('type', CategoryType::Expense)->where('status', RecordStatus::Active)->whereKey($data['category_id'])->lockForUpdate()->first();
-            if (! $card) throw ValidationException::withMessages(['credit_card_id' => 'Escolha um cartão disponível.']);
-            if (! $category) throw ValidationException::withMessages(['category_id' => 'Escolha uma categoria de despesa disponível.']);
+            if (! $card) {
+                throw ValidationException::withMessages(['credit_card_id' => 'Escolha um cartão disponível.']);
+            }
+            if (! $category) {
+                throw ValidationException::withMessages(['category_id' => 'Escolha uma categoria de despesa disponível.']);
+            }
 
             $amounts = $this->split($amount, $count);
             $remainingAmounts = array_slice($amounts, $paidCount);
@@ -133,7 +137,9 @@ class UpdateCardPurchase
     private function installmentDate(CarbonImmutable $firstDueOn, int $offset): string
     {
         $month = $firstDueOn->startOfMonth()->addMonths($offset);
-        if ($month->year > 9999) throw ValidationException::withMessages(['first_due_on' => 'As parcelas ultrapassam o calendário suportado.']);
+        if ($month->year > 9999) {
+            throw ValidationException::withMessages(['first_due_on' => 'As parcelas ultrapassam o calendário suportado.']);
+        }
         return $month->day(min($firstDueOn->day, $month->daysInMonth))->toDateString();
     }
 
@@ -141,14 +147,18 @@ class UpdateCardPurchase
     {
         if (! preg_match('/\A\d{1,17}(?:\.\d{1,2})?\z/', $value)) throw ValidationException::withMessages(['gross_amount' => 'Informe um valor positivo com até duas casas decimais.']);
         $amount = BigDecimal::of($value)->toScale(2, RoundingMode::Unnecessary);
-        if (! $amount->isPositive()) throw ValidationException::withMessages(['gross_amount' => 'O valor deve ser maior que zero.']);
+        if (! $amount->isPositive()) {
+            throw ValidationException::withMessages(['gross_amount' => 'O valor deve ser maior que zero.']);
+        }
         return $amount;
     }
 
     private function date(string $value, string $field): CarbonImmutable
     {
         $date = CarbonImmutable::createFromFormat('!Y-m-d', $value, 'America/Sao_Paulo');
-        if ($date === false || $date->format('Y-m-d') !== $value) throw ValidationException::withMessages([$field => 'Informe uma data válida.']);
+        if ($date === false || $date->format('Y-m-d') !== $value) {
+            throw ValidationException::withMessages([$field => 'Informe uma data válida.']);
+        }
         return $date;
     }
 }
