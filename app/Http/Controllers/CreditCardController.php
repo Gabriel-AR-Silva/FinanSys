@@ -85,7 +85,7 @@ class CreditCardController extends Controller
                         'status' => $charge->status->value,
                     ])->values(),
                     'purchases' => $card->purchases->map(fn ($purchase): array => [
-                        'id' => $purchase->id, 'description' => $purchase->description, 'category_name' => $purchase->category->name,
+                        'id' => $purchase->id, 'description' => $purchase->description, 'category_id' => $purchase->category_id, 'category_name' => $purchase->category->name,
                         'gross_amount' => $purchase->gross_amount, 'purchased_on' => $purchase->purchased_on->toDateString(),
                         'installments_count' => $purchase->installments_count, 'planning_type' => $purchase->planning_type->value,
                         'installments' => $purchase->installments->sortBy('installment_number')->values()->map(fn ($installment): array => [

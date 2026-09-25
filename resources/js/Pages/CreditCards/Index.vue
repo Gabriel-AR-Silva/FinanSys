@@ -115,6 +115,8 @@ const cardForm = useForm({
 const limitForm = useForm({
     credit_limit: "",
 });
+const editingPurchaseId = ref(null);
+const deletingPurchaseId = ref(null);
 const purchaseForm = useForm({
     credit_card_id: selectedCardId.value,
     category_id: "",
@@ -359,6 +361,7 @@ function open(kind, cardId = selectedCardId.value) {
         limitForm.clearErrors();
     }
     if (kind === "purchase") {
+        editingPurchaseId.value = null;
         purchaseForm.credit_card_id = cardId;
         purchaseForm.first_due_on = suggestedFirstDueOn(
             cardId,
@@ -414,6 +417,33 @@ function destroyPayment(payment) {
     router.delete(route("card-payments.destroy", payment.id), {
         preserveScroll: true,
         onFinish: () => { deletingPaymentId.value = null; },
+    });
+}
+
+function editPurchase(purchase, cardId) {
+    selectedCardId.value = cardId;
+    editingPurchaseId.value = purchase.id;
+    purchaseForm.credit_card_id = cardId;
+    purchaseForm.category_id = purchase.category_id;
+    purchaseForm.description = purchase.description;
+    purchaseForm.planning_type = purchase.planning_type;
+    purchaseForm.gross_amount = formatMoneyInput(purchase.gross_amount);
+    purchaseForm.purchased_on = purchase.purchased_on;
+    purchaseForm.installments_count = purchase.installments_count;
+    const first = [...purchase.installments].sort((a, b) => a.number - b.number)[0];
+    purchaseForm.paid_installments_count = Math.max(0, Number(first?.number ?? 1) - 1);
+    purchaseForm.first_due_on = first?.due_on ?? suggestedFirstDueOn(cardId, purchase.purchased_on);
+    purchaseForm.operation_id = crypto.randomUUID();
+    purchaseForm.clearErrors();
+    modal.value = "purchase";
+}
+
+function destroyPurchase(purchase) {
+    if (!window.confirm(`Excluir a compra "${purchase.description}"? Isso só é permitido enquanto ela não tiver pagamento ou antecipação.`)) return;
+    deletingPurchaseId.value = purchase.id;
+    router.delete(route("card-purchases.destroy", purchase.id), {
+        preserveScroll: true,
+        onFinish: () => { deletingPurchaseId.value = null; },
     });
 }
 
@@ -505,26 +535,31 @@ function submitLimit() {
 }
 
 function submitPurchase() {
-    purchaseForm
-        .transform((data) => ({
-            ...data,
-            gross_amount: normalizeMoneyInput(data.gross_amount),
-        }))
-        .post(route("card-purchases.store"), {
-            preserveScroll: true,
-            onSuccess: () => {
-                modal.value = null;
-                purchaseForm.defaults({
-                    ...purchaseForm.data(),
-                    description: "",
-                    gross_amount: "0,00",
-                    installments_count: 1,
-                    paid_installments_count: 0,
-                    operation_id: crypto.randomUUID(),
-                });
-                purchaseForm.reset();
-            },
-        });
+    const options = {
+        preserveScroll: true,
+        onSuccess: () => {
+            modal.value = null;
+            editingPurchaseId.value = null;
+            purchaseForm.defaults({
+                ...purchaseForm.data(),
+                description: "",
+                gross_amount: "0,00",
+                installments_count: 1,
+                paid_installments_count: 0,
+                operation_id: crypto.randomUUID(),
+            });
+            purchaseForm.reset();
+        },
+    };
+    purchaseForm.transform((data) => ({
+        ...data,
+        gross_amount: normalizeMoneyInput(data.gross_amount),
+    }));
+    if (editingPurchaseId.value) {
+        purchaseForm.put(route("card-purchases.update", editingPurchaseId.value), options);
+    } else {
+        purchaseForm.post(route("card-purchases.store"), options);
+    }
 }
 
 function submitPayment() {
@@ -782,6 +817,10 @@ const date = (value) => value.split("-").reverse().join("/");
                                     }}</span
                                 >
                             </summary>
+                            <div class="mt-3 flex flex-wrap justify-end gap-2">
+                                <button type="button" class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200" @click="editPurchase(purchase, card.id)">Editar compra</button>
+                                <button type="button" class="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50" :disabled="deletingPurchaseId === purchase.id" @click="destroyPurchase(purchase)">{{ deletingPurchaseId === purchase.id ? "Excluindo..." : "Excluir compra" }}</button>
+                            </div>
                             <div class="mt-3 grid gap-2 sm:grid-cols-2">
                                 <div
                                     v-for="installment in purchase.installments"
@@ -1256,7 +1295,7 @@ const date = (value) => value.split("-").reverse().join("/");
                         :disabled="purchaseForm.processing"
                         class="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
                     >
-                        Registrar compra
+                        {{ editingPurchaseId ? "Salvar alterações" : "Registrar compra" }}
                     </button>
                 </div>
             </form></Modal

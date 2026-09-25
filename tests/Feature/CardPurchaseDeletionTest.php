@@ -43,6 +43,43 @@ class CardPurchaseDeletionTest extends TestCase
         $this->assertDatabaseMissing(CardInstallment::class, ['card_purchase_id' => $purchase->id]);
     }
 
+    public function test_owner_can_edit_an_unpaid_purchase_and_rebuild_installments(): void
+    {
+        $user = User::factory()->create();
+        $card = CreditCard::factory()->for($user)->create(['credit_limit' => '1000.00']);
+        $category = Category::factory()->for($user)->create(['type' => CategoryType::Expense]);
+        $purchase = app(CreateCardPurchase::class)->handle($user, [
+            'credit_card_id' => $card->id,
+            'category_id' => $category->id,
+            'description' => 'Compra original',
+            'planning_type' => 'ordinary',
+            'gross_amount' => '300.00',
+            'purchased_on' => '2026-09-20',
+            'installments_count' => 3,
+            'first_due_on' => '2026-10-12',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $this->actingAs($user)->put(route('card-purchases.update', $purchase), [
+            'credit_card_id' => $card->id,
+            'category_id' => $category->id,
+            'description' => 'Compra corrigida',
+            'planning_type' => 'extraordinary',
+            'gross_amount' => '400.00',
+            'purchased_on' => '2026-09-20',
+            'installments_count' => 4,
+            'paid_installments_count' => 0,
+            'first_due_on' => '2026-10-15',
+            'operation_id' => (string) Str::uuid(),
+        ])->assertRedirect(route('credit-cards.index'))->assertSessionHas('success');
+
+        $purchase->refresh();
+        $this->assertSame('Compra corrigida', $purchase->description);
+        $this->assertSame('400.00', $purchase->gross_amount);
+        $this->assertSame(4, $purchase->installments()->count());
+        $this->assertSame('2026-10-15', $purchase->installments()->orderBy('installment_number')->first()->due_on->toDateString());
+    }
+
     public function test_user_cannot_delete_another_users_card_purchase(): void
     {
         $owner = User::factory()->create();
