@@ -62,6 +62,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/cartoes/{card}/limite', [CreditCardController::class, 'updateLimit'])->whereNumber('card')->name('credit-cards.limit.update');
     Route::delete('/cartoes/{card}', [CreditCardController::class, 'destroy'])->whereNumber('card')->name('credit-cards.destroy');
     Route::post('/cartoes/compras', [CardPurchaseController::class, 'store'])->name('card-purchases.store');
+    Route::put('/cartoes/compras/{purchase}', [CardPurchaseController::class, 'update'])->whereNumber('purchase')->name('card-purchases.update');
     Route::delete('/cartoes/compras/{purchase}', [CardPurchaseController::class, 'destroy'])->whereNumber('purchase')->name('card-purchases.destroy');
     Route::post('/cartoes/compras/estornos', [CardPurchaseReversalController::class, 'store'])->name('card-purchase-reversals.store');
     Route::post('/cartoes/creditos/aplicacoes', [CardCreditAllocationController::class, 'store'])->name('card-credit-allocations.store');
