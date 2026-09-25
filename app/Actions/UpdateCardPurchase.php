@@ -145,7 +145,9 @@ class UpdateCardPurchase
 
     private function money(string $value): BigDecimal
     {
-        if (! preg_match('/\A\d{1,17}(?:\.\d{1,2})?\z/', $value)) throw ValidationException::withMessages(['gross_amount' => 'Informe um valor positivo com até duas casas decimais.']);
+        if (! preg_match('/\A\d{1,17}(?:\.\d{1,2})?\z/', $value)) {
+            throw ValidationException::withMessages(['gross_amount' => 'Informe um valor positivo com até duas casas decimais.']);
+        }
         $amount = BigDecimal::of($value)->toScale(2, RoundingMode::Unnecessary);
         if (! $amount->isPositive()) {
             throw ValidationException::withMessages(['gross_amount' => 'O valor deve ser maior que zero.']);
