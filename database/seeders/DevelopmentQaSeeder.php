@@ -21,10 +21,15 @@ use RuntimeException;
 class DevelopmentQaSeeder extends Seeder
 {
     private const CARD_OPERATION = 'dd2c89f7-1491-48e8-bf5e-4c623f5d7b11';
+
     private const PURCHASE_OPERATION = '4a6c3b67-f1e1-44ee-a0b0-80f55c5ad0ac';
+
     private const RECEIPT_OPERATION = '5e1d8981-5f9a-4f4a-a4ae-38ab2d08f28a';
+
     private const COMMITMENT_OPERATION = '9c12c7fe-b93f-4f51-852f-b5d26e71e22f';
+
     private const GOAL_OPERATION = 'd21a07e8-b89f-4df5-af07-3f2f49c95904';
+
     private const BUDGET_OPERATION = '9fa90977-2bb1-47eb-b571-33847490e201';
 
     public function run(): void
