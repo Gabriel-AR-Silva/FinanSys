@@ -51,13 +51,24 @@ class FrontendRouteVerbConsistencyTest extends TestCase
 
                     $route = Route::getRoutes()->getByName($routeName);
                     $allowed = $route?->methods() ?? [];
+                    $effectiveVerb = $verb;
 
-                    if (! in_array($verb, $allowed, true)) {
+                    if ($verb === 'POST' && preg_match("/_method\s*:\s*['\"](put|patch|delete)['\"]/i", $content, $override) === 1) {
+                        $effectiveVerb = strtoupper($override[1]);
+                    }
+
+                    $sameUriAllowsVerb = collect(Route::getRoutes()->getRoutes())
+                        ->contains(fn ($candidate): bool => $route !== null
+                            && $candidate->uri() === $route->uri()
+                            && in_array($effectiveVerb, $candidate->methods(), true));
+
+                    if (! $sameUriAllowsVerb) {
                         $mismatches[] = [
                             'file' => str_replace(base_path().DIRECTORY_SEPARATOR, '', $path),
                             'route' => $routeName,
                             'used' => $verb,
-                            'allowed' => $allowed,
+                            'effective' => $effectiveVerb,
+                            'named_route_methods' => $allowed,
                         ];
                     }
                 }
