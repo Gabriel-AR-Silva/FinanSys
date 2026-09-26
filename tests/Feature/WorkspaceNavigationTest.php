@@ -46,7 +46,6 @@ class WorkspaceNavigationTest extends TestCase
             'receipt forecasts' => ['receipt-forecasts.index', 'ReceiptForecasts/Index'],
             'financial settings' => ['financial-settings.edit', 'FinancialSettings/Edit'],
             'financial history' => ['financial-evaluations.index', 'FinancialEvaluations/Index'],
-            'financial goals' => ['financial-goals.index', 'FinancialGoals/Index'],
             'internal alerts' => ['internal-alerts.index', 'InternalAlerts/Index'],
             'expense commitments' => ['expense-commitments.index', 'ExpenseCommitments/Index'],
             'patrimony' => ['patrimony.index', 'Patrimony/Index'],
