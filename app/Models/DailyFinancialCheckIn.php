@@ -2,29 +2,23 @@
 
 namespace App\Models;
 
+use Database\Factories\DailyFinancialCheckInFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use LogicException;
 
 #[Fillable([
-    'user_id',
-    'actor_id',
-    'local_date',
-    'revision',
-    'supersedes_id',
-    'daily_budget_version_id',
-    'budget_amount',
-    'eligible_spent',
-    'margin',
-    'rules_version',
-    'source',
-    'confirmed_at',
-    'reason',
-    'operation_id',
+    'user_id', 'actor_id', 'local_date', 'revision', 'supersedes_id',
+    'daily_budget_version_id', 'budget_amount', 'eligible_spent', 'margin',
+    'rules_version', 'source', 'confirmed_at', 'reason', 'operation_id',
 ])]
 class DailyFinancialCheckIn extends Model
 {
+    /** @use HasFactory<DailyFinancialCheckInFactory> */
+    use HasFactory;
+
     public $timestamps = false;
 
     protected function casts(): array
