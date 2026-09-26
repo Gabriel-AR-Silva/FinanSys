@@ -156,7 +156,11 @@ class DevelopmentQaSeeder extends Seeder
             foreach (range(1, 10) as $offset) {
                 $localDate = CarbonImmutable::now('America/Sao_Paulo')->subDays($offset)->toDateString();
 
-                if (DailyFinancialCheckIn::query()->whereBelongsTo($user)->where('local_date', $localDate)->where('revision', 1)->exists()) {
+                if (DailyFinancialCheckIn::query()
+                    ->whereBelongsTo($user)
+                    ->whereDate('local_date', $localDate)
+                    ->where('revision', 1)
+                    ->exists()) {
                     continue;
                 }
 
