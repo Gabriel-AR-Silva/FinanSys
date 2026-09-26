@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use Database\Factories\DailyBudgetVersionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use LogicException;
@@ -10,6 +12,9 @@ use LogicException;
 #[Fillable(['user_id', 'actor_id', 'amount', 'effective_at', 'recorded_at', 'origin', 'reason', 'operation_id'])]
 class DailyBudgetVersion extends Model
 {
+    /** @use HasFactory<DailyBudgetVersionFactory> */
+    use HasFactory;
+
     public $timestamps = false;
 
     protected function casts(): array
