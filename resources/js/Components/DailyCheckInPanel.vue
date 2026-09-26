@@ -14,7 +14,6 @@ const confirmedDays = computed(() => props.days.filter((day) => day.status === '
 const confirmedCount = computed(() => confirmedDays.value.length);
 const showModal = ref(pendingDays.value.length > 0);
 const showCorrectionModal = ref(false);
-const correctingDay = ref(null);
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const formatMoney = (value) => value === null || value === undefined ? '—' : currency.format(Number(value));
 const formatDate = (value) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
@@ -25,6 +24,7 @@ const correctionForm = useForm({
     reason: '',
     operation_id: '',
 });
+const correctingDay = computed(() => confirmedDays.value.find((day) => day.date === correctionForm.date) ?? null);
 
 const toggle = (date) => {
     selected.value = selected.value.includes(date)
@@ -48,7 +48,6 @@ const confirmSelected = () => {
 };
 
 const openCorrection = (day) => {
-    correctingDay.value = day;
     correctionForm.date = day.date;
     correctionForm.reason = '';
     correctionForm.operation_id = crypto.randomUUID();
@@ -59,7 +58,6 @@ const openCorrection = (day) => {
 const closeCorrection = () => {
     if (correctionForm.processing) return;
     showCorrectionModal.value = false;
-    correctingDay.value = null;
     correctionForm.reset();
 };
 
@@ -217,7 +215,21 @@ const submitCorrection = () => {
                 </button>
             </div>
 
-            <div v-if="correctingDay" class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+            <label for="daily-check-in-correction-date" class="mt-5 block text-sm font-semibold text-slate-800">
+                Dia confirmado
+            </label>
+            <select
+                id="daily-check-in-correction-date"
+                v-model="correctionForm.date"
+                required
+                class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
+            >
+                <option v-for="day in confirmedDays" :key="day.date" :value="day.date">
+                    {{ formatDate(day.date) }} — {{ formatMoney(day.spent) }}
+                </option>
+            </select>
+
+            <div v-if="correctingDay" class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
                 <div class="flex flex-wrap justify-between gap-2">
                     <span>Valor confirmado anteriormente</span>
                     <strong>{{ formatMoney(correctingDay.spent) }}</strong>
