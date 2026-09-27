@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use Database\Factories\ExpenseCommitmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,6 +12,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['user_id', 'account_id', 'category_id', 'description', 'amount', 'paid_amount', 'due_on', 'planning_type', 'status', 'operation_id', 'version'])]
 class ExpenseCommitment extends Model
 {
+    /** @use HasFactory<ExpenseCommitmentFactory> */
+    use HasFactory;
+
     protected function casts(): array
     {
         return [
