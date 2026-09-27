@@ -1,3 +1,53 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    html.dark {
+        color-scheme: dark;
+    }
+
+    html.dark body {
+        background-color: #020617;
+        color: #e2e8f0;
+    }
+
+    html.dark input,
+    html.dark select,
+    html.dark textarea {
+        background-color: #0f172a;
+        border-color: #334155;
+        color: #e2e8f0;
+    }
+
+    html.dark input::placeholder,
+    html.dark textarea::placeholder {
+        color: #64748b;
+    }
+}
+
+@layer utilities {
+    html.dark .bg-white { background-color: #0f172a !important; }
+    html.dark .bg-white\/95 { background-color: rgb(15 23 42 / 0.95) !important; }
+    html.dark .bg-slate-50 { background-color: #020617 !important; }
+    html.dark .bg-slate-100 { background-color: #1e293b !important; }
+    html.dark .bg-slate-950 { background-color: #020617 !important; }
+    html.dark .text-slate-950 { color: #f8fafc !important; }
+    html.dark .text-slate-900 { color: #f1f5f9 !important; }
+    html.dark .text-slate-800 { color: #e2e8f0 !important; }
+    html.dark .text-slate-700 { color: #cbd5e1 !important; }
+    html.dark .text-slate-600 { color: #94a3b8 !important; }
+    html.dark .text-slate-500 { color: #94a3b8 !important; }
+    html.dark .border-slate-200 { border-color: #334155 !important; }
+    html.dark .border-slate-300 { border-color: #475569 !important; }
+    html.dark .hover\:bg-slate-50:hover { background-color: #1e293b !important; }
+    html.dark .hover\:bg-slate-100:hover { background-color: #1e293b !important; }
+    html.dark .bg-emerald-50 { background-color: rgb(6 78 59 / 0.28) !important; }
+    html.dark .bg-rose-50 { background-color: rgb(127 29 29 / 0.22) !important; }
+    html.dark .bg-amber-50 { background-color: rgb(120 53 15 / 0.22) !important; }
+    html.dark .text-emerald-700 { color: #6ee7b7 !important; }
+    html.dark .text-rose-700 { color: #fda4af !important; }
+    html.dark .text-amber-700 { color: #fcd34d !important; }
+    html.dark .shadow-xl,
+    html.dark .shadow-2xl { --tw-shadow-color: rgb(0 0 0 / 0.45); }
+}
