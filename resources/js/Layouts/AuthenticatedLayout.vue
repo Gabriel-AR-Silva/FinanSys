@@ -3,8 +3,9 @@ import QuickActionModal from '@/Components/QuickActionModal.vue';
 import ToastHost from '@/Components/ToastHost.vue';
 import TsukiOnboarding from '@/Components/TsukiOnboarding.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, BellRing, ChevronDown, CircleHelp, CreditCard, FileUp, Landmark, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, RotateCcw, Settings, Tags, WalletCards, Wrench, X } from '@lucide/vue';
+import { ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, BellRing, ChevronDown, CircleHelp, CreditCard, FileUp, Landmark, LayoutDashboard, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, RotateCcw, Settings, Sun, Tags, WalletCards, Wrench, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { getPreferredTheme, setTheme } from '@/Support/theme';
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user ?? {});
@@ -18,6 +19,7 @@ const quickActionOpen = ref(false);
 const sidebarCollapsed = ref(false);
 const toolsOpen = ref(false);
 const toolsContainer = ref(null);
+const theme = ref('light');
 let previousBodyOverflow = '';
 
 const sections = [
@@ -40,6 +42,7 @@ const tools = computed(() => [
 ]);
 const isActive = routeName => route().current(routeName);
 const closeTools = () => { toolsOpen.value = false; };
+const toggleTheme = () => { theme.value = setTheme(theme.value === 'dark' ? 'light' : 'dark'); };
 const openMobileNavigation = () => { closeTools(); mobileNavigationOpen.value = true; };
 const closeMobileNavigation = (restoreFocus = true) => {
     mobileNavigationOpen.value = false;
@@ -56,6 +59,7 @@ const handlePointerDown = event => {
 };
 onMounted(() => {
     try { sidebarCollapsed.value = window.localStorage.getItem('finansys.sidebar-collapsed') === 'true'; } catch (_) { /* storage may be blocked */ }
+    theme.value = getPreferredTheme();
     document.addEventListener('keydown', handleKeydown);
     document.addEventListener('pointerdown', handlePointerDown);
 });
@@ -100,7 +104,20 @@ watch(mobileNavigationOpen, open => {
                 <button type="button" class="ml-auto flex min-h-10 items-center gap-1 rounded-xl bg-slate-950 px-2.5 text-sm font-semibold text-white hover:bg-slate-800 lg:hidden" aria-label="Nova movimentação" @click="quickActionOpen = true"><Plus :size="18" /><span class="hidden min-[390px]:inline">Adicionar</span></button>
                 <div ref="toolsContainer" class="relative lg:ml-auto">
                     <button type="button" class="flex min-h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label="Ferramentas e ajustes" :aria-expanded="toolsOpen" aria-controls="finansys-tools-menu" @click="toolsOpen = !toolsOpen"><Wrench :size="18" /><span class="hidden sm:inline">Ferramentas</span><ChevronDown :size="15" aria-hidden="true" /></button>
-                    <nav v-if="toolsOpen" id="finansys-tools-menu" class="absolute right-0 top-full z-40 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl" aria-label="Ferramentas e ajustes"><Link v-for="item in tools" :key="item.route" :href="route(item.route)" class="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" :aria-current="isActive(item.route) ? 'page' : undefined" @click="closeTools"><component :is="item.icon" :size="18" class="shrink-0" aria-hidden="true" />{{ item.label }}</Link></nav>
+                    <div v-if="toolsOpen" id="finansys-tools-menu" class="absolute right-0 top-full z-40 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl" role="menu" aria-label="Ferramentas e ajustes">
+                        <nav aria-label="Atalhos de ferramentas">
+                            <Link v-for="item in tools" :key="item.route" :href="route(item.route)" class="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" :aria-current="isActive(item.route) ? 'page' : undefined" @click="closeTools"><component :is="item.icon" :size="18" class="shrink-0" aria-hidden="true" />{{ item.label }}</Link>
+                        </nav>
+                        <div class="mt-2 border-t border-slate-200 pt-2">
+                            <button type="button" role="switch" :aria-checked="theme === 'dark'" class="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" @click="toggleTheme">
+                                <component :is="theme === 'dark' ? Moon : Sun" :size="18" class="shrink-0" aria-hidden="true" />
+                                <span class="min-w-0 flex-1"><span class="block font-medium">Modo noturno</span><span class="block text-xs text-slate-500">{{ theme === 'dark' ? 'Ativado' : 'Desativado' }}</span></span>
+                                <span class="relative h-6 w-11 shrink-0 rounded-full border border-slate-300 transition" :class="theme === 'dark' ? 'bg-emerald-500' : 'bg-slate-200'" aria-hidden="true">
+                                    <span class="theme-switch-thumb absolute top-0.5 h-4 w-4 rounded-full shadow-sm transition-transform" :class="theme === 'dark' ? 'translate-x-5' : 'translate-x-0.5'" />
+                                </span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <Link :href="route('profile.edit')" class="hidden items-center gap-2 rounded-xl px-2 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 sm:flex" aria-label="Meu perfil"><span class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-950 text-xs font-semibold text-emerald-300"><img v-if="avatar && !avatarFailed" :src="avatar" alt="" class="h-full w-full object-cover" @error="avatarFailed = true" /><span v-else>{{ initials }}</span></span><span class="hidden max-w-32 truncate xl:inline">{{ user.name }}</span></Link>
             </div></header>

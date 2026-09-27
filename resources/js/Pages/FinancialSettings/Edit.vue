@@ -7,8 +7,8 @@ import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { formatMoneyInput, normalizeMoneyInput, sanitizeMoneyInput } from '@/Support/money';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { Moon, Plus, ShieldCheck, Sun, Trash2 } from '@lucide/vue';
-import { computed, onMounted, ref, watch } from 'vue';
+import { Plus, ShieldCheck, Trash2 } from '@lucide/vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     month: { type: String, required: true },
@@ -32,7 +32,6 @@ const selectedMonth = ref(props.month);
 const changingMonth = ref(false);
 const categoryModalOpen = ref(false);
 const categoryForm = useForm({ month: props.month, name: '' });
-const theme = ref('light');
 const tabs = [
     { key: 'protection', title: 'Proteção financeira' },
     { key: 'essentials', title: 'Gastos essenciais' },
@@ -42,16 +41,6 @@ const availableCategories = computed(() => props.categories.filter((category) =>
 const monthLabel = computed(() => new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${props.month}-01T00:00:00Z`)));
 watch(() => props.activeTab, (newTab) => { tab.value = newTab; });
 
-onMounted(() => {
-    try { theme.value = window.localStorage.getItem('finansys.theme') || 'light'; } catch (_) { theme.value = 'light'; }
-    document.documentElement.classList.toggle('dark', theme.value === 'dark');
-});
-
-function setTheme(nextTheme) {
-    theme.value = nextTheme;
-    document.documentElement.classList.toggle('dark', nextTheme === 'dark');
-    try { window.localStorage.setItem('finansys.theme', nextTheme); } catch (_) { /* storage may be blocked */ }
-}
 function changeTab(nextTab) {
     if (nextTab === tab.value || form.processing || categoryForm.processing || changingMonth.value) return;
     if (nextTab === 'receipts' && form.isDirty) {
@@ -136,16 +125,6 @@ function createCategory() {
                 <p class="text-sm leading-6 text-slate-500">Organize sua proteção, seus essenciais e o que espera receber, sem misturar previsão com saldo bancário.</p>
             </header>
 
-            <section class="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5" aria-label="Aparência">
-                <div class="space-y-1">
-                    <p class="text-sm font-semibold text-slate-950">Aparência</p>
-                    <p class="text-sm text-slate-500">Escolha o tema do FinanSys. A preferência fica salva neste navegador.</p>
-                </div>
-                <div class="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1" role="group" aria-label="Tema do sistema">
-                    <button type="button" class="flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition" :class="theme === 'light' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600 hover:bg-white/60'" :aria-pressed="theme === 'light'" @click="setTheme('light')"><Sun :size="17" />Claro</button>
-                    <button type="button" class="flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition" :class="theme === 'dark' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-white/60'" :aria-pressed="theme === 'dark'" @click="setTheme('dark')"><Moon :size="17" />Noturno</button>
-                </div>
-            </section>
 
             <nav aria-label="Seções da configuração financeira" class="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-white p-2 sm:grid-cols-3" role="tablist">
                 <button v-for="option in tabs" :id="`settings-tab-${option.key}`" :key="option.key" type="button" role="tab" :aria-selected="tab === option.key" :aria-controls="`settings-panel-${option.key}`" :tabindex="tab === option.key ? 0 : -1" class="min-w-0 rounded-xl px-3 py-3 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600" :class="tab === option.key ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'" @click="changeTab(option.key)" @keydown.left.prevent="changeTab(tabs[(tabs.findIndex(item => item.key === option.key) + tabs.length - 1) % tabs.length].key)" @keydown.right.prevent="changeTab(tabs[(tabs.findIndex(item => item.key === option.key) + 1) % tabs.length].key)">{{ option.title }}</button>
