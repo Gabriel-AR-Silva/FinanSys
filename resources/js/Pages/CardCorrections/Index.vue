@@ -1,5 +1,6 @@
 <script setup>
 import HelpTooltip from '@/Components/HelpTooltip.vue';
+import SearchableSelect from '@/Components/SearchableSelect.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ArrowLeft, CircleDollarSign, RotateCcw } from '@lucide/vue';
@@ -33,11 +34,23 @@ const allocation = useForm({
     operation_id: uuid(),
 });
 
+const purchaseOptions = computed(() => props.purchases.map((purchase) => ({
+    ...purchase,
+    label: `${purchase.card_name} · ${purchase.description} · ${money(purchase.gross_amount)} · ${purchase.purchased_on}`,
+})));
+const creditOptions = computed(() => props.credits.map((credit) => ({
+    ...credit,
+    label: `${credit.card_name} · disponível ${money(credit.remaining_amount)} · ${credit.credited_on}`,
+})));
 const selectedCredit = computed(() => props.credits.find((credit) => credit.id === Number(allocation.card_credit_id)) ?? null);
 const compatibleObligations = computed(() => selectedCredit.value
     ? props.obligations.filter((obligation) => obligation.credit_card_id === selectedCredit.value.credit_card_id)
     : []);
 const compatibleTargets = computed(() => compatibleObligations.value.filter((item) => item.type === allocation.target_type));
+const obligationOptions = computed(() => compatibleTargets.value.map((obligation) => ({
+    ...obligation,
+    label: `${obligation.label} · saldo ${money(obligation.remaining_amount)} · vence ${obligation.due_on}`,
+})));
 
 watch(() => allocation.card_credit_id, () => {
     allocation.target_id = '';
@@ -102,11 +115,8 @@ const submitAllocation = () => {
                     </div>
                     <form class="mt-5 flex flex-col gap-4" @submit.prevent="submitReversal">
                         <div>
-                            <label for="reversal-purchase" class="text-sm font-medium text-slate-700">Compra</label>
-                            <select id="reversal-purchase" v-model="reversal.card_purchase_id" required class="mt-1 w-full rounded-xl border-slate-300 text-sm">
-                                <option value="" disabled>Escolha uma compra</option>
-                                <option v-for="purchase in purchases" :key="purchase.id" :value="purchase.id">{{ purchase.card_name }} · {{ purchase.description }} · {{ money(purchase.gross_amount) }} · {{ purchase.purchased_on }}</option>
-                            </select>
+                            <label class="text-sm font-medium text-slate-700">Compra</label>
+                            <SearchableSelect v-model="reversal.card_purchase_id" class="mt-1" :options="purchaseOptions" :clearable="false" :disabled="!purchases.length" placeholder="Buscar compra..." />
                             <p v-if="reversal.errors.card_purchase_id" class="mt-1 text-xs text-rose-600">{{ reversal.errors.card_purchase_id }}</p>
                             <div v-if="!purchases.length" class="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
                                 <p class="font-semibold">Nenhuma compra elegível para estorno.</p>
@@ -132,28 +142,19 @@ const submitAllocation = () => {
                     </div>
                     <form class="mt-5 flex flex-col gap-4" @submit.prevent="submitAllocation">
                         <div>
-                            <label for="credit" class="text-sm font-medium text-slate-700">Crédito disponível</label>
-                            <select id="credit" v-model="allocation.card_credit_id" required class="mt-1 w-full rounded-xl border-slate-300 text-sm">
-                                <option value="" disabled>Escolha um crédito</option>
-                                <option v-for="credit in credits" :key="credit.id" :value="credit.id">{{ credit.card_name }} · disponível {{ money(credit.remaining_amount) }} · {{ credit.credited_on }}</option>
-                            </select>
+                            <label class="text-sm font-medium text-slate-700">Crédito disponível</label>
+                            <SearchableSelect v-model="allocation.card_credit_id" class="mt-1" :options="creditOptions" :clearable="false" :disabled="!credits.length" placeholder="Buscar crédito..." />
                             <p v-if="allocation.errors.card_credit_id" class="mt-1 text-xs text-rose-600">{{ allocation.errors.card_credit_id }}</p>
                             <div v-if="!credits.length" class="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-950">
                                 <p class="font-semibold">Nenhum crédito disponível.</p>
                                 <p class="mt-1">Para gerar crédito, estorne uma compra elegível que já possua valor pago. Se ainda não há compra elegível, comece pela área de cartões e compras.</p>
-                                <div class="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-                                    <a href="#reversal-purchase" class="font-semibold underline underline-offset-2">Ir para estorno nesta página</a>
-                                    <Link :href="route('credit-cards.index')" class="font-semibold underline underline-offset-2">Acessar cartões e compras</Link>
-                                </div>
+                                <div class="mt-2 flex flex-wrap gap-x-4 gap-y-2"><Link :href="route('credit-cards.index')" class="font-semibold underline underline-offset-2">Acessar cartões e compras</Link></div>
                             </div>
                         </div>
                         <div><label for="target-type" class="text-sm font-medium text-slate-700">Tipo de obrigação</label><select id="target-type" v-model="allocation.target_type" class="mt-1 w-full rounded-xl border-slate-300 text-sm" @change="allocation.target_id = ''"><option value="installment">Parcela</option><option value="charge">Juro/multa/encargo</option></select></div>
                         <div>
-                            <label for="target" class="text-sm font-medium text-slate-700">Obrigação</label>
-                            <select id="target" v-model="allocation.target_id" required :disabled="!selectedCredit" class="mt-1 w-full rounded-xl border-slate-300 text-sm disabled:bg-slate-100">
-                                <option value="" disabled>Escolha uma obrigação</option>
-                                <option v-for="obligation in compatibleTargets" :key="`${obligation.type}-${obligation.id}`" :value="obligation.id">{{ obligation.label }} · saldo {{ money(obligation.remaining_amount) }} · vence {{ obligation.due_on }}</option>
-                            </select>
+                            <label class="text-sm font-medium text-slate-700">Obrigação</label>
+                            <SearchableSelect v-model="allocation.target_id" class="mt-1" :options="obligationOptions" :clearable="false" :disabled="!selectedCredit" placeholder="Buscar obrigação..." />
                             <p v-if="allocation.errors.target_id" class="mt-1 text-xs text-rose-600">{{ allocation.errors.target_id }}</p>
                             <p v-if="selectedCredit && !compatibleTargets.length" class="mt-2 text-xs leading-5 text-slate-500">Este cartão não possui obrigação compatível pendente do tipo selecionado. O crédito continuará disponível até existir uma obrigação elegível.</p>
                         </div>

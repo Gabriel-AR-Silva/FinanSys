@@ -1,8 +1,9 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
+import SearchableSelect from '@/Components/SearchableSelect.vue';
 import TextInput from '@/Components/TextInput.vue';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { formatMoneyInput, normalizeMoneyInput, sanitizeMoneyInput } from '@/Support/money';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
@@ -32,7 +33,7 @@ const submit = () => form.transform((data) => ({
             <header class="space-y-2"><Link :href="route('ledger-entries.index')" class="text-sm font-semibold text-emerald-700 hover:underline">← Voltar aos lançamentos</Link><h1 class="text-2xl font-semibold text-slate-950">Corrigir {{ entry.type === 'income' ? 'receita' : 'despesa' }}</h1><p class="text-sm text-slate-600">A alteração preserva o registro original no histórico de auditoria. Movimentações vinculadas a OFX, previsões, estornos ou reembolsos exigem seu próprio fluxo e não podem ser alteradas aqui.</p></header>
             <form class="space-y-5 rounded-2xl border border-slate-200 bg-white p-5" @submit.prevent="submit">
                 <InputError :message="form.errors.ledger_entry" />
-                <div><InputLabel for="correction-category" value="Categoria" /><select id="correction-category" v-model="form.category_id" required class="mt-2 block w-full rounded-xl border-slate-300"><option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option></select><InputError :message="form.errors.category_id" /></div>
+                <div><InputLabel value="Categoria" /><SearchableSelect v-model="form.category_id" class="mt-2" :options="categories" :clearable="false" placeholder="Buscar categoria..." /><InputError :message="form.errors.category_id" /></div>
                 <div><InputLabel for="correction-description" value="Descrição" /><TextInput id="correction-description" v-model="form.description" maxlength="255" class="mt-2 block w-full" /><InputError :message="form.errors.description" /></div>
                 <div v-if="entry.type === 'expense'"><InputLabel for="correction-planning" value="Tipo de planejamento" /><select id="correction-planning" v-model="form.planning_type" required class="mt-2 block w-full rounded-xl border-slate-300"><option value="ordinary">Cotidiano</option><option value="fixed">Fixo</option><option value="extraordinary">Extraordinário</option></select><InputError :message="form.errors.planning_type" /></div>
                 <div class="grid gap-4 sm:grid-cols-2"><div><InputLabel for="correction-amount" value="Valor (R$)" /><TextInput id="correction-amount" v-model="form.amount" inputmode="decimal" required class="mt-2 block w-full" @input="form.amount = sanitizeMoneyInput($event.target.value)" @blur="form.amount = formatMoneyInput(form.amount)" /><InputError :message="form.errors.amount" /></div><div><InputLabel for="correction-date" value="Data da movimentação" /><TextInput id="correction-date" v-model="form.occurred_at" type="date" :max="today" required class="mt-2 block w-full" /><InputError :message="form.errors.occurred_at" /></div></div>
