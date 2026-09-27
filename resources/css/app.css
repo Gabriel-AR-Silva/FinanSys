@@ -303,6 +303,34 @@
         border-color: rgb(56 189 248 / 0.34) !important;
     }
 
+    html.dark button.bg-slate-950,
+    html.dark a.bg-slate-950 {
+        background-color: #334155 !important;
+    }
+
+    html.dark button.bg-gray-800,
+    html.dark a.bg-gray-800 {
+        background-color: #334155 !important;
+    }
+
+    html.dark .focus\\:ring-offset-2:focus {
+        --tw-ring-offset-color: var(--fs-canvas) !important;
+    }
+
+    html.dark [data-theme-static='light'] {
+        background-color: #ffffff !important;
+        color: #1f1f1f !important;
+        color-scheme: light;
+    }
+
+    html.dark [data-theme-static='light']:hover {
+        background-color: #f8fafd !important;
+    }
+
+    html.dark .theme-switch-thumb {
+        background-color: #ffffff !important;
+    }
+
     html.dark .shadow-sm,
     html.dark .shadow-md,
     html.dark .shadow-lg,
