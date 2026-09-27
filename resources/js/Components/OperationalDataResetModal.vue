@@ -7,30 +7,60 @@ import { computed, ref, watch } from 'vue';
 const props = defineProps({ show: Boolean });
 const emit = defineEmits(['close']);
 const code = ref('');
-const counts = ref({});
+const groups = ref([]);
+const dependencies = ref({});
+const defaults = ref([]);
 const slider = ref(0);
 const loading = ref(false);
-const form = useForm({ password: '', confirmation_code: '', slider_confirmed: false });
+const form = useForm({ password: '', confirmation_code: '', slider_confirmed: false, selected_groups: [] });
 
-const countLabels = {
-    ledger_entries: 'Lançamentos',
-    receipt_forecasts: 'Recebimentos previstos',
-    future_commitments: 'Compromissos futuros e pagamentos',
-    card_operations: 'Operações de cartão',
-    ofx_imports: 'Importações OFX',
-    daily_planning_records: 'Orçamentos diários e check-ins',
-    financial_goals: 'Metas financeiras',
-    derived_records: 'Análises e avisos',
+const selectedSet = computed(() => new Set(form.selected_groups));
+const selectedGroups = computed(() => groups.value.filter((group) => selectedSet.value.has(group.key)));
+const totalRecords = computed(() => selectedGroups.value.reduce((total, group) => total + Number(group.count ?? 0), 0));
+const matches = computed(() => form.confirmation_code.trim().toUpperCase() === code.value);
+const canSubmit = computed(() => form.selected_groups.length > 0 && matches.value && form.password.length > 0 && slider.value === 100 && !form.processing);
+
+const normalize = (selection) => {
+    const allowed = new Set(groups.value.map((group) => group.key));
+    const resolved = new Set(selection.filter((group) => allowed.has(group)));
+    let changed = true;
+
+    while (changed) {
+        changed = false;
+        for (const group of [...resolved]) {
+            for (const dependency of dependencies.value[group] ?? []) {
+                if (allowed.has(dependency) && !resolved.has(dependency)) {
+                    resolved.add(dependency);
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    return groups.value.map((group) => group.key).filter((key) => resolved.has(key));
 };
 
-const totalRecords = computed(() => Object.values(counts.value).reduce((total, count) => total + Number(count), 0));
-const matches = computed(() => form.confirmation_code.trim().toUpperCase() === code.value);
-const canSubmit = computed(() => matches.value && form.password.length > 0 && slider.value === 100 && !form.processing);
+const selectAll = () => {
+    form.selected_groups = [...defaults.value];
+};
+
+const preserveCategories = () => {
+    form.selected_groups = normalize(defaults.value.filter((group) => group !== 'categories'));
+};
+
+const toggleGroup = (key) => {
+    const next = selectedSet.value.has(key)
+        ? form.selected_groups.filter((group) => group !== key)
+        : [...form.selected_groups, key];
+    form.selected_groups = normalize(next);
+};
 
 watch(() => props.show, async (show) => {
     if (!show) return;
     code.value = '';
-    counts.value = {};
+    groups.value = [];
+    dependencies.value = {};
+    defaults.value = [];
     slider.value = 0;
     form.reset();
     form.clearErrors();
@@ -38,7 +68,10 @@ watch(() => props.show, async (show) => {
     try {
         const response = await axios.post(route('operational-data-reset.challenge'));
         code.value = response.data.code;
-        counts.value = response.data.counts;
+        groups.value = response.data.groups ?? [];
+        dependencies.value = response.data.dependencies ?? {};
+        defaults.value = response.data.default_selected_groups ?? groups.value.map((group) => group.key);
+        form.selected_groups = normalize([...defaults.value]);
     } finally {
         loading.value = false;
     }
@@ -48,6 +81,7 @@ const submit = () => {
     if (!canSubmit.value) return;
     form.confirmation_code = form.confirmation_code.trim().toUpperCase();
     form.slider_confirmed = true;
+    form.selected_groups = normalize(form.selected_groups);
     form.delete(route('operational-data-reset.destroy'), {
         preserveScroll: true,
         onSuccess: () => emit('close'),
@@ -56,21 +90,34 @@ const submit = () => {
 </script>
 
 <template>
-    <Modal :show="show" max-width="lg" @close="emit('close')">
+    <Modal :show="show" max-width="2xl" @close="emit('close')">
         <div class="max-h-[85dvh] overflow-y-auto p-6">
             <h2 class="text-lg font-semibold text-slate-950">Limpar dados de uso</h2>
-            <p class="mt-2 text-sm leading-6 text-slate-600">Remove movimentações, operações de cartão, importações OFX e análises. Categorias, contas, caixinhas, cartões e configurações estruturais permanecem.</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Tudo começa selecionado. Desmarque o que deseja manter; dependências necessárias são selecionadas automaticamente.</p>
 
             <div v-if="loading" class="mt-5 text-sm text-slate-500">Preparando confirmação...</div>
             <template v-else-if="code">
-                <div class="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-4">
-                    <p class="text-sm font-semibold text-rose-900">{{ totalRecords }} registro(s) serão removidos</p>
-                    <dl class="mt-3 space-y-1 text-sm text-rose-900">
-                        <div v-for="(label, key) in countLabels" :key="key" class="flex justify-between gap-4">
-                            <dt>{{ label }}</dt>
-                            <dd class="font-semibold">{{ counts[key] ?? 0 }}</dd>
-                        </div>
-                    </dl>
+                <div class="mt-5 flex flex-wrap gap-2">
+                    <button type="button" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold" @click="selectAll">Selecionar tudo</button>
+                    <button type="button" class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800" @click="preserveCategories">Excluir tudo, mas manter categorias</button>
+                </div>
+
+                <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <p class="text-sm font-semibold text-slate-900">Dados selecionados</p>
+                        <p class="text-xs text-slate-500">{{ selectedGroups.length }} grupo(s) · {{ totalRecords }} registro(s)</p>
+                    </div>
+                    <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                        <label v-for="group in groups" :key="group.key" class="flex cursor-pointer gap-3 rounded-xl border bg-white p-3" :class="selectedSet.has(group.key) ? 'border-rose-300' : 'border-slate-200'">
+                            <input type="checkbox" class="mt-1 rounded border-slate-300 text-rose-700" :checked="selectedSet.has(group.key)" @change="toggleGroup(group.key)" />
+                            <span class="min-w-0 flex-1">
+                                <span class="flex justify-between gap-3 text-sm font-semibold text-slate-900"><span>{{ group.label }}</span><span>{{ group.count }}</span></span>
+                                <span class="mt-1 block text-xs leading-5 text-slate-500">{{ group.description }}</span>
+                            </span>
+                        </label>
+                    </div>
+                    <p v-if="form.errors.selected_groups" class="mt-2 text-xs text-rose-600">{{ form.errors.selected_groups }}</p>
+                    <p class="mt-3 text-xs text-slate-500">Pix no Crédito está incluído em Operações de cartão.</p>
                 </div>
 
                 <label for="reset-password" class="mt-5 block text-sm font-medium text-slate-800">Confirme sua senha atual</label>
@@ -89,7 +136,7 @@ const submit = () => {
 
                 <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                     <button type="button" class="min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold" @click="emit('close')">Cancelar</button>
-                    <button type="button" :disabled="!canSubmit" class="min-h-11 rounded-xl bg-rose-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" @click="submit">Limpar {{ totalRecords }} registro(s)</button>
+                    <button type="button" :disabled="!canSubmit" class="min-h-11 rounded-xl bg-rose-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" @click="submit">Excluir {{ totalRecords }} registro(s)</button>
                 </div>
             </template>
         </div>
