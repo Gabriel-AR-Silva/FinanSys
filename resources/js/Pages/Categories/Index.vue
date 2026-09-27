@@ -14,11 +14,18 @@ import { computed, onMounted, ref } from 'vue';
 const props = defineProps({ categories: { type: Array, required: true } });
 const createModalOpen = ref(false);
 const editingCategory = ref(null);
+const typeFilter = ref('all');
 const createForm = useForm({ name: '', type: 'expense' });
 const editForm = useForm({ name: '' });
 const statusForm = useForm({ status: 'inactive' });
-const incomeCategories = computed(() => props.categories.filter((category) => category.type === 'income'));
-const expenseCategories = computed(() => props.categories.filter((category) => category.type === 'expense'));
+
+const filteredCategories = computed(() => {
+    if (typeFilter.value === 'all') {
+        return props.categories;
+    }
+
+    return props.categories.filter((category) => category.type === typeFilter.value);
+});
 
 const closeCreate = () => { if (!createForm.processing) { createModalOpen.value = false; createForm.reset(); createForm.clearErrors(); } };
 const submitCreate = () => createForm.post(route('categories.store'), { preserveScroll: true, onSuccess: closeCreate });
@@ -47,23 +54,35 @@ onMounted(() => {
             <button type="button" class="flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800" @click="createModalOpen = true"><Plus :size="18" />Nova categoria</button>
         </section>
 
-        <section class="mt-8 grid gap-6 lg:grid-cols-2">
-            <CategoryList
-                title="Receitas"
-                type="income"
-                :items="incomeCategories"
-                :status-processing="statusForm.processing"
-                @edit="openEdit"
-                @toggle-status="toggleStatus"
-            />
-            <CategoryList
-                title="Despesas"
-                type="expense"
-                :items="expenseCategories"
-                :status-processing="statusForm.processing"
-                @edit="openEdit"
-                @toggle-status="toggleStatus"
-            />
+        <section class="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="font-semibold text-slate-950">Todas as categorias</h2>
+                    <p class="text-sm text-slate-500">{{ filteredCategories.length }} de {{ categories.length }} categorias exibidas</p>
+                </div>
+
+                <div class="flex w-full rounded-xl bg-slate-100 p-1 sm:w-auto" role="group" aria-label="Filtrar categorias por tipo">
+                    <button
+                        v-for="filter in [{ label: 'Todas', value: 'all' }, { label: 'Receitas', value: 'income' }, { label: 'Despesas', value: 'expense' }]"
+                        :key="filter.value"
+                        type="button"
+                        class="flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition sm:flex-none"
+                        :class="typeFilter === filter.value ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
+                        @click="typeFilter = filter.value"
+                    >
+                        {{ filter.label }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <CategoryList
+                    :items="filteredCategories"
+                    :status-processing="statusForm.processing"
+                    @edit="openEdit"
+                    @toggle-status="toggleStatus"
+                />
+            </div>
         </section>
 
         <Modal :show="createModalOpen" @close="closeCreate"><form class="p-6" @submit.prevent="submitCreate"><h2 class="text-lg font-semibold text-slate-950">Nova categoria</h2><div class="mt-5"><InputLabel for="category-type" value="Natureza" /><select id="category-type" v-model="createForm.type" class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"><option value="income">Receita</option><option value="expense">Despesa</option></select><InputError class="mt-2" :message="createForm.errors.type" /></div><div class="mt-4"><InputLabel for="category-name" value="Nome" /><TextInput id="category-name" v-model="createForm.name" class="mt-2 block w-full" maxlength="255" autofocus /><InputError class="mt-2" :message="createForm.errors.name" /></div><div class="mt-6 flex justify-end gap-3"><SecondaryButton type="button" @click="closeCreate">Cancelar</SecondaryButton><PrimaryButton :disabled="createForm.processing">Criar categoria</PrimaryButton></div></form></Modal>
