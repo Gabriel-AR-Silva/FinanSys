@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class OperationalDataResetController extends Controller
@@ -34,6 +35,9 @@ class OperationalDataResetController extends Controller
             'code' => $code,
             'expires_in_seconds' => self::CHALLENGE_TTL_SECONDS,
             'counts' => $reset->preview($user),
+            'groups' => $reset->groupCatalog($user),
+            'dependencies' => $reset->dependencies(),
+            'default_selected_groups' => $reset->defaultSelectedGroups(),
         ]);
     }
 
@@ -45,6 +49,8 @@ class OperationalDataResetController extends Controller
             'password' => ['required', 'string'],
             'confirmation_code' => ['required', 'string', 'size:10', 'regex:/^[A-Z0-9]{10}$/'],
             'slider_confirmed' => ['required', 'accepted'],
+            'selected_groups' => ['sometimes', 'array', 'min:1'],
+            'selected_groups.*' => ['string', Rule::in($reset->allGroupKeys())],
         ]);
 
         if (! Hash::check((string) $validated['password'], (string) $user->password)) {
@@ -70,9 +76,18 @@ class OperationalDataResetController extends Controller
         }
 
         $request->session()->forget(self::SESSION_KEY);
-        $reset->handle($user);
 
-        return back()->with('success', 'Dados operacionais removidos. Sua estrutura básica foi preservada para um novo teste.');
+        $selectedGroups = array_key_exists('selected_groups', $validated)
+            ? array_values($validated['selected_groups'])
+            : $reset->legacyDefaultGroups();
+        $result = $reset->handle($user, $selectedGroups);
+
+        $preservedCategories = in_array('categories', $result['preserved_groups'], true);
+        $message = $preservedCategories
+            ? 'Dados selecionados removidos. Suas categorias foram preservadas.'
+            : 'Dados selecionados removidos com sucesso.';
+
+        return back()->with('success', $message);
     }
 
     private function generateCode(): string
