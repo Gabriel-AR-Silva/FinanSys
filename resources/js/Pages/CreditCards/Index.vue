@@ -718,7 +718,7 @@ const date = (value) => value.split("-").reverse().join("/");
                         <button class="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white" type="button" @click="open('purchase', card.id)">Nova compra</button>
                         <details class="relative">
                             <summary class="cursor-pointer list-none rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">Gerenciar ▾</summary>
-                            <div class="absolute right-0 z-20 mt-2 grid min-w-52 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                            <div class="absolute bottom-full right-0 z-30 mb-2 grid max-h-[min(20rem,60vh)] min-w-52 max-w-[calc(100vw-2rem)] gap-1 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
                                 <button class="rounded-lg px-3 py-2 text-left text-xs hover:bg-slate-50" type="button" @click="open('limit', card.id)">Ajustar limite</button>
                                 <button class="rounded-lg px-3 py-2 text-left text-xs hover:bg-slate-50" type="button" @click="open('charge', card.id)">Confirmar encargo</button>
                                 <button class="rounded-lg px-3 py-2 text-left text-xs hover:bg-slate-50" type="button" @click="open('payment', card.id)">Pagar fatura</button>
