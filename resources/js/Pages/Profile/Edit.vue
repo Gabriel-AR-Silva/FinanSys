@@ -102,7 +102,7 @@ watch(() => page.props.errors, selectErrorTab);
                             <Link :href="route('google.unlink')" method="delete" as="button" class="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50"><Unlink :size="16" />Desvincular</Link>
                         </div>
                         <div v-else class="mt-6">
-                            <a v-if="googleAuthenticationEnabled" :href="route('google.link')" class="group relative flex h-12 w-full max-w-sm items-center justify-center rounded-xl border border-[#747775] bg-white px-12 text-sm font-medium leading-5 text-[#1f1f1f] shadow-sm transition hover:bg-[#f8fafd] hover:shadow-md focus:outline-none focus:ring-4 focus:ring-blue-500/20 active:bg-[#f1f3f4]">
+                            <a v-if="googleAuthenticationEnabled" :href="route('google.link')" data-theme-static="light" class="group relative flex h-12 w-full max-w-sm items-center justify-center rounded-xl border border-[#747775] bg-white px-12 text-sm font-medium leading-5 text-[#1f1f1f] shadow-sm transition hover:bg-[#f8fafd] hover:shadow-md focus:outline-none focus:ring-4 focus:ring-blue-500/20 active:bg-[#f1f3f4]">
                                 <span class="absolute left-3 grid h-9 w-9 place-items-center rounded-lg transition group-hover:bg-white"><GoogleLogo /></span>Continuar com Google
                             </a>
                             <p v-else class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Configure as credenciais do Google para habilitar o vínculo.</p>
