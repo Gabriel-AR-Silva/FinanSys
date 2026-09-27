@@ -113,7 +113,7 @@ watch(mobileNavigationOpen, open => {
                                 <component :is="theme === 'dark' ? Moon : Sun" :size="18" class="shrink-0" aria-hidden="true" />
                                 <span class="min-w-0 flex-1"><span class="block font-medium">Modo noturno</span><span class="block text-xs text-slate-500">{{ theme === 'dark' ? 'Ativado' : 'Desativado' }}</span></span>
                                 <span class="relative h-6 w-11 shrink-0 rounded-full border border-slate-300 transition" :class="theme === 'dark' ? 'bg-emerald-500' : 'bg-slate-200'" aria-hidden="true">
-                                    <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform" :class="theme === 'dark' ? 'translate-x-5' : 'translate-x-0.5'" />
+                                    <span class="theme-switch-thumb absolute top-0.5 h-4 w-4 rounded-full shadow-sm transition-transform" :class="theme === 'dark' ? 'translate-x-5' : 'translate-x-0.5'" />
                                 </span>
                             </button>
                         </div>
