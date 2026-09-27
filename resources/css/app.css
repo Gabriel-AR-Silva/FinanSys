@@ -303,13 +303,10 @@
         border-color: rgb(56 189 248 / 0.34) !important;
     }
 
-    html.dark button.bg-slate-950,
-    html.dark a.bg-slate-950 {
-        background-color: #334155 !important;
-    }
-
-    html.dark button.bg-gray-800,
-    html.dark a.bg-gray-800 {
+    html.dark button[class~='bg-slate-950'],
+    html.dark a[class~='bg-slate-950'],
+    html.dark button[class~='bg-gray-800'],
+    html.dark a[class~='bg-gray-800'] {
         background-color: #334155 !important;
     }
 
