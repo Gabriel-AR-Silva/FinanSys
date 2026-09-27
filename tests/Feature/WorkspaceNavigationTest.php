@@ -41,7 +41,15 @@ class WorkspaceNavigationTest extends TestCase
             'accounts' => ['accounts.index', 'Accounts/Index'],
             'pockets' => ['pockets.index', 'Pockets/Index'],
             'ledger entries' => ['ledger-entries.index', 'LedgerEntries/Index'],
+            'credit cards' => ['credit-cards.index', 'CreditCards/Index'],
+            'categories' => ['categories.index', 'Categories/Index'],
+            'receipt forecasts' => ['receipt-forecasts.index', 'ReceiptForecasts/Index'],
+            'financial settings' => ['financial-settings.edit', 'FinancialSettings/Edit'],
+            'financial history' => ['financial-evaluations.index', 'FinancialEvaluations/Index'],
+            'internal alerts' => ['internal-alerts.index', 'InternalAlerts/Index'],
+            'expense commitments' => ['expense-commitments.index', 'ExpenseCommitments/Index'],
             'patrimony' => ['patrimony.index', 'Patrimony/Index'],
+            'profile' => ['profile.edit', 'Profile/Edit'],
             'help center' => ['help.index', 'Help/Index'],
         ];
     }
