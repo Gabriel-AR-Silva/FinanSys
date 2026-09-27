@@ -111,7 +111,7 @@ class ResetOperationalFinancialData
 
             foreach ($resolved as $group) {
                 foreach ($dependencies[$group] ?? [] as $dependency) {
-                    if (! in_array($dependency, $resolved, true)) {
+                    if (in_array($dependency, $resolved, true) === false) {
                         $resolved[] = $dependency;
                         $changed = true;
                     }
@@ -199,11 +199,11 @@ class ResetOperationalFinancialData
             $userId = $user->getKey();
 
             foreach ($this->deletionPlan() as $step) {
-                if (! $this->shouldDeleteForGroups($step['groups'], $selectedGroups)) {
+                if ($this->shouldDeleteForGroups($step['groups'], $selectedGroups) === false) {
                     continue;
                 }
 
-                if (! Schema::hasTable($step['table'])) {
+                if (Schema::hasTable($step['table']) === false) {
                     continue;
                 }
 
@@ -249,7 +249,7 @@ class ResetOperationalFinancialData
 
     private function countTable(string $table, int $userId): int
     {
-        if (! Schema::hasTable($table)) {
+        if (Schema::hasTable($table) === false) {
             return 0;
         }
 
