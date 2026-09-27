@@ -184,10 +184,7 @@ class ResetOperationalFinancialData
         );
     }
 
-    /**
-     * @param list<string>|null $groups
-     * @return array{counts:array<string,int>,deleted_groups:list<string>,preserved_groups:list<string>}
-     */
+    /** @param list<string>|null $groups @return array{counts:array<string,int>,deleted_groups:list<string>,preserved_groups:list<string>} */
     public function handle(User $user, ?array $groups = null): array
     {
         $selectedGroups = $this->resolveGroups($groups ?? $this->legacyDefaultGroups());
