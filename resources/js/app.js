@@ -5,16 +5,9 @@ import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
+import { applyTheme, getPreferredTheme } from './Support/theme';
 
-const applyStoredTheme = () => {
-    let theme = 'light';
-    try {
-        theme = window.localStorage.getItem('finansys.theme') || 'light';
-    } catch (_) { /* storage may be blocked */ }
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-};
-
-applyStoredTheme();
+applyTheme(getPreferredTheme());
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
