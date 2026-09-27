@@ -7,7 +7,7 @@ import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { formatMoneyInput, normalizeMoneyInput, sanitizeMoneyInput } from '@/Support/money';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ArchiveRestore, ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, CalendarClock, ChevronLeft, ChevronRight, Filter, HandCoins, Plus, Pencil, ReceiptText, RotateCcw, Trash2, X } from '@lucide/vue';
+import { ArchiveRestore, ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Filter, HandCoins, Plus, Pencil, ReceiptText, RotateCcw, Trash2, X } from '@lucide/vue';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -33,6 +33,7 @@ const filters = reactive({
     direction: props.filters.direction ?? 'desc',
     per_page: String(props.filters.per_page ?? 15),
 });
+const filtersOpen = ref(true);
 const createModalOpen = ref(false);
 let searchTimer = null;
 const transferModalOpen = ref(false);
@@ -223,29 +224,35 @@ watch(sourceKey, () => {
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="Filtros de lançamentos">
-                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div class="w-full sm:max-w-md"><InputLabel for="entry-search" value="Buscar lançamentos" /><input id="entry-search" v-model="filters.search" type="search" placeholder="Descrição, categoria ou conta..." class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500" @input="searchEntries" /></div>
-                    <div class="w-full sm:w-36"><InputLabel for="entry-page-size" value="Por página" /><select id="entry-page-size" v-model="filters.per_page" class="mt-2 block w-full rounded-xl border-slate-300 text-sm" @change="applyFilters"><option value="15">15</option><option value="25">25</option><option value="50">50</option></select></div>
-                </div>
-                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1.2fr_1.2fr_1fr_auto] xl:items-end">
-                    <div>
-                        <InputLabel value="Categoria" />
-                        <SearchableSelect v-model="filters.category_id" class="mt-2" :options="categoryFilterOptions" :clearable="false" placeholder="Buscar categoria..." />
+            <section class="overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm" aria-label="Filtros de lançamentos">
+                <button type="button" class="flex w-full items-center justify-between gap-4 rounded-2xl px-4 py-3 text-left hover:bg-slate-50" :aria-expanded="filtersOpen" aria-controls="ledger-filters-panel" @click="filtersOpen = !filtersOpen">
+                    <span><span class="block text-sm font-semibold text-slate-900">Filtros</span><span class="mt-0.5 block text-xs text-slate-500">Busca, categoria, tipo, conta e período</span></span>
+                    <span class="flex items-center gap-2 text-xs font-semibold text-slate-500">{{ filtersOpen ? 'Minimizar' : 'Mostrar' }}<ChevronUp v-if="filtersOpen" :size="17" /><ChevronDown v-else :size="17" /></span>
+                </button>
+                <div v-show="filtersOpen" id="ledger-filters-panel" class="border-t border-slate-100 p-4">
+                    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                        <div class="w-full sm:max-w-md"><InputLabel for="entry-search" value="Buscar lançamentos" /><input id="entry-search" v-model="filters.search" type="search" placeholder="Descrição, categoria ou conta..." class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500" @input="searchEntries" /></div>
+                        <div class="w-full sm:w-36"><InputLabel for="entry-page-size" value="Por página" /><select id="entry-page-size" v-model="filters.per_page" class="mt-2 block w-full rounded-xl border-slate-300 text-sm" @change="applyFilters"><option value="15">15</option><option value="25">25</option><option value="50">50</option></select></div>
                     </div>
-                    <div>
-                        <InputLabel for="filter-type" value="Tipo" />
-                        <select id="filter-type" v-model="filters.type" class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"><option value="all">Todos</option><option value="income">Receitas</option><option value="expense">Despesas</option><option value="refund">Reembolsos</option></select>
+                    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1.2fr_1.2fr_1fr_auto] xl:items-end">
+                        <div>
+                            <InputLabel value="Categoria" />
+                            <SearchableSelect v-model="filters.category_id" class="mt-2" :options="categoryFilterOptions" :clearable="false" placeholder="Buscar categoria..." />
+                        </div>
+                        <div>
+                            <InputLabel for="filter-type" value="Tipo" />
+                            <select id="filter-type" v-model="filters.type" class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"><option value="all">Todos</option><option value="income">Receitas</option><option value="expense">Despesas</option><option value="refund">Reembolsos</option></select>
+                        </div>
+                        <div>
+                            <InputLabel value="Conta" />
+                            <SearchableSelect v-model="filters.account_id" class="mt-2" :options="accountFilterOptions" :clearable="false" placeholder="Buscar conta..." />
+                        </div>
+                        <div>
+                            <InputLabel for="filter-period" value="Período" />
+                            <select id="filter-period" v-model="filters.period" class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"><option v-for="period in periods" :key="period[0]" :value="period[0]">{{ period[1] }}</option></select>
+                        </div>
+                        <button type="button" class="flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="applyFilters"><Filter :size="17" />Filtrar</button>
                     </div>
-                    <div>
-                        <InputLabel value="Conta" />
-                        <SearchableSelect v-model="filters.account_id" class="mt-2" :options="accountFilterOptions" :clearable="false" placeholder="Buscar conta..." />
-                    </div>
-                    <div>
-                        <InputLabel for="filter-period" value="Período" />
-                        <select id="filter-period" v-model="filters.period" class="mt-2 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"><option v-for="period in periods" :key="period[0]" :value="period[0]">{{ period[1] }}</option></select>
-                    </div>
-                    <button type="button" class="flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="applyFilters"><Filter :size="17" />Filtrar</button>
                 </div>
             </section>
 
