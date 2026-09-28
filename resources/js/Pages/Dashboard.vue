@@ -13,6 +13,7 @@ import { computed, onMounted, ref } from 'vue';
 const props = defineProps({
     overview: { type: Object, required: true },
     planning: { type: Object, required: true },
+    cardInvoice: { type: Object, required: true },
     categories: { type: Array, required: true },
     filters: { type: Object, required: true },
     dailyCheckIns: { type: Array, required: true },
@@ -80,9 +81,7 @@ const periodCards = computed(() => [
             <Link :href="route('ledger-entries.index')" class="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800">Ver lançamentos <ArrowRight :size="16" /></Link>
         </section>
 
-        <DailyCheckInPanel :days="dailyCheckIns" />
-
-        <div class="mt-5 inline-flex w-full rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:w-auto" role="tablist" aria-label="Modo do dashboard">
+        <div class="mt-4 inline-flex w-full rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:w-auto" role="tablist" aria-label="Modo do dashboard">
             <button
                 type="button"
                 role="tab"
@@ -116,6 +115,7 @@ const periodCards = computed(() => [
         </div>
 
         <div v-show="activeView === 'overview'">
+        <DailyCheckInPanel :days="dailyCheckIns" />
         <section class="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-row lg:items-center">
             <div class="flex items-center gap-2 px-2 text-sm font-semibold text-slate-700"><Filter :size="16" class="text-emerald-600" />Analisar período</div>
             <div class="grid flex-1 gap-2 sm:grid-cols-[10rem_minmax(13rem,1fr)]">
@@ -139,7 +139,8 @@ const periodCards = computed(() => [
             <div class="hidden items-center rounded-xl border border-slate-200 bg-white px-4 text-xs text-slate-500 sm:flex">Bens não contam como dinheiro disponível.</div>
         </section>
 
-        <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Próxima fatura do cartão</p><p class="mt-1 font-semibold text-violet-700">{{ formatMoney(cardInvoice.pending) }}</p><p class="mt-0.5 text-[10px] text-slate-400">Parcelas + encargos pendentes com vencimento no próximo mês</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Taxa de economia</p><p class="mt-1 font-semibold" :class="Number(overview.period_summary.savings_rate) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatPercent(overview.period_summary.savings_rate) }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Movimentações</p><p class="mt-1 font-semibold text-slate-900">{{ overview.period_summary.transaction_count }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Maior despesa</p><p class="mt-1 truncate font-semibold text-rose-700" :title="formatMoney(overview.period_summary.largest_expense)">{{ formatMoney(overview.period_summary.largest_expense) }}</p></article>
