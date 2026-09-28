@@ -4,12 +4,16 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
+use App\Actions\CreateCardPurchase;
+use App\Enums\ExpensePlanningType;
 use App\Models\Category;
+use App\Models\CreditCard;
 use App\Models\Pocket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class DashboardControllerTest extends TestCase
@@ -53,6 +57,32 @@ class DashboardControllerTest extends TestCase
             ->has('overview.cash_flow.points', 30)
             ->has('overview.recent_entries', 4)
             ->where('overview.recent_entries.0.reference_name', 'Reserva'));
+    }
+
+    public function test_dashboard_exposes_next_month_card_invoice_without_counting_it_as_realized_expense(): void
+    {
+        $this->travelTo('2026-09-28 12:00:00');
+        $user = User::factory()->create();
+        $category = Category::factory()->for($user)->create(['type' => 'expense']);
+        $card = CreditCard::factory()->for($user)->create(['closing_day' => 5, 'due_day' => 12]);
+
+        app(CreateCardPurchase::class)->handle($user, [
+            'credit_card_id' => $card->id,
+            'category_id' => $category->id,
+            'description' => 'Compra outubro',
+            'planning_type' => ExpensePlanningType::Extraordinary->value,
+            'gross_amount' => '120.00',
+            'purchased_on' => '2026-09-28',
+            'installments_count' => 1,
+            'first_due_on' => '2026-10-12',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('cardInvoice.month', '2026-10')
+                ->where('cardInvoice.pending', '120.00')
+                ->where('overview.period_summary.expense', '0'));
     }
 
     #[DataProvider('periods')]

@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Actions\RecalculateReceiptForecast;
 use App\Enums\ReceiptForecastStatus;
 use App\Http\Requests\IndexDashboardRequest;
+use App\Enums\CardInstallmentStatus;
+use App\Models\CardCharge;
+use App\Models\CardInstallment;
 use App\Models\Category;
 use App\Models\ReceiptForecast;
 use App\Queries\FinancialOverviewQuery;
@@ -45,11 +48,25 @@ class DashboardController extends Controller
 
         $dailyPlanningView = $dailyPlanning->forUser($request->user());
         $overviewView = $overview->forUser($request->user(), $period, $categoryId);
+        $invoiceStart = $start->addMonth()->startOfMonth();
+        $invoiceEnd = $invoiceStart->endOfMonth();
+        $cardInvoicePending = CardInstallment::query()
+            ->whereBelongsTo($request->user())
+            ->where('status', CardInstallmentStatus::Pending)
+            ->whereBetween('due_on', [$invoiceStart->toDateString(), $invoiceEnd->toDateString()])
+            ->get()
+            ->reduce(fn (BigDecimal $total, CardInstallment $installment): BigDecimal => $total->plus(BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)), BigDecimal::zero())
+            ->plus(CardCharge::query()
+                ->whereBelongsTo($request->user())
+                ->whereBetween('due_on', [$invoiceStart->toDateString(), $invoiceEnd->toDateString()])
+                ->get()
+                ->reduce(fn (BigDecimal $total, CardCharge $charge): BigDecimal => $total->plus(BigDecimal::of($charge->amount)->minus($charge->paid_amount)), BigDecimal::zero()));
 
         return Inertia::render('Dashboard', [
             'overview' => $overviewView,
             'patrimony' => $patrimony->forUser($request->user(), $overviewView['general_balance'])['summary'],
             'planning' => $planning->forUser($request->user()),
+            'cardInvoice' => ['month' => $invoiceStart->format('Y-m'), 'pending' => (string) $cardInvoicePending],
             'receivables' => ['month' => $month, 'pending' => (string) $pending, 'next_due_on' => $nextDueOn],
             'dailyCheckIns' => $dailyPlanningView['check_ins'],
             'dailyPlanning' => $dailyPlanningView,
