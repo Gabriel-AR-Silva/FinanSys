@@ -80,9 +80,7 @@ const periodCards = computed(() => [
             <Link :href="route('ledger-entries.index')" class="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800">Ver lançamentos <ArrowRight :size="16" /></Link>
         </section>
 
-        <DailyCheckInPanel :days="dailyCheckIns" />
-
-        <div class="mt-5 inline-flex w-full rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:w-auto" role="tablist" aria-label="Modo do dashboard">
+        <div class="mt-4 inline-flex w-full rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:w-auto" role="tablist" aria-label="Modo do dashboard">
             <button
                 type="button"
                 role="tab"
@@ -116,6 +114,7 @@ const periodCards = computed(() => [
         </div>
 
         <div v-show="activeView === 'overview'">
+        <DailyCheckInPanel :days="dailyCheckIns" />
         <section class="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-row lg:items-center">
             <div class="flex items-center gap-2 px-2 text-sm font-semibold text-slate-700"><Filter :size="16" class="text-emerald-600" />Analisar período</div>
             <div class="grid flex-1 gap-2 sm:grid-cols-[10rem_minmax(13rem,1fr)]">
