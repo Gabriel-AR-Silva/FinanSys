@@ -3,6 +3,7 @@ import HelpHint from '@/Components/HelpHint.vue';
 import Modal from '@/Components/Modal.vue';
 import { CalendarDays, Pencil, PiggyBank, Plus, Target, Trash2, X } from '@lucide/vue';
 import { computed, onMounted, reactive, ref } from 'vue';
+import { formatMoneyInput, normalizeMoneyInput, sanitizeMoneyInput } from '@/Support/money';
 
 const data = ref(null);
 const loading = ref(true);
@@ -65,7 +66,7 @@ const openCreate = () => {
 const openEdit = goal => {
     editingGoal.value = goal;
     form.name = goal.name;
-    form.target_amount = goal.target_amount;
+    form.target_amount = formatMoneyInput(goal.target_amount);
     form.target_date = goal.target_date;
     form.pocket_id = goal.pocket_id ?? '';
     form.operation_id = newOperationId();
@@ -85,7 +86,7 @@ const save = async () => {
 
     const payload = {
         name: form.name,
-        target_amount: form.target_amount,
+        target_amount: normalizeMoneyInput(form.target_amount),
         target_date: form.target_date,
         pocket_id: form.pocket_id || null,
         ...(editingGoal.value ? {} : { operation_id: form.operation_id }),
@@ -222,7 +223,7 @@ onMounted(() => {
                 <div class="mt-6 grid gap-4">
                     <div><label class="text-sm font-medium text-slate-700" for="goal-name">Nome</label><input id="goal-name" v-model="form.name" class="mt-2 block w-full rounded-xl border-slate-300 text-sm focus:border-violet-500 focus:ring-violet-500" placeholder="Ex.: Reserva de emergência" /><p v-if="errors.name" class="mt-1 text-xs text-rose-600">{{ errors.name[0] }}</p></div>
                     <div class="grid gap-4 sm:grid-cols-2">
-                        <div><label class="text-sm font-medium text-slate-700" for="goal-amount">Valor-alvo</label><input id="goal-amount" v-model="form.target_amount" inputmode="decimal" class="mt-2 block w-full rounded-xl border-slate-300 text-sm focus:border-violet-500 focus:ring-violet-500" placeholder="3000.00" /><p v-if="errors.target_amount" class="mt-1 text-xs text-rose-600">{{ errors.target_amount[0] }}</p></div>
+                        <div><label class="text-sm font-medium text-slate-700" for="goal-amount">Valor-alvo</label><input id="goal-amount" :value="form.target_amount" inputmode="decimal" class="mt-2 block w-full rounded-xl border-slate-300 text-sm focus:border-violet-500 focus:ring-violet-500" placeholder="3.000,00" @input="form.target_amount = sanitizeMoneyInput($event.target.value)" @blur="form.target_amount = formatMoneyInput(form.target_amount)" /><p v-if="errors.target_amount" class="mt-1 text-xs text-rose-600">{{ errors.target_amount[0] }}</p></div>
                         <div><label class="text-sm font-medium text-slate-700" for="goal-date">Data-alvo</label><input id="goal-date" v-model="form.target_date" type="date" class="mt-2 block w-full rounded-xl border-slate-300 text-sm focus:border-violet-500 focus:ring-violet-500" /><p v-if="errors.target_date" class="mt-1 text-xs text-rose-600">{{ errors.target_date[0] }}</p></div>
                     </div>
                     <div>

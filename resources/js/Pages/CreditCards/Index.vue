@@ -74,7 +74,9 @@ function suggestedFirstDueOn(cardId, purchasedOn) {
         Number(card.closing_day),
         daysInMonth(year, month),
     );
-    const cycleOffset = day > currentClosingDay ? 1 : 0;
+    // The configured closing day is the first day of the next billing cycle.
+    // Example: closing_day=5 => day 4 stays in the current invoice; day 5 rolls forward.
+    const cycleOffset = day >= currentClosingDay ? 1 : 0;
     const [closingYear, closingMonth] = monthWithOffset(
         year,
         month,
