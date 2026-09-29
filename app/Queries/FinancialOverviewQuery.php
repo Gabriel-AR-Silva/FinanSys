@@ -107,7 +107,8 @@ class FinancialOverviewQuery
             ->pluck('card_purchase_id');
         $purchases = CardPurchase::query()
             ->whereBelongsTo($user)
-            ->whereBetween('purchased_on', [$startDate, $endDate])
+            ->whereDate('purchased_on', '>=', $startDate)
+            ->whereDate('purchased_on', '<=', $endDate)
             ->whereNotIn('id', $reversedPurchaseIds)
             ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
             ->with('creditCard:id,name')
@@ -129,7 +130,8 @@ class FinancialOverviewQuery
             ]);
         $charges = CardCharge::query()
             ->whereBelongsTo($user)
-            ->whereBetween('charged_on', [$startDate, $endDate])
+            ->whereDate('charged_on', '>=', $startDate)
+            ->whereDate('charged_on', '<=', $endDate)
             ->where('status', '!=', CardInstallmentStatus::Reversed)
             ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
             ->with('creditCard:id,name')
