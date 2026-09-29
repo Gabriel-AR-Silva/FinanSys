@@ -120,9 +120,9 @@ class MonthlyDailyPlanningDashboardQueryTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $result = app(\App\Queries\MonthlyDailyPlanningDashboardQuery::class)->forUser(
+        $result = app(MonthlyDailyPlanningDashboardQuery::class)->forUser(
             $user,
-            \Carbon\CarbonImmutable::parse('2026-09-03 12:00:00', 'America/Sao_Paulo'),
+            CarbonImmutable::parse('2026-09-03 12:00:00', 'America/Sao_Paulo'),
         );
 
         $this->assertSame(0, $result['confirmed_days']);
