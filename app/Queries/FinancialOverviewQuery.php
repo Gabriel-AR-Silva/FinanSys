@@ -2,8 +2,12 @@
 
 namespace App\Queries;
 
+use App\Enums\CardInstallmentStatus;
 use App\Enums\LedgerEntryReferenceType;
 use App\Enums\LedgerEntryType;
+use App\Models\CardCharge;
+use App\Models\CardPurchase;
+use App\Models\CardPurchaseReversal;
 use App\Models\Category;
 use App\Models\ExpenseRefund;
 use App\Models\LedgerEntry;
@@ -31,10 +35,12 @@ class FinancialOverviewQuery
             ->selectRaw('COALESCE(MAX(CASE WHEN type = ? THEN amount ELSE NULL END), 0) AS largest_expense', [LedgerEntryType::Expense->value])
             ->first();
         $income = BigDecimal::of((string) $periodSummary->income);
-        $expense = BigDecimal::of((string) $periodSummary->expense);
+        $ledgerExpense = BigDecimal::of((string) $periodSummary->expense);
+        $cardConsumption = $this->cardConsumption($user, $start, $end, $categoryId);
+        $expense = $ledgerExpense->plus($cardConsumption['total']);
         $net = $income->minus($expense);
         $savingsRate = $income->isZero()
-            ? '0'
+            ? null
             : (string) $net->multipliedBy(100)->dividedBy($income, 2, RoundingMode::HalfUp);
 
         return [
@@ -52,8 +58,8 @@ class FinancialOverviewQuery
                 'net' => (string) $net,
                 'savings_rate' => $savingsRate,
                 'average_daily_expense' => (string) $expense->dividedBy($period, 2, RoundingMode::HalfUp),
-                'transaction_count' => (int) $periodSummary->transaction_count,
-                'largest_expense' => (string) $periodSummary->largest_expense,
+                'transaction_count' => (int) $periodSummary->transaction_count + $cardConsumption['count'],
+                'largest_expense' => (string) BigDecimal::of((string) $periodSummary->largest_expense)->max($cardConsumption['largest']),
             ],
             'recent_entries' => (clone $entries)
                 ->whereBetween('occurred_at', [$start, $end])
@@ -77,6 +83,44 @@ class FinancialOverviewQuery
             'cash_flow' => $this->cashFlow($user, $period, $categoryId),
             'category_breakdown' => $this->categoryBreakdown($user, $period, $categoryId),
         ];
+    }
+
+    /** @return array{total:BigDecimal,count:int,largest:BigDecimal} */
+    private function cardConsumption(User $user, CarbonImmutable $start, CarbonImmutable $end, ?int $categoryId): array
+    {
+        $startDate = $start->setTimezone('America/Sao_Paulo')->toDateString();
+        $endDate = $end->setTimezone('America/Sao_Paulo')->toDateString();
+
+        $reversedPurchaseIds = CardPurchaseReversal::query()
+            ->whereBelongsTo($user)
+            ->whereDate('reversed_on', '<=', $endDate)
+            ->pluck('card_purchase_id');
+
+        $purchases = CardPurchase::query()
+            ->whereBelongsTo($user)
+            ->whereBetween('purchased_on', [$startDate, $endDate])
+            ->whereNotIn('id', $reversedPurchaseIds)
+            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
+            ->get(['gross_amount']);
+
+        $charges = CardCharge::query()
+            ->whereBelongsTo($user)
+            ->whereBetween('charged_on', [$startDate, $endDate])
+            ->where('status', '!=', CardInstallmentStatus::Reversed)
+            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
+            ->get(['amount']);
+
+        $amounts = $purchases->pluck('gross_amount')->concat($charges->pluck('amount'));
+        $total = $amounts->reduce(
+            fn (BigDecimal $sum, $amount): BigDecimal => $sum->plus((string) $amount),
+            BigDecimal::zero(),
+        );
+        $largest = $amounts->reduce(
+            fn (BigDecimal $max, $amount): BigDecimal => $max->max(BigDecimal::of((string) $amount)),
+            BigDecimal::zero(),
+        );
+
+        return ['total' => $total, 'count' => $amounts->count(), 'largest' => $largest];
     }
 
     private function categoryBreakdown(User $user, int $period, ?int $categoryId): array
