@@ -114,5 +114,21 @@ class MonthlyDailyPlanningDashboardQueryTest extends TestCase
         $this->assertSame('0.00', $result['net_margin']);
         $this->assertSame('75.00', $result['current_daily_budget']);
         $this->assertSame('all_tracked_completed_days_confirmed', $result['coverage']);
+    }    public function test_it_does_not_report_zero_performance_before_any_day_is_confirmed(): void
+    {
+        $user = User::factory()->create();
+
+        $result = app(\App\Queries\MonthlyDailyPlanningDashboardQuery::class)->forUser(
+            $user,
+            \Carbon\CarbonImmutable::parse('2026-09-03 12:00:00', 'America/Sao_Paulo'),
+        );
+
+        $this->assertSame(0, $result['confirmed_days']);
+        $this->assertNull($result['total_spent']);
+        $this->assertNull($result['gross_savings']);
+        $this->assertNull($result['gross_excess']);
+        $this->assertNull($result['net_margin']);
     }
+
+
 }
