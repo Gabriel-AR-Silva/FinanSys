@@ -2,6 +2,7 @@
 
 namespace App\Queries;
 
+use App\Models\CreditCard;
 use App\Models\InvestmentPosition;
 use App\Models\PatrimonialAsset;
 use App\Models\User;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Schema;
 
 class PatrimonyOverviewQuery
 {
+    public function __construct(private CreditCardLimitQuery $cardLimits) {}
+
     /** @return array<string, mixed> */
     public function forUser(User $user, string $financialBalance = '0.00'): array
     {
@@ -26,6 +29,7 @@ class PatrimonyOverviewQuery
                     'asset_equity' => '0.00',
                     'investments_total' => '0.00',
                     'investment_count' => 0,
+                    'card_liabilities' => '0.00',
                     'estimated_net_worth' => (string) $financial,
                     'available' => false,
                 ],
@@ -58,6 +62,15 @@ class PatrimonyOverviewQuery
             BigDecimal::zero(),
         )->toScale(2, RoundingMode::Unnecessary);
 
+        $cardLiabilities = CreditCard::query()
+            ->whereBelongsTo($user)
+            ->get()
+            ->reduce(
+                fn (BigDecimal $total, CreditCard $card): BigDecimal => $total->plus($this->cardLimits->forCard($card)['outstanding']),
+                BigDecimal::zero(),
+            )
+            ->toScale(2, RoundingMode::Unnecessary);
+
         return [
             'summary' => [
                 'asset_count' => $assets->count(),
@@ -67,7 +80,8 @@ class PatrimonyOverviewQuery
                 'asset_equity' => (string) $equity,
                 'investments_total' => (string) $investmentsTotal,
                 'investment_count' => $investments->count(),
-                'estimated_net_worth' => (string) $financial->plus($equity)->plus($investmentsTotal)->toScale(2, RoundingMode::Unnecessary),
+                'card_liabilities' => (string) $cardLiabilities,
+                'estimated_net_worth' => (string) $financial->plus($equity)->plus($investmentsTotal)->minus($cardLiabilities)->toScale(2, RoundingMode::Unnecessary),
                 'available' => true,
             ],
             'assets' => $assets->map(fn (PatrimonialAsset $asset): array => [
