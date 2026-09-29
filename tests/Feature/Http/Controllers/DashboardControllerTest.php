@@ -155,7 +155,7 @@ class DashboardControllerTest extends TestCase
                 ->where('overview.period_summary.income', '0')
                 ->where('overview.period_summary.expense', '125')
                 ->where('overview.period_summary.net', '-125')
-                ->where('overview.period_summary.savings_rate', '0')
+                ->where('overview.period_summary.savings_rate', null)
                 ->where('overview.period_summary.transaction_count', 1)
                 ->has('overview.category_breakdown', 1)
                 ->where('overview.category_breakdown.0.name', 'Moradia')
