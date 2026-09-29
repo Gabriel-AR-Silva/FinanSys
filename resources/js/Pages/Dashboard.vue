@@ -281,6 +281,7 @@ const secondaryCards = computed(() => [
             v-show="activeView === 'advanced'"
             :daily-planning="dailyPlanning"
             :planning="planning"
+            :card-invoice="cardInvoice"
             @open-check-ins="setActiveView('overview')"
         />
         <FinancialGoalsPanel v-show="activeView === 'goals'" />
