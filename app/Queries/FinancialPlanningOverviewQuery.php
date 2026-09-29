@@ -19,6 +19,7 @@ use App\Models\ReceiptForecast;
 use App\Models\User;
 use App\Support\FinancialPlanningMath;
 use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -190,7 +191,7 @@ class FinancialPlanningOverviewQuery
         $completedDays = max(0, $now->day - 1);
         $realizedDailyPace = $completedDays === 0
             ? null
-            : $realizedConsumption->dividedBy($completedDays, 2, \Brick\Math\RoundingMode::HalfUp);
+            : $realizedConsumption->dividedBy($completedDays, 2, RoundingMode::HalfUp);
         $sustainableDailyPace = BigDecimal::of($daily['daily_amount']);
         $paceDifference = $realizedDailyPace?->minus($sustainableDailyPace);
 
