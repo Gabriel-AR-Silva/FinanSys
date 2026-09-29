@@ -50,6 +50,10 @@ class FinancialPlanningOverviewQueryTest extends TestCase
         $this->assertTrue($result['configured']);
         $this->assertTrue($result['complete']);
         $this->assertSame(['received' => '3000.00', 'pending' => '500.00', 'projected' => '3500.00'], $result['income']);
+        $this->assertArrayHasKey('indicators', $result);
+        $this->assertSame('650.00', $result['indicators']['realized']);
+        $this->assertSame('216.67', $result['indicators']['realized_daily_pace']);
+        $this->assertSame($result['daily']['amount'], $result['indicators']['sustainable_daily_pace']);
         $this->assertSame('2000.00', $result['fixed']);
         $this->assertSame(['realized' => '650.00', 'projected' => '3350.00'], $result['variable']);
         $this->assertSame(['base' => '1000.00', 'deficit' => null, 'percentage' => '65.00', 'situation' => 'under_control', 'diagnostic_available' => true], $result['current']);
