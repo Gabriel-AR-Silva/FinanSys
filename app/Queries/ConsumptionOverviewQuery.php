@@ -27,9 +27,9 @@ class ConsumptionOverviewQuery
             ->get(['id', 'category_id', 'amount', 'occurred_at', 'description']);
         $expenseEntries = $filter(LedgerEntry::query()->whereBelongsTo($user)->where('type', LedgerEntryType::Expense)->whereBetween('occurred_at', [$start, $end]))
             ->get(['id', 'category_id', 'amount', 'occurred_at', 'description']);
-        $purchases = $filter(CardPurchase::query()->whereBelongsTo($user)->whereBetween('purchased_on', [$start->toDateString(), $end->toDateString()]))
+        $purchases = $filter(CardPurchase::query()->whereBelongsTo($user)->whereDate('purchased_on', '>=', $start->toDateString())->whereDate('purchased_on', '<=', $end->toDateString()))
             ->with('creditCard:id,name')->get(['id', 'credit_card_id', 'category_id', 'description', 'gross_amount', 'purchased_on']);
-        $charges = $filter(CardCharge::query()->whereBelongsTo($user)->where('status', '!=', CardInstallmentStatus::Reversed)->whereBetween('charged_on', [$start->toDateString(), $end->toDateString()]))
+        $charges = $filter(CardCharge::query()->whereBelongsTo($user)->where('status', '!=', CardInstallmentStatus::Reversed)->whereDate('charged_on', '>=', $start->toDateString())->whereDate('charged_on', '<=', $end->toDateString()))
             ->with('creditCard:id,name')->get(['id', 'credit_card_id', 'category_id', 'description', 'amount', 'charged_on']);
 
         $income = $this->sum($incomeEntries->pluck('amount'));
