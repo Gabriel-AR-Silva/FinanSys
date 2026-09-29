@@ -130,8 +130,8 @@ class FinancialPlanningOverviewQuery
             $extraordinaryTotal = $this->sum($extraordinaryForCategory->pluck('amount'));
             $cardPaid = $this->sum($cardForCategory->pluck('paid'));
             $cardPending = $this->sum($cardForCategory->pluck('pending'));
-            $realized = $this->sum($ordinaryForCategory->pluck('amount'))->plus($extraordinaryTotal);
-            $projection = $this->math->essentialProjection($budget->amount, $ordinaryProjection['projected_total'], (string) $extraordinaryTotal, (string) $cardPending);
+            $realized = $this->sum($ordinaryForCategory->pluck('amount'))->plus($extraordinaryTotal)->plus($cardPaid);
+            $projection = $this->math->essentialProjection($budget->amount, $ordinaryProjection['projected_total'], (string) $extraordinaryTotal->plus($cardPaid), (string) $cardPending);
 
             return [
                 'category_id' => $budget->category_id,
@@ -148,7 +148,7 @@ class FinancialPlanningOverviewQuery
         $nonEssentialProjection = $this->ordinaryProjection($nonEssentialOrdinary, $now);
         $unclassifiedTotal = $this->sum($unclassified->pluck('amount'));
         $cardPaid = $this->sum($cardCommitments->pluck('paid'));
-        $variableActual = $this->sum($ordinary->pluck('amount'))->plus($this->sum($extraordinary->pluck('amount')))->plus($unclassifiedTotal);
+        $variableActual = $this->sum($ordinary->pluck('amount'))->plus($this->sum($extraordinary->pluck('amount')))->plus($unclassifiedTotal)->plus($cardPaid);
         $variableProjected = $this->sum($essentialProjections->pluck('projected'))
             ->plus($nonEssentialProjection['projected_total'])
             ->plus($this->sum($nonEssentialExtraordinary->pluck('amount')))
