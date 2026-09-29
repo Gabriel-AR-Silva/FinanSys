@@ -2,11 +2,14 @@
 import HelpHint from '@/Components/HelpHint.vue';
 import { CalendarCheck2, CircleDollarSign, Gauge, TrendingDown, TrendingUp } from '@lucide/vue';
 import { computed } from 'vue';
+import { Link } from '@inertiajs/vue3';
 
 const props = defineProps({
     dailyPlanning: { type: Object, required: true },
     planning: { type: Object, required: true },
 });
+
+const emit = defineEmits(['open-check-ins']);
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const formatMoney = (value) => value === null || value === undefined ? '—' : money.format(Number(value));
@@ -32,6 +35,36 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
 
 <template>
     <div class="mt-5 space-y-5">
+        <section
+            v-if="dailyPlanning.confirmed_days === 0"
+            class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 shadow-sm sm:p-5"
+            aria-live="polite"
+        >
+            <h2 class="font-semibold">Ainda não há dias confirmados para analisar</h2>
+            <p class="mt-1 text-sm leading-6 text-amber-900">
+                A Análise avançada usa os dias que você confirma no check-in. Enquanto nenhum dia estiver confirmado,
+                os totais e gráficos históricos ficam sem dados para não inventar um resultado.
+            </p>
+            <p v-if="dailyPlanning.pending_days > 0" class="mt-2 text-sm font-medium">
+                Você tem {{ dailyPlanning.pending_days }} dia(s) aguardando conferência.
+            </p>
+            <div class="mt-4 flex flex-wrap gap-2">
+                <button
+                    v-if="dailyPlanning.pending_days > 0"
+                    type="button"
+                    class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                    @click="emit('open-check-ins')"
+                >
+                    Conferir dias pendentes
+                </button>
+                <Link
+                    :href="route('daily-budgets.edit')"
+                    class="rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100"
+                >
+                    Configurar orçamento diário
+                </Link>
+            </div>
+        </section>
         <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Indicadores do planejamento diário">
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div class="flex items-center justify-between gap-2">
