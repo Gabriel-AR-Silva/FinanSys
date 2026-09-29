@@ -83,6 +83,7 @@ class FinancialOverviewQuery
                 ]),
             'chart' => $this->chart($user, $period),
             'cash_flow' => $this->cashFlow($user, $period, $categoryId),
+            'consumption_flow' => $this->consumptionFlow($user, $period, $categoryId),
             'category_breakdown' => $this->categoryBreakdown($user, $period, $categoryId),
         ];
     }
@@ -229,6 +230,32 @@ class FinancialOverviewQuery
                 'income' => (string) $income,
                 'expense' => (string) $expense,
                 'net' => (string) $income->minus($expense),
+            ];
+        }
+
+        return ['period' => $period, 'points' => $points];
+    }
+
+    private function consumptionFlow(User $user, int $period, ?int $categoryId): array
+    {
+        $end = CarbonImmutable::now()->endOfDay();
+        $start = CarbonImmutable::now()->startOfDay()->subDays($period - 1);
+        $points = [];
+
+        for ($date = $start; $date->lte($end); $date = $date->addDay()) {
+            $dayStart = $date->startOfDay();
+            $dayEnd = $date->endOfDay();
+            $ledger = BigDecimal::of((string) LedgerEntry::query()
+                ->whereBelongsTo($user)
+                ->where('type', LedgerEntryType::Expense)
+                ->whereBetween('occurred_at', [$dayStart, $dayEnd])
+                ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
+                ->sum('amount'));
+            $card = $this->cardConsumption($user, $dayStart, $dayEnd, $categoryId)['total'];
+
+            $points[] = [
+                'date' => $date->toDateString(),
+                'realized' => (string) $ledger->plus($card),
             ];
         }
 
