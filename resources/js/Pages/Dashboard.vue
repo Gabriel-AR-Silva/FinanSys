@@ -23,6 +23,18 @@ const props = defineProps({
 });
 
 const activeView = ref('overview');
+const setActiveView = (view) => {
+    activeView.value = view;
+
+    const url = new URL(window.location.href);
+    if (view === 'overview') {
+        url.searchParams.delete('view');
+    } else {
+        url.searchParams.set('view', view);
+    }
+    window.history.replaceState(window.history.state, '', url);
+};
+
 onMounted(() => {
     const requestedView = new URLSearchParams(window.location.search).get('view');
     if (['overview', 'advanced', 'goals'].includes(requestedView)) activeView.value = requestedView;
@@ -75,11 +87,40 @@ const applyFilters = () => {
     }, { preserveState: true, preserveScroll: true, replace: true });
 };
 
-const periodCards = computed(() => [
+const priorityCards = computed(() => [
+    {
+        label: 'Média de gastos por dia',
+        value: props.overview.period_summary.average_daily_expense,
+        note: `Todos os gastos reconhecidos ÷ ${props.filters.period} dias selecionados.`,
+        icon: CalendarDays,
+        tone: 'text-amber-700 bg-amber-50',
+    },
+    {
+        label: 'Quanto posso gastar por dia',
+        value: props.planning.indicators?.sustainable_daily_pace,
+        note: 'Considera o planejamento do mês, seu caixa atual e as contas conhecidas.',
+        icon: CircleGauge,
+        tone: 'text-indigo-700 bg-indigo-50',
+    },
+    {
+        label: 'Quanto gastei',
+        value: props.overview.period_summary.expense,
+        note: `Gastos reconhecidos nos últimos ${props.filters.period} dias.`,
+        icon: ArrowUpRight,
+        tone: 'text-rose-700 bg-rose-50',
+    },
+    {
+        label: 'Ainda preciso pagar',
+        value: props.planning.indicators?.committed,
+        note: 'Contas, parcelas e encargos que continuam em aberto.',
+        icon: ReceiptText,
+        tone: 'text-violet-700 bg-violet-50',
+    },
+]);
+
+const secondaryCards = computed(() => [
     { label: 'Receitas', value: props.overview.period_summary.income, icon: ArrowDownLeft, tone: 'text-emerald-700 bg-emerald-50' },
-    { label: 'Quanto gastei', value: props.overview.period_summary.expense, icon: ArrowUpRight, tone: 'text-rose-700 bg-rose-50' },
     { label: 'O que sobrou no período', value: props.overview.period_summary.net, icon: Landmark, tone: Number(props.overview.period_summary.net) >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50' },
-    { label: 'Quanto gasto por dia', value: props.overview.period_summary.average_daily_expense, icon: CalendarDays, tone: 'text-amber-700 bg-amber-50' },
 ]);
 </script>
 
@@ -98,7 +139,7 @@ const periodCards = computed(() => [
                 :aria-selected="activeView === 'overview'"
                 class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none"
                 :class="activeView === 'overview' ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'"
-                @click="activeView = 'overview'"
+                @click="setActiveView('overview')"
             >
                 Visão geral
             </button>
@@ -108,7 +149,7 @@ const periodCards = computed(() => [
                 :aria-selected="activeView === 'advanced'"
                 class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none"
                 :class="activeView === 'advanced' ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'"
-                @click="activeView = 'advanced'"
+                @click="setActiveView('advanced')"
             >
                 Análise avançada
             </button>
@@ -118,7 +159,7 @@ const periodCards = computed(() => [
                 :aria-selected="activeView === 'goals'"
                 class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none"
                 :class="activeView === 'goals' ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'"
-                @click="activeView = 'goals'"
+                @click="setActiveView('goals')"
             >
                 Metas <span class="ml-1 text-[9px] uppercase opacity-70">Beta</span>
             </button>
@@ -135,9 +176,26 @@ const periodCards = computed(() => [
             <p class="hidden px-2 text-xs text-slate-500 2xl:block">O saldo geral permanece atual; os demais dados respeitam os filtros.</p>
         </section>
 
-        <section class="mt-4 grid min-w-0 gap-3 xl:grid-cols-[1.15fr_2fr]">
-            <article class="flex min-h-32 flex-col justify-between rounded-2xl bg-slate-950 p-5 text-white shadow-lg shadow-slate-200"><div class="flex items-center justify-between gap-3 text-sm text-slate-400"><span class="flex items-center gap-2"><Landmark :size="17" /> Saldo geral</span><span class="text-xs">Contas + caixinhas</span></div><p class="mt-5 text-3xl font-semibold tracking-tight">{{ formatMoney(overview.general_balance) }}</p></article>
-            <div class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4"><article v-for="card in periodCards" :key="card.label" class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><span class="flex h-8 w-8 items-center justify-center rounded-lg" :class="card.tone"><component :is="card.icon" :size="16" /></span><p class="mt-3 text-xs leading-4 text-slate-500">{{ card.label }}</p><p class="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950" :title="formatMoney(card.value)">{{ formatMoney(card.value) }}</p></article></div>
+        <section class="mt-4 grid min-w-0 gap-3 xl:grid-cols-[1.05fr_2fr]">
+            <article class="flex min-h-36 flex-col justify-between rounded-2xl bg-slate-950 p-5 text-white shadow-lg shadow-slate-200"><div class="flex items-center justify-between gap-3 text-sm text-slate-400"><span class="flex items-center gap-2"><Landmark :size="17" /> Saldo geral</span><span class="text-xs">Contas + caixinhas</span></div><div><p class="mt-5 text-3xl font-semibold tracking-tight">{{ formatMoney(overview.general_balance) }}</p><p class="mt-2 text-xs leading-5 text-slate-400">Dinheiro que existe agora. Parcelas futuras aparecem separadas nas obrigações.</p></div></article>
+            <div class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <article v-for="card in priorityCards" :key="card.label" class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <span class="flex h-8 w-8 items-center justify-center rounded-lg" :class="card.tone"><component :is="card.icon" :size="16" /></span>
+                    <p class="mt-3 text-xs leading-4 text-slate-500">{{ card.label }}</p>
+                    <p class="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950" :title="formatMoney(card.value)">{{ formatMoney(card.value) }}</p>
+                    <p class="mt-1 text-[11px] leading-4 text-slate-400">{{ card.note }}</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="mt-3 grid gap-3 sm:grid-cols-2">
+            <article v-for="card in secondaryCards" :key="card.label" class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div class="flex items-center gap-2">
+                    <span class="flex h-7 w-7 items-center justify-center rounded-lg" :class="card.tone"><component :is="card.icon" :size="15" /></span>
+                    <p class="text-xs text-slate-500">{{ card.label }}</p>
+                </div>
+                <p class="mt-2 font-semibold text-slate-900">{{ formatMoney(card.value) }}</p>
+            </article>
         </section>
 
         <section class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -193,6 +251,7 @@ const periodCards = computed(() => [
             v-show="activeView === 'advanced'"
             :daily-planning="dailyPlanning"
             :planning="planning"
+            @open-check-ins="setActiveView('overview')"
         />
         <FinancialGoalsPanel v-show="activeView === 'goals'" />
     </AuthenticatedLayout>

@@ -2,11 +2,14 @@
 import HelpHint from '@/Components/HelpHint.vue';
 import { CalendarCheck2, CircleDollarSign, Gauge, TrendingDown, TrendingUp } from '@lucide/vue';
 import { computed } from 'vue';
+import { Link } from '@inertiajs/vue3';
 
 const props = defineProps({
     dailyPlanning: { type: Object, required: true },
     planning: { type: Object, required: true },
 });
+
+const emit = defineEmits(['open-check-ins']);
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const formatMoney = (value) => value === null || value === undefined ? '—' : money.format(Number(value));
@@ -32,42 +35,85 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
 
 <template>
     <div class="mt-5 space-y-5">
+        <section
+            v-if="dailyPlanning.confirmed_days === 0"
+            class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 shadow-sm sm:p-5"
+            aria-live="polite"
+        >
+            <h2 class="font-semibold">Ainda não há dias confirmados para analisar</h2>
+            <p class="mt-1 text-sm leading-6 text-amber-900">
+                A Análise avançada usa os dias que você confirma no check-in. Enquanto nenhum dia estiver confirmado,
+                os totais e gráficos históricos ficam sem dados para não inventar um resultado.
+            </p>
+            <p v-if="dailyPlanning.pending_days > 0" class="mt-2 text-sm font-medium">
+                Você tem {{ dailyPlanning.pending_days }} dia(s) aguardando conferência.
+            </p>
+            <div class="mt-4 flex flex-wrap gap-2">
+                <button
+                    v-if="dailyPlanning.pending_days > 0"
+                    type="button"
+                    class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                    @click="emit('open-check-ins')"
+                >
+                    Conferir dias pendentes
+                </button>
+                <Link
+                    :href="route('daily-budgets.edit')"
+                    class="rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100"
+                >
+                    Configurar orçamento diário
+                </Link>
+            </div>
+        </section>
         <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Indicadores do planejamento diário">
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700"><TrendingUp :size="16" /></span>
+                <p class="mt-3 text-xs text-slate-500">Gasto cotidiano por dia</p>
+                <p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(planning.indicators.realized_daily_pace) }}</p>
+                <p class="mt-1 text-[11px] leading-4 text-slate-400">Média apenas dos gastos cotidianos dos dias completos deste mês; fixos e extraordinários ficam fora.</p>
+            </article>
+
+            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700"><Gauge :size="16" /></span>
+                <p class="mt-3 text-xs text-slate-500">Quanto posso gastar por dia</p>
+                <p class="mt-1 text-xl font-semibold text-indigo-900">{{ formatMoney(planning.indicators.sustainable_daily_pace) }}</p>
+                <p class="mt-1 text-[11px] leading-4 text-slate-400">Considera seu planejamento, o caixa atual e as contas conhecidas.</p>
+            </article>
+
+            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div class="flex items-center justify-between gap-2">
-                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700"><Gauge :size="16" /></span>
-                    <HelpHint label="Ajuda">É o valor voluntário vigente para orientar o gasto do dia. Não é saldo bancário nem capacidade calculada.</HelpHint>
+                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700"><CalendarCheck2 :size="16" /></span>
+                    <HelpHint label="Ajuda">É o valor voluntário que você definiu para orientar o gasto do dia. Ele não muda automaticamente.</HelpHint>
                 </div>
-                <p class="mt-3 text-xs text-slate-500">Orçamento diário vigente</p>
+                <p class="mt-3 text-xs text-slate-500">Meu orçamento diário</p>
                 <p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(dailyPlanning.current_daily_budget) }}</p>
             </article>
 
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700"><CircleDollarSign :size="16" /></span>
-                <p class="mt-3 text-xs text-slate-500">Gasto elegível confirmado</p>
+                <p class="mt-3 text-xs text-slate-500">Gasto cotidiano confirmado</p>
                 <p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(dailyPlanning.total_spent) }}</p>
-                <p class="mt-1 text-[11px] leading-4 text-slate-400">Somente dias confirmados no check-in.</p>
+                <p class="mt-1 text-[11px] leading-4 text-slate-400">Soma apenas os gastos cotidianos dos dias confirmados. Fixos e extraordinários ficam fora.</p>
             </article>
 
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700"><TrendingUp :size="16" /></span>
-                <p class="mt-3 text-xs text-slate-500">Economia bruta</p>
-                <p class="mt-1 text-xl font-semibold text-emerald-700">{{ formatMoney(dailyPlanning.gross_savings) }}</p>
-                <p class="mt-1 text-[11px] leading-4 text-slate-400">Soma apenas folgas positivas.</p>
-            </article>
-
-            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-700"><TrendingDown :size="16" /></span>
-                <p class="mt-3 text-xs text-slate-500">Excesso bruto</p>
-                <p class="mt-1 text-xl font-semibold text-rose-700">{{ formatMoney(dailyPlanning.gross_excess) }}</p>
-                <p class="mt-1 text-[11px] leading-4 text-slate-400">Soma o que ultrapassou o plano, sem compensar automaticamente.</p>
-            </article>
-
-            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700"><CalendarCheck2 :size="16" /></span>
                 <p class="mt-3 text-xs text-slate-500">Folga líquida acumulada</p>
-                <p class="mt-1 text-xl font-semibold"  :class="dailyPlanning.net_margin === null ? 'text-slate-500' : Number(dailyPlanning.net_margin) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatMoney(dailyPlanning.net_margin) }}</p>
+                <p class="mt-1 text-xl font-semibold" :class="dailyPlanning.net_margin === null ? 'text-slate-500' : Number(dailyPlanning.net_margin) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatMoney(dailyPlanning.net_margin) }}</p>
                 <p class="mt-1 text-[11px] leading-4 text-slate-400">{{ dailyPlanning.confirmed_days ? `${dailyPlanning.confirmed_days} dia(s) confirmado(s).` : 'Sem base confirmada; pendência não é zero.' }}</p>
+            </article>
+        </section>
+
+        <section class="grid gap-3 sm:grid-cols-2">
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs text-slate-500">Folga positiva acumulada</p>
+                <p class="mt-1 font-semibold text-emerald-700">{{ formatMoney(dailyPlanning.gross_savings) }}</p>
+                <p class="mt-1 text-[11px] text-slate-400">Soma apenas os dias em que ficou abaixo do orçamento.</p>
+            </article>
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs text-slate-500">Excesso acumulado</p>
+                <p class="mt-1 font-semibold text-rose-700">{{ formatMoney(dailyPlanning.gross_excess) }}</p>
+                <p class="mt-1 text-[11px] text-slate-400">Soma apenas os dias em que passou do orçamento.</p>
             </article>
         </section>
 
@@ -123,8 +169,8 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                 <div class="flex items-start justify-between gap-3">
                     <div>
-                        <h2 class="font-semibold text-slate-950">Realizado × projetado</h2>
-                        <p class="mt-1 text-sm text-slate-500">Previsão é cenário; não é dinheiro disponível nem gasto confirmado da V2.</p>
+                        <h2 class="font-semibold text-slate-950">Planejamento do restante do mês</h2>
+                        <p class="mt-1 text-sm text-slate-500">Esta parte mostra uma estimativa do planejamento mensal. Ela não é saldo disponível e não substitui os dias confirmados acima.</p>
                     </div>
                     <HelpHint label="Ajuda">Os valores projetados deste bloco ainda vêm do planejamento mensal vigente da V1. Eles ficam separados dos check-ins confirmados da V2 para evitar dupla contagem.</HelpHint>
                 </div>
@@ -142,17 +188,17 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
                     <div class="rounded-xl bg-slate-50 p-3">
                         <p class="text-xs font-medium text-slate-700">Despesas variáveis do planejamento mensal</p>
                         <div class="mt-2 flex items-center justify-between gap-3 text-sm">
-                            <span class="text-slate-600">Computado pela V1</span><strong class="text-slate-950">{{ formatMoney(planning.variable.realized) }}</strong>
+                            <span class="text-slate-600">Já considerado no planejamento</span><strong class="text-slate-950">{{ formatMoney(planning.variable.realized) }}</strong>
                         </div>
                         <div class="mt-1 flex items-center justify-between gap-3 text-sm">
                             <span class="text-slate-600">Estimativa de fechamento</span><strong class="text-indigo-900">{{ formatMoney(planning.variable.projected) }}</strong>
                         </div>
-                        <p class="mt-2 text-[11px] leading-4 text-slate-500">Não some estes valores ao gasto elegível confirmado acima. São visões diferentes.</p>
+                        <p class="mt-2 text-[11px] leading-4 text-slate-500">Não some este bloco ao gasto cotidiano confirmado acima: uma visão acompanha os check-ins e a outra estima o planejamento do mês.</p>
                     </div>
                     <div class="rounded-xl border border-dashed border-slate-200 p-3 text-xs leading-5 text-slate-600">
                         <strong class="text-slate-800">Capacidade diária estimada:</strong>
-                        {{ formatMoney(planning.daily.amount) }} · {{ planning.daily.remaining_days }} dia(s) restantes.
-                        É capacidade calculada do planejamento mensal, não altera seu orçamento diário voluntário.
+                        {{ formatMoney(planning.indicators.sustainable_daily_pace) }} · {{ planning.daily.remaining_days }} dia(s) restantes.
+                        É o menor valor entre o que o planejamento permite e o que seu caixa atual comporta depois das contas conhecidas. Não altera seu orçamento diário.
                     </div>
                 </div>
                 <p v-else class="mt-4 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900">Configure proteção e essenciais do mês para liberar os cenários projetados. Os indicadores confirmados da V2 continuam válidos separadamente.</p>
