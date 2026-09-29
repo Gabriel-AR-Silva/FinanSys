@@ -238,7 +238,7 @@ class FinancialOverviewQuery
                 );
 
                 return [...$first, 'total' => (string) $total];
-            })->filter(fn (array $item): bool => ! BigDecimal::of($item['total'])->isZero())
+            })->filter(fn (array $item): bool => BigDecimal::of($item['total'])->isZero() === false)
             ->sortByDesc(fn (array $item): string => (string) BigDecimal::of($item['total'])->abs())
             ->values()->all();
     }
@@ -309,7 +309,6 @@ class FinancialOverviewQuery
 
         return ['period' => $period, 'points' => $points];
     }
-
 
     /** @return Collection<int, array{entry:LedgerEntry,amount:string}> */
     private function ledgerExpenseConsumption(User $user, CarbonImmutable $start, CarbonImmutable $end, ?int $categoryId): Collection
