@@ -28,9 +28,15 @@ const cumulativeMax = computed(() => Math.max(
 ));
 const cumulativeWidth = (value) => `${Math.min(100, Math.abs(Number(value)) / cumulativeMax.value * 100)}%`;
 
-const statusText = computed(() => props.dailyPlanning.pending_days === 0
-    ? 'Todos os dias encerrados deste mês estão confirmados.'
-    : `${props.dailyPlanning.pending_days} dia(s) encerrado(s) ainda estão pendentes de conferência.`);
+const statusText = computed(() => {
+    if (props.dailyPlanning.tracked_completed_days === 0) {
+        return 'Ainda não há dia encerrado com orçamento aplicável para conferir.';
+    }
+
+    return props.dailyPlanning.pending_days === 0
+        ? 'Todos os dias rastreados deste mês estão confirmados.'
+        : `${props.dailyPlanning.pending_days} dia(s) encerrado(s) ainda estão pendentes de conferência.`;
+});
 </script>
 
 <template>
@@ -47,6 +53,9 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
             </p>
             <p v-if="dailyPlanning.pending_days > 0" class="mt-2 text-sm font-medium">
                 Você tem {{ dailyPlanning.pending_days }} dia(s) aguardando conferência.
+            </p>
+            <p v-else-if="dailyPlanning.tracked_completed_days === 0" class="mt-2 text-sm font-medium">
+                Seu orçamento diário está configurado, mas ainda não existe um dia anterior coberto por ele para gerar um check-in.
             </p>
             <div class="mt-4 flex flex-wrap gap-2">
                 <button
