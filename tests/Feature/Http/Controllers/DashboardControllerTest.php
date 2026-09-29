@@ -86,7 +86,10 @@ class DashboardControllerTest extends TestCase
                 ->where('overview.period_summary.net', '-120.00')
                 ->where('overview.period_summary.transaction_count', 1)
                 ->where('overview.period_summary.largest_expense', '120.00')
-                ->where('overview.period_summary.savings_rate', null));
+                ->where('overview.period_summary.savings_rate', null)
+                ->has('overview.category_breakdown', 1)
+                ->where('overview.category_breakdown.0.name', $category->name)
+                ->where('overview.category_breakdown.0.total', '-120.00'));
     }
 
     #[DataProvider('periods')]
