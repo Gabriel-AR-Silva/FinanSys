@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Actions\RecalculateReceiptForecast;
 use App\Enums\CardInstallmentStatus;
 use App\Enums\ReceiptForecastStatus;
+use App\Enums\RecordStatus;
 use App\Http\Requests\IndexDashboardRequest;
 use App\Models\CardCharge;
 use App\Models\CardInstallment;
+use App\Models\CreditCard;
 use App\Models\Category;
 use App\Models\ReceiptForecast;
 use App\Queries\FinancialOverviewQuery;
@@ -77,6 +79,35 @@ class DashboardController extends Controller
                 ->get()
                 ->reduce(fn (BigDecimal $total, CardCharge $charge): BigDecimal => $total->plus(BigDecimal::of($charge->amount)->minus($charge->paid_amount)), BigDecimal::zero()));
 
+        $openInvoicePending = BigDecimal::zero();
+        $today = CarbonImmutable::now('America/Sao_Paulo')->startOfDay();
+        $cards = CreditCard::query()
+            ->whereBelongsTo($request->user())
+            ->where('status', RecordStatus::Active)
+            ->get(['id', 'closing_day', 'due_day']);
+
+        foreach ($cards as $card) {
+            $dueMonth = $this->openInvoiceDueMonth($today, $card->closing_day, $card->due_day);
+            $dueStart = $dueMonth->startOfMonth();
+            $dueEnd = $dueMonth->endOfMonth();
+
+            $openInvoicePending = $openInvoicePending
+                ->plus(CardInstallment::query()
+                    ->whereBelongsTo($request->user())
+                    ->where('credit_card_id', $card->id)
+                    ->where('status', CardInstallmentStatus::Pending)
+                    ->whereBetween('due_on', [$dueStart->toDateString(), $dueEnd->toDateString()])
+                    ->get()
+                    ->reduce(fn (BigDecimal $total, CardInstallment $installment): BigDecimal => $total->plus(BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)), BigDecimal::zero()))
+                ->plus(CardCharge::query()
+                    ->whereBelongsTo($request->user())
+                    ->where('credit_card_id', $card->id)
+                    ->where('status', CardInstallmentStatus::Pending)
+                    ->whereBetween('due_on', [$dueStart->toDateString(), $dueEnd->toDateString()])
+                    ->get()
+                    ->reduce(fn (BigDecimal $total, CardCharge $charge): BigDecimal => $total->plus(BigDecimal::of($charge->amount)->minus($charge->paid_amount)), BigDecimal::zero()));
+        }
+
         $planningView = $planning->forUser($request->user());
         if (isset($planningView['indicators'])) {
             $availableNow = BigDecimal::of($overviewView['general_balance'])
@@ -106,6 +137,7 @@ class DashboardController extends Controller
             'cardInvoice' => [
                 'current_month' => $currentInvoiceStart->format('Y-m'),
                 'current_pending' => (string) $currentCardCommitment,
+                'open_pending' => (string) $openInvoicePending,
                 'month' => $invoiceStart->format('Y-m'),
                 'pending' => (string) $cardInvoicePending,
             ],
@@ -116,5 +148,23 @@ class DashboardController extends Controller
                 ->orderBy('type')->orderBy('name')->get(['id', 'name', 'type', 'status']),
             'filters' => ['period' => $period, 'category_id' => $categoryId],
         ]);
+    }
+
+    private function openInvoiceDueMonth(CarbonImmutable $today, int $closingDay, int $dueDay): CarbonImmutable
+    {
+        $closingDayThisMonth = min($closingDay, $today->daysInMonth);
+        $closingMonth = $today->day >= $closingDayThisMonth
+            ? $today->startOfMonth()->addMonth()
+            : $today->startOfMonth();
+
+        $closingDate = $closingMonth->day(min($closingDay, $closingMonth->daysInMonth));
+        $dueMonth = $closingMonth;
+        $dueDate = $dueMonth->day(min($dueDay, $dueMonth->daysInMonth));
+
+        if ($dueDate->lessThanOrEqualTo($closingDate)) {
+            $dueMonth = $dueMonth->addMonth()->startOfMonth();
+        }
+
+        return $dueMonth;
     }
 }
