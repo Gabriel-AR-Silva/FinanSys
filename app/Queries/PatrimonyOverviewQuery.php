@@ -2,6 +2,7 @@
 
 namespace App\Queries;
 
+use App\Models\InvestmentPosition;
 use App\Models\PatrimonialAsset;
 use App\Models\User;
 use Brick\Math\BigDecimal;
@@ -23,6 +24,8 @@ class PatrimonyOverviewQuery
                     'assets_total' => '0.00',
                     'debts_total' => '0.00',
                     'asset_equity' => '0.00',
+                    'investments_total' => '0.00',
+                    'investment_count' => 0,
                     'estimated_net_worth' => (string) $financial,
                     'available' => false,
                 ],
@@ -47,6 +50,13 @@ class PatrimonyOverviewQuery
         )->toScale(2, RoundingMode::Unnecessary);
 
         $equity = $gross->minus($debt)->toScale(2, RoundingMode::Unnecessary);
+        $investments = Schema::hasTable('investment_positions')
+            ? InvestmentPosition::query()->whereBelongsTo($user)->get()
+            : collect();
+        $investmentsTotal = $investments->reduce(
+            fn (BigDecimal $total, InvestmentPosition $position): BigDecimal => $total->plus($position->current_value ?? $position->total_invested),
+            BigDecimal::zero(),
+        )->toScale(2, RoundingMode::Unnecessary);
 
         return [
             'summary' => [
@@ -55,7 +65,9 @@ class PatrimonyOverviewQuery
                 'assets_total' => (string) $gross,
                 'debts_total' => (string) $debt,
                 'asset_equity' => (string) $equity,
-                'estimated_net_worth' => (string) $financial->plus($equity)->toScale(2, RoundingMode::Unnecessary),
+                'investments_total' => (string) $investmentsTotal,
+                'investment_count' => $investments->count(),
+                'estimated_net_worth' => (string) $financial->plus($equity)->plus($investmentsTotal)->toScale(2, RoundingMode::Unnecessary),
                 'available' => true,
             ],
             'assets' => $assets->map(fn (PatrimonialAsset $asset): array => [
