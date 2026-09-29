@@ -245,12 +245,22 @@ class FinancialOverviewQuery
         for ($date = $start; $date->lte($end); $date = $date->addDay()) {
             $dayStart = $date->startOfDay();
             $dayEnd = $date->endOfDay();
-            $ledger = BigDecimal::of((string) LedgerEntry::query()
+            $ledgerEntries = LedgerEntry::query()
                 ->whereBelongsTo($user)
                 ->where('type', LedgerEntryType::Expense)
                 ->whereBetween('occurred_at', [$dayStart, $dayEnd])
                 ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
-                ->sum('amount'));
+                ->with('expenseRefunds.refundEntry')
+                ->get();
+            $refundOperations = $ledgerEntries->pluck('expenseRefunds')->flatten()->pluck('refundEntry')->filter()->pluck('operation_id');
+            $reversedRefundOperations = LedgerEntry::query()->whereBelongsTo($user)
+                ->whereIn('reversal_of_operation_id', $refundOperations)
+                ->pluck('reversal_of_operation_id')
+                ->all();
+            $ledger = $ledgerEntries->reduce(
+                fn (BigDecimal $total, LedgerEntry $entry): BigDecimal => $total->plus($this->netExpense($entry, $dayStart, $dayEnd, $reversedRefundOperations)),
+                BigDecimal::zero(),
+            );
             $card = $this->cardConsumption($user, $dayStart, $dayEnd, $categoryId)['total'];
 
             $points[] = [
@@ -260,6 +270,18 @@ class FinancialOverviewQuery
         }
 
         return ['period' => $period, 'points' => $points];
+    }
+
+
+    /** @param list<string> $reversedRefundOperations */
+    private function netExpense(LedgerEntry $entry, CarbonImmutable $start, CarbonImmutable $end, array $reversedRefundOperations): string
+    {
+        $refund = $entry->expenseRefunds->pluck('refundEntry')->filter()
+            ->filter(fn (LedgerEntry $refundEntry): bool => $refundEntry->occurred_at->betweenIncluded($start, $end))
+            ->reject(fn (LedgerEntry $refundEntry): bool => in_array($refundEntry->operation_id, $reversedRefundOperations, true))
+            ->reduce(fn (BigDecimal $total, LedgerEntry $refundEntry): BigDecimal => $total->plus($refundEntry->amount), BigDecimal::zero());
+
+        return (string) BigDecimal::of($entry->amount)->minus($refund);
     }
 
     private function chart(User $user, int $period): array
