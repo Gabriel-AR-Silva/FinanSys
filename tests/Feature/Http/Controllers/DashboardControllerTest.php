@@ -3,11 +3,15 @@
 namespace Tests\Feature\Http\Controllers;
 
 use App\Actions\CreateCardPurchase;
+use App\Actions\CreateExpenseRefund;
+use App\Actions\PayCreditCard;
 use App\Enums\ExpensePlanningType;
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\CreditCard;
+use App\Models\ExpenseCommitment;
+use App\Models\LedgerEntry;
 use App\Models\Pocket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -91,7 +95,101 @@ class DashboardControllerTest extends TestCase
                 ->where('overview.consumption_flow.points.29.realized', '120.00')
                 ->has('overview.category_breakdown', 1)
                 ->where('overview.category_breakdown.0.name', $category->name)
-                ->where('overview.category_breakdown.0.total', '-120.00'));
+                ->where('overview.category_breakdown.0.total', '-120.00')
+                ->where('overview.recent_entries.0.type', 'card_purchase'));
+    }
+
+    public function test_dashboard_available_now_funds_all_known_commitments_without_leaking_other_users(): void
+    {
+        $this->travelTo('2026-09-28 12:00:00');
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => 'expense']);
+        $this->entry($user, $account, LedgerEntryType::OpeningBalance, '500.00', '2026-08-01 10:00:00');
+
+        ExpenseCommitment::factory()->for($user)->create([
+            'account_id' => $account->id,
+            'category_id' => $category->id,
+            'amount' => '150.00',
+            'paid_amount' => '50.00',
+            'status' => 'pending',
+            'due_on' => '2026-10-10',
+        ]);
+
+        $other = User::factory()->create();
+        ExpenseCommitment::factory()->for($other)->create([
+            'amount' => '999.00',
+            'paid_amount' => '0.00',
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('planning.configured', false)
+                ->where('planning.indicators.committed', '100.00')
+                ->where('planning.indicators.consolidated', '100.00')
+                ->where('planning.indicators.available_now', '400.00'));
+    }
+
+    public function test_card_payment_is_cash_outflow_but_never_a_second_consumption(): void
+    {
+        $this->travelTo('2026-09-28 12:00:00');
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => 'expense']);
+        $card = CreditCard::factory()->for($user)->create();
+        $this->entry($user, $account, LedgerEntryType::OpeningBalance, '1000.00', '2026-08-01 10:00:00');
+
+        app(CreateCardPurchase::class)->handle($user, [
+            'credit_card_id' => $card->id,
+            'category_id' => $category->id,
+            'description' => 'Compra paga depois',
+            'planning_type' => ExpensePlanningType::Ordinary->value,
+            'gross_amount' => '100.00',
+            'purchased_on' => '2026-09-01',
+            'installments_count' => 1,
+            'first_due_on' => '2026-09-12',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+        app(PayCreditCard::class)->handle($user, [
+            'credit_card_id' => $card->id,
+            'source_account_id' => $account->id,
+            'amount' => '100.00',
+            'paid_on' => '2026-09-28',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('overview.period_summary.expense', '100.00')
+                ->where('overview.cash_flow.points.29.expense', '100')
+                ->where('planning.indicators.realized', '100.00')
+                ->where('planning.indicators.committed', '0')
+                ->where('planning.indicators.consolidated', '100.00'));
+    }
+
+    public function test_refund_reconciles_period_category_and_consumption_timeline(): void
+    {
+        $this->travelTo('2026-09-07 12:00:00');
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['name' => 'Mercado', 'type' => 'expense']);
+        $expense = $this->entry($user, $account, LedgerEntryType::Expense, '100.00', '2026-09-05 10:00:00', $category);
+
+        app(CreateExpenseRefund::class)->handle($user, [
+            'expense_ledger_entry_id' => $expense->id,
+            'destination_account_id' => $account->id,
+            'amount' => '40.00',
+            'occurred_at' => '2026-09-07',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $this->actingAs($user)->get(route('dashboard', ['period' => 7]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('overview.period_summary.expense', '60.00')
+                ->where('overview.category_breakdown.0.name', 'Mercado')
+                ->where('overview.category_breakdown.0.total', '-60.00')
+                ->where('overview.consumption_flow.points.4.realized', '60.00'));
     }
 
     #[DataProvider('periods')]
@@ -189,9 +287,9 @@ class DashboardControllerTest extends TestCase
         ];
     }
 
-    private function entry(User $user, Account|Pocket $reference, LedgerEntryType $type, string $amount, string $occurredAt, ?Category $category = null): void
+    private function entry(User $user, Account|Pocket $reference, LedgerEntryType $type, string $amount, string $occurredAt, ?Category $category = null): LedgerEntry
     {
-        $reference->ledgerEntries()->create([
+        return $reference->ledgerEntries()->create([
             'user_id' => $user->id,
             'category_id' => $category?->id,
             'type' => $type,
