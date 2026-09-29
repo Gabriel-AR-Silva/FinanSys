@@ -50,14 +50,14 @@ class DashboardControllerTest extends TestCase
             ->where('overview.general_balance', '1175')
             ->where('overview.accounts_balance', '975')
             ->where('overview.pockets_balance', '200')
-            ->where('overview.monthly_income', 300)
+            ->where('overview.monthly_income', '300.00')
             ->where('overview.monthly_expense', '125.00')
-            ->where('overview.period_summary.income', '300')
-            ->where('overview.period_summary.expense', '125')
-            ->where('overview.period_summary.net', '175')
+            ->where('overview.period_summary.income', '300.00')
+            ->where('overview.period_summary.expense', '125.00')
+            ->where('overview.period_summary.net', '175.00')
             ->where('overview.period_summary.savings_rate', '58.33')
             ->where('overview.period_summary.transaction_count', 2)
-            ->where('overview.period_summary.largest_expense', '125')
+            ->where('overview.period_summary.largest_expense', '125.00')
             ->has('overview.cash_flow.points', 30)
             ->has('overview.recent_entries', 4)
             ->where('overview.recent_entries.0.reference_name', 'Reserva'));
@@ -235,9 +235,9 @@ class DashboardControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->has('overview.category_breakdown', 2)
                 ->where('overview.category_breakdown.0.name', 'Salário')
-                ->where('overview.category_breakdown.0.total', '500')
+                ->where('overview.category_breakdown.0.total', '500.00')
                 ->where('overview.category_breakdown.1.name', 'Moradia')
-                ->where('overview.category_breakdown.1.total', '-125'));
+                ->where('overview.category_breakdown.1.total', '-125.00'));
     }
 
     public function test_dashboard_filters_period_analytics_by_an_owned_category_without_changing_general_balance(): void
@@ -255,9 +255,9 @@ class DashboardControllerTest extends TestCase
                 ->where('filters.period', 7)
                 ->where('filters.category_id', $housing->id)
                 ->where('overview.general_balance', '375')
-                ->where('overview.period_summary.income', '0')
-                ->where('overview.period_summary.expense', '125')
-                ->where('overview.period_summary.net', '-125')
+                ->where('overview.period_summary.income', '0.00')
+                ->where('overview.period_summary.expense', '125.00')
+                ->where('overview.period_summary.net', '-125.00')
                 ->where('overview.period_summary.savings_rate', null)
                 ->where('overview.period_summary.transaction_count', 1)
                 ->has('overview.category_breakdown', 1)
