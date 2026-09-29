@@ -23,11 +23,11 @@ const labels = computed(() => {
 <template>
     <article class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div>
-            <h2 class="text-sm font-semibold text-slate-950">Entradas e saídas de caixa</h2>
-            <p class="mt-0.5 text-xs text-slate-500">Fluxo efetivo registrado. Pagamento de cartão é saída de caixa, mas não cria novo consumo.</p>
+            <h2 class="text-sm font-semibold text-slate-950">Dinheiro que entrou e saiu</h2>
+            <p class="mt-0.5 text-xs text-slate-500">Mostra quando o dinheiro realmente entrou ou saiu da conta. Pagar a fatura do cartão reduz o saldo, mas não conta a compra de novo.</p>
         </div>
         <div class="mt-4 w-full max-w-full overflow-x-auto">
-            <svg class="h-44 w-full min-w-[34rem]" :viewBox="`0 0 ${width} ${height}`" role="img" aria-label="Gráfico diário de entradas e saídas de caixa">
+            <svg class="h-44 w-full min-w-[34rem]" :viewBox="`0 0 ${width} ${height}`" role="img" aria-label="Gráfico diário do dinheiro que entrou e saiu">
                 <line x1="0" :y1="baseline" :x2="width" :y2="baseline" stroke="#cbd5e1" stroke-width="1" />
                 <g v-for="(point, index) in cashFlow.points" :key="point.date">
                     <rect :x="index * slotWidth + slotWidth / 2 - barWidth - 1" :y="baseline - barHeight(point.income)" :width="barWidth" :height="barHeight(point.income)" fill="#10b981" rx="2"><title>{{ formatDate(point.date) }} — entradas de caixa {{ formatMoney(point.income) }}</title></rect>
@@ -36,6 +36,6 @@ const labels = computed(() => {
                 <text v-for="label in labels" :key="label.index" :x="label.index * slotWidth + slotWidth / 2" y="169" text-anchor="middle" fill="#64748b" font-size="11">{{ formatDate(label.date) }}</text>
             </svg>
         </div>
-        <div class="flex gap-4 text-xs text-slate-500"><span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-emerald-500" />Entradas de caixa</span><span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-rose-500" />Saídas de caixa</span></div>
+        <div class="flex gap-4 text-xs text-slate-500"><span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-emerald-500" />Entradas</span><span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-rose-500" />Saídas</span></div>
     </article>
 </template>
