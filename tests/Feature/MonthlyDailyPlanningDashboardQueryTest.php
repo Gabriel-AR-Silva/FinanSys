@@ -111,10 +111,12 @@ class MonthlyDailyPlanningDashboardQueryTest extends TestCase
         $this->assertSame(0, $result['pending_days']);
         $this->assertSame(0, $result['tracked_completed_days']);
         $this->assertSame([], $result['daily']);
-        $this->assertSame('0.00', $result['net_margin']);
+        $this->assertNull($result['net_margin']);
         $this->assertSame('75.00', $result['current_daily_budget']);
         $this->assertSame('all_tracked_completed_days_confirmed', $result['coverage']);
-    }    public function test_it_does_not_report_zero_performance_before_any_day_is_confirmed(): void
+    }
+
+    public function test_it_does_not_report_zero_performance_before_any_day_is_confirmed(): void
     {
         $user = User::factory()->create();
 
@@ -129,6 +131,4 @@ class MonthlyDailyPlanningDashboardQueryTest extends TestCase
         $this->assertNull($result['gross_excess']);
         $this->assertNull($result['net_margin']);
     }
-
-
 }
