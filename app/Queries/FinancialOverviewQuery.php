@@ -242,7 +242,8 @@ class FinancialOverviewQuery
                 );
 
                 return [...$first, 'total' => (string) $total];
-            })->sortByDesc(fn (array $item): string => (string) BigDecimal::of($item['total'])->abs())
+            })->filter(fn (array $item): bool => ! BigDecimal::of($item['total'])->isZero())
+            ->sortByDesc(fn (array $item): string => (string) BigDecimal::of($item['total'])->abs())
             ->values()->all();
     }
 
