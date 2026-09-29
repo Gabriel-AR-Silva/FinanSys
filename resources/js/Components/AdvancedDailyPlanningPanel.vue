@@ -139,6 +139,16 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
                             <span class="text-slate-600">Ainda previsto</span><strong class="text-indigo-900">{{ formatMoney(planning.income.pending) }}</strong>
                         </div>
                     </div>
+                    <div class="rounded-xl border border-violet-200 bg-violet-50 p-3">
+                        <p class="text-xs font-medium text-violet-800">Compromissos do cartão neste mês</p>
+                        <div class="mt-2 flex items-center justify-between gap-3 text-sm">
+                            <span class="text-slate-600">Ainda pendente</span><strong class="text-violet-950">{{ formatMoney(planning.card_commitments.pending) }}</strong>
+                        </div>
+                        <div class="mt-1 flex items-center justify-between gap-3 text-sm">
+                            <span class="text-slate-600">Já liquidado</span><strong class="text-slate-950">{{ formatMoney(planning.card_commitments.paid) }}</strong>
+                        </div>
+                        <p class="mt-2 text-[11px] leading-4 text-slate-500">O pagamento liquida a obrigação; não cria uma segunda despesa.</p>
+                    </div>
                     <div class="rounded-xl bg-slate-50 p-3">
                         <p class="text-xs font-medium text-slate-700">Despesas variáveis do planejamento mensal</p>
                         <div class="mt-2 flex items-center justify-between gap-3 text-sm">

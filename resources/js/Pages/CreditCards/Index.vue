@@ -4,6 +4,7 @@ import InputLabel from "@/Components/InputLabel.vue";
 import Modal from "@/Components/Modal.vue";
 import TextInput from "@/Components/TextInput.vue";
 import SearchableSelect from "@/Components/SearchableSelect.vue";
+import { suggestedFirstDueOn as calculateFirstDueOn } from "@/Support/cardBillingCycle.js";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import {
     formatMoneyInput,
@@ -51,61 +52,9 @@ const deletingCardId = ref(null);
 const deletingPaymentId = ref(null);
 const editingPaymentId = ref(null);
 
-const daysInMonth = (year, month) =>
-    new Date(Date.UTC(year, month, 0)).getUTCDate();
-
-const monthWithOffset = (year, month, offset) => {
-    const date = new Date(Date.UTC(year, month - 1 + offset, 1));
-    return [date.getUTCFullYear(), date.getUTCMonth() + 1];
-};
-
-const formatIsoDate = (year, month, day) =>
-    `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-
 function suggestedFirstDueOn(cardId, purchasedOn) {
     const card = props.cards.find((item) => item.id === Number(cardId));
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(purchasedOn ?? "");
-    if (!card || !match) return purchasedOn || props.today;
-
-    const year = Number(match[1]);
-    const month = Number(match[2]);
-    const day = Number(match[3]);
-    const currentClosingDay = Math.min(
-        Number(card.closing_day),
-        daysInMonth(year, month),
-    );
-    // The configured closing day is the first day of the next billing cycle.
-    // Example: closing_day=5 => day 4 stays in the current invoice; day 5 rolls forward.
-    const cycleOffset = day >= currentClosingDay ? 1 : 0;
-    const [closingYear, closingMonth] = monthWithOffset(
-        year,
-        month,
-        cycleOffset,
-    );
-    const closingDay = Math.min(
-        Number(card.closing_day),
-        daysInMonth(closingYear, closingMonth),
-    );
-
-    let dueYear = closingYear;
-    let dueMonth = closingMonth;
-    let dueDay = Math.min(
-        Number(card.due_day),
-        daysInMonth(dueYear, dueMonth),
-    );
-
-    const closingStamp = Date.UTC(closingYear, closingMonth - 1, closingDay);
-    let dueStamp = Date.UTC(dueYear, dueMonth - 1, dueDay);
-
-    if (dueStamp <= closingStamp) {
-        [dueYear, dueMonth] = monthWithOffset(dueYear, dueMonth, 1);
-        dueDay = Math.min(
-            Number(card.due_day),
-            daysInMonth(dueYear, dueMonth),
-        );
-    }
-
-    return formatIsoDate(dueYear, dueMonth, dueDay);
+    return calculateFirstDueOn(card, purchasedOn, props.today);
 }
 const cardForm = useForm({
     name: "",
@@ -942,7 +891,9 @@ const date = (value) => value.split("-").reverse().join("/");
                             max="31"
                             required
                             class="mt-2 w-full"
-                        /><InputError :message="cardForm.errors.closing_day" />
+                        />
+                        <p class="mt-1 text-[11px] leading-4 text-slate-500">Este é o primeiro dia do novo ciclo. Ex.: fechamento 5 → dia 4 ainda pertence à fatura atual; dia 5 entra na próxima.</p>
+                        <InputError :message="cardForm.errors.closing_day" />
                     </div>
                     <div>
                         <InputLabel
