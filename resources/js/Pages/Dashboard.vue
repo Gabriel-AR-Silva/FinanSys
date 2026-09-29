@@ -148,6 +148,24 @@ const periodCards = computed(() => [
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Categoria ativa</p><p class="mt-1 truncate font-semibold text-slate-900" :title="selectedCategoryName">{{ selectedCategoryName }}</p></article>
         </section>
 
+        <section v-if="planning.configured" class="mt-4 grid gap-3 lg:grid-cols-3" aria-label="Dinheiro comprometido">
+            <article class="rounded-2xl border border-violet-200 bg-violet-50/70 p-4 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">Já comprometido no cartão</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ formatMoney(planning.card_commitments.pending) }}</p>
+                <p class="mt-1 text-xs leading-5 text-slate-600">Parcelas e encargos que vencem neste mês e ainda precisam ser pagos. Esse valor já participa do planejamento.</p>
+            </article>
+            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Compromissos anteriores</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ formatMoney(planning.previous_commitments.pending) }}</p>
+                <p class="mt-1 text-xs leading-5 text-slate-500">Pendências de meses anteriores que ainda reservam verba agora.</p>
+            </article>
+            <article class="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Margem realmente livre</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ formatMoney(planning.free_margin) }}</p>
+                <p class="mt-1 text-xs leading-5 text-slate-600">O que sobra no planejamento depois de proteção, compromissos e reservas essenciais — não é o saldo da conta.</p>
+            </article>
+        </section>
+
         <section class="mt-4 min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="planning-heading">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div class="flex min-w-0 gap-3"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700"><CircleGauge :size="18" /></span><div><h2 id="planning-heading" class="font-semibold text-slate-950">Ritmo financeiro do mês</h2><p class="mt-0.5 text-xs leading-5 text-slate-500">Verba disponível, não saldo bancário. Atualizado em Brasília.</p></div></div>
