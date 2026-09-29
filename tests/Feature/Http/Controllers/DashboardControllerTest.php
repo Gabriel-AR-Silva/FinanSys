@@ -4,7 +4,6 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
-use App\Models\CardCharge;
 use App\Models\CardInstallment;
 use App\Models\CardPurchase;
 use App\Models\Category;
