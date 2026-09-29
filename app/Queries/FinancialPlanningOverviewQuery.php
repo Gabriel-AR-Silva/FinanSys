@@ -146,6 +146,8 @@ class FinancialPlanningOverviewQuery
         $nonEssentialProjection = $this->ordinaryProjection($nonEssentialOrdinary, $now);
         $unclassifiedTotal = $this->sum($unclassified->pluck('amount'));
         $cardPaid = $this->sum($cardCommitments->pluck('paid'));
+        $cardPending = $this->sum($cardCommitments->pluck('pending'));
+        $cardCommitted = $cardPaid->plus($cardPending);
         $variableActual = $this->sum($ordinary->pluck('amount'))->plus($this->sum($extraordinary->pluck('amount')))->plus($unclassifiedTotal)->plus($cardPaid);
         $variableProjected = $this->sum($essentialProjections->pluck('projected'))
             ->plus($nonEssentialProjection['projected_total'])
@@ -178,6 +180,7 @@ class FinancialPlanningOverviewQuery
             'reasons' => $reasons,
             'income' => ['received' => (string) $income, 'pending' => (string) $pendingIncome, 'projected' => (string) $projectedIncome],
             'fixed' => (string) $fixed,
+            'card_commitments' => ['total' => (string) $cardCommitted, 'paid' => (string) $cardPaid, 'pending' => (string) $cardPending],
             'previous_commitments' => $previousCommitments,
             'variable' => ['realized' => (string) $variableActual, 'projected' => (string) $variableProjected],
             'protection' => ['current' => $currentProtection, 'projected' => $projectedProtection],
