@@ -284,7 +284,6 @@ class FinancialOverviewQuery
         return ['period' => $period, 'points' => $points];
     }
 
-
     /** @param list<string> $reversedRefundOperations */
     private function netExpense(LedgerEntry $entry, CarbonImmutable $start, CarbonImmutable $end, array $reversedRefundOperations): string
     {
