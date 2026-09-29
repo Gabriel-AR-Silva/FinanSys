@@ -9,6 +9,7 @@ use App\Models\CardInstallment;
 use App\Models\CardPurchase;
 use App\Models\Category;
 use App\Models\CreditCard;
+use App\Models\MonthlyFinancialSetting;
 use App\Models\Pocket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -66,6 +67,7 @@ class DashboardControllerTest extends TestCase
         $account = Account::factory()->for($user)->create();
         $category = Category::factory()->for($user)->create(['type' => 'expense']);
         $card = CreditCard::factory()->for($user)->create();
+        MonthlyFinancialSetting::factory()->for($user)->create(['month' => '2026-09']);
         $this->entry($user, $account, LedgerEntryType::OpeningBalance, '14.00', '2026-09-28 08:00:00');
         $purchase = CardPurchase::factory()->for($user)->for($card)->create([
             'category_id' => $category->id,
@@ -84,8 +86,10 @@ class DashboardControllerTest extends TestCase
                 ->where('consumption.summary.expense', '96.11')
                 ->where('consumption.summary.card_consumption', '96.11')
                 ->where('consumption.summary.transaction_count', 1)
+                ->where('cardInvoice.month', '2026-10')
                 ->where('cardInvoice.pending', '96.11')
-                ->where('planning.card_commitments.pending', '96.11')
+                ->where('cardInvoice.available_after_invoice', '-82.11')
+                ->where('planning.card_commitments.pending', '0')
                 ->where('patrimony.card_liability', '96.11')
                 ->where('patrimony.estimated_net_worth', '-82.11'));
     }
