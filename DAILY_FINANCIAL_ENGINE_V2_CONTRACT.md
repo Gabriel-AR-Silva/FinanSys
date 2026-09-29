@@ -1,126 +1,244 @@
 # FinanSys V2 — Contrato unificado do Motor Financeiro Diário
 
-> Estado em 2026-09-23: **D1–D5 implementados e integrados; fechamento técnico D7 concluído; D6 (score/comportamento) permanece deliberadamente fora do escopo aprovado desta rodada**. A release foi promovida pelo fluxo `develop → build → main`; migrations de produção e smoke manual permanecem gates operacionais separados. Este é o **único documento de referência da V2**, consolidando as decisões do produto e o escopo implementado. Em conflito, decisões explícitas mais recentes deste documento prevalecem sem revogar invariantes da V1.
+> Estado consolidado em 2026-09-28. Este é o documento canônico das decisões financeiras da V2. Ele define semântica, invariantes, UX financeira, critérios de aceite e fronteiras com V3; não substitui regras operacionais do repositório. Antes de qualquer implementação, ler `AGENTS.md`, `.ai/rules/index.md` e as regras específicas apontadas pelo índice. Release/build seguem exclusivamente o fluxo operacional ali definido.
 
-## 1. Objetivo e contexto
+## 1. Objetivo e princípio de segurança
 
-Evoluir o planejamento mensal existente (atual/projetado, fixos, variáveis, essenciais, proteção, previsões, cartões e histórico) de uma única verba/média diária para um motor determinístico de decisão pessoal. Distinguir **quanto minha vida custa**, **quanto consumi**, **quanto escolhi gastar**, **quanto posso gastar** e **quanto sobrou em relação ao plano**. Uma receita de R$ 5.000, fixos de R$ 2.000 e proteção de R$ 1.000 deixa R$ 2.000 de verba variável: R$ 66,66/dia em 30 dias é capacidade teórica, enquanto R$ 48/dia de gasto observado é comportamento; não apresentar como sinônimos.
+O FinanSys deve responder perguntas financeiras simples sem misturar conceitos diferentes. Nenhum indicador pode fazer o usuário parecer mais rico, mais seguro ou com mais dinheiro livre do que realmente está.
 
-## 2. Glossário e indicadores
+Anti-padrão central: **falsa disponibilidade / falsa tranquilidade**. Uma obrigação conhecida não pode desaparecer de uma visão apenas para o dashboard parecer saudável.
 
-| Indicador | Pergunta simples | Regra/estado |
+Todo card, gráfico, alerta ou progresso financeiro deve pertencer explicitamente a uma destas naturezas:
+
+1. **Caixa:** dinheiro existente agora.
+2. **Consumo:** gasto efetivamente realizado.
+3. **Compromisso:** obrigação futura já conhecida.
+4. **Projeção:** cenário futuro dependente de fatos ainda não realizados.
+5. **Capacidade:** quanto pode ser gasto de forma sustentável depois de considerar recursos e compromissos.
+6. **Patrimônio:** ativos menos passivos.
+
+Nenhum componente pode misturar silenciosamente duas naturezas. Se duas telas responderem a mesma pergunta financeira, seus valores devem reconciliar ou explicar claramente a diferença.
+
+## 2. Indicadores e perguntas simples
+
+| Indicador | Pergunta simples | Regra |
 | --- | --- | --- |
-| Custo estrutural diário | Quanto custa manter minha vida por dia? | Equivalência dos compromissos elegíveis (moradia, internet, financiamento, assinaturas); não cria lançamentos diários. Base temporal exata pendente de Inv. |
-| Gasto variável realizado | Quanto gastei no cotidiano? | Despesas variáveis elegíveis efetivamente realizadas, por dia, categoria, mês e média de N dias; neutralizar transferências, pagamento de fatura e correções conforme V1. |
-| Custo total equivalente | Quanto custa minha vida incluindo hábitos? | Estrutural diário + variável normalizado; normalização e período dependem de validação matemática. |
-| Orçamento diário planejado | Quanto decidi gastar? | Referência voluntária, não limite transacional nem saldo bancário. Preservar orçamento aplicável ao dia no histórico. |
-| Capacidade diária | Quanto meus recursos e compromissos comportam? | Indicador calculado, separado do orçamento; pode mudar com fatos novos sem alterar automaticamente a escolha pessoal. |
-| Folga diária | Quanto fiquei acima/abaixo do plano? | Orçamento diário aplicável − gasto elegível realizado; pode ser positiva ou negativa. |
-| Folga líquida acumulada | Como está meu resultado frente ao plano? | Soma das folgas de dias elegíveis encerrados; não é saldo bancário. |
-| Economia/excesso brutos | Quanto economizei e quanto ultrapassei? | Somar separadamente folgas positivas e valores absolutos das negativas; líquido = economia bruta − excesso bruto. |
-| Projeção de fechamento | Como o mês pode terminar? | Separar fatos confirmados de previsões, explicitar datas e premissas. |
+| Saldo geral | Quanto dinheiro existe agora? | Caixa atual; dívida de cartão não reduz literalmente saldo bancário antes da liquidação. |
+| Disponível agora / caixa após compromissos | Quanto do dinheiro atual sobra depois das obrigações conhecidas que precisam ser financiadas por ele? | Conservador; receita prevista não entra antes de recebida. |
+| Gasto realizado | Quanto realmente gastei? | Consumo reconhecido, incluindo compras no cartão na data da compra. |
+| Comprometido | Quanto ainda tenho de obrigação conhecida pela frente? | Faturas, parcelas, contas e demais compromissos elegíveis, sem duplicar consumo. |
+| Consolidado | Qual meu impacto financeiro conhecido? | Combina realizado e comprometido com conjuntos exclusivos e sem dupla contagem. |
+| Ritmo realizado | Quanto por dia eu estou gastando? | Média de consumo elegível realizado. |
+| Ritmo sustentável | Quanto por dia eu posso continuar gastando considerando minhas contas? | Margem realmente livre ÷ dias restantes, segundo regras determinísticas aprovadas. |
+| Orçamento diário | Quanto eu decidi gastar? | Escolha do usuário; capacidade não altera orçamento automaticamente. |
+| Projeção | Como o período pode terminar? | Fatos confirmados separados de previsões e premissas. |
+| Patrimônio líquido | Quanto possuo depois das dívidas? | Ativos elegíveis menos passivos; não equivale a dinheiro disponível. |
 
-Indicadores derivados nunca criam receita, despesa, saldo ou aporte. Não confundir déficit de orçamento com insuficiência de caixa. Média diária positiva usa regras de arredondamento da V1, sem `float`.
+Quando a base de dados necessária não for suficiente, mostrar **“—” / “Sem dados”**, nunca um zero que sugira um resultado financeiro inexistente. Exemplo: taxa de poupança sem base de receita suficiente não é 0%.
 
-## 3. Decisões aprovadas — folga, excesso e capacidade
+## 3. Realizado, Comprometido e Consolidado
 
-**Política A aprovada:** acumular folga sem redistribuição automática. Ex.: orçamento R$ 90, gasto R$ 80 → folga +R$ 10; orçamento de amanhã permanece R$ 90. Gasto R$ 110 → folga −R$ 20, podendo tornar o acumulado mensal negativo. **Combinação A + C aprovada para excessos:** economia bruta, excesso bruto e líquido aparecem separadamente. Ex.: dias com gastos R$ 60, R$ 70 e R$ 200 frente a R$ 90/dia → economia R$ 50, excesso R$ 110, líquido −R$ 60; dia seguinte permanece R$ 90. A capacidade e a projeção **podem** ser recalculadas como informação, nunca como redução compulsória do orçamento. O excesso de um dia não prova sozinho déficit mensal. Não transformar folga em receita, novo saldo, verba adicional ou aporte fictício. Alteração voluntária do orçamento exige regra/configuração explícita e motivo rastreável.
+As análises financeiras devem poder distinguir três leituras, preferencialmente dentro da própria seção e não como navegação excessiva:
 
-**Alternativas não aprovadas para o padrão:** redistribuir automaticamente a folga nos dias restantes (antiga política B) e direcionar automaticamente folga a proteção/meta (antiga política C). São hipóteses futuras, dependentes de aprovação e contrato de alocação; reservar não equivale a transferência bancária.
+- **Realizado:** consumo efetivamente ocorrido.
+- **Comprometido:** obrigações futuras conhecidas.
+- **Consolidado:** exposição financeira conhecida combinando os dois sem dupla contagem.
 
-## 4. Despesas fixas — alternativa C aprovada
+Categorias podem explicar, por exemplo: `R$ 350 consumidos | R$ 180 ainda comprometidos | R$ 530 de impacto total conhecido`.
 
-Separar **custo diário equivalente** de **pagamento real na data do vencimento**. Parcela da moto de R$ 600 num mês de 30 dias pode ser exibida como custo estrutural equivalente de R$ 20/dia; os R$ 600 vencem e são pagos na data real. O custo diário é uma leitura derivada, não 30 despesas fictícias; a liquidação não conta novamente o compromisso. Preservar reserva por vencimento e distinção entre orçamento e caixa. Base de dias e tratamento de meses/alterações pendentes de revisão.
+A implementação deve manter conjuntos de seleção explícitos. Pagamento, liquidação, transferência própria, estorno e reembolso não podem reaparecer como novo consumo quando já representam outro estágio do mesmo fluxo.
 
-## 5. Cartões — alternativa C aprovada
+## 4. Cartões — compra, obrigação e liquidação
 
-Separar **compra, compromisso e pagamento**. Compra de R$ 1.200 em 6 × R$ 200: a compra é a despesa/consumo e seu principal é reconhecido uma única vez na data da compra para o gasto realizado; R$ 200 permanecem como compromisso de cada mês de vencimento, e pagamento da fatura apenas liquida a obrigação, sem criar nova despesa de consumo. `paid_amount` e o estado da parcela representam quitação parcial/total sem gerar outro fato de despesa. Não somar compra + parcela + pagamento. Respeitar contrato vigente para parcelas, antecipação com desconto, pagamentos parciais, residual, juros, multas, estornos e reembolsos; juros/multas confirmados são despesas próprias. Estorno/reembolso corrige a compra relacionada, não cria renda ou despesa independente. Despesa reconhecida, obrigação e saída de caixa são visões diferentes do mesmo fluxo.
+Compra no cartão é **consumo na data da compra**. Ela alimenta categorias, gasto realizado, média diária, maior despesa, contagem de movimentos, atividade recente e gráficos de consumo.
 
-## 6. Extraordinários — B + C aprovadas
+A fatura pendente é **compromisso/passivo futuro**, não uma segunda despesa. O pagamento da fatura é **liquidação/saída de caixa**, não novo consumo. Uma compra de R$ 100 seguida do pagamento de R$ 100 continua representando R$ 100 de consumo, não R$ 200.
 
-Permitir classificação manual como comum ou extraordinário. Separar extraordinários da média comportamental cotidiana e não extrapolá-los como recorrentes; preservar integralmente seu impacto no planejamento, obrigações e caixa. Conserto da moto de R$ 500 não significa hábito diário de R$ 500, mas reduz recursos conforme sua natureza e data. Definir critérios de elegibilidade e evitar diagnosticar categoria por compra concentrada no início do mês. Essencial e fixo são características independentes; classificação extraordinária não neutraliza a despesa.
+`Cartão` é meio de pagamento/passivo, não categoria agregadora da fatura. As categorias originais das compras devem ser preservadas.
 
-## 7. Recebimentos — alternativa C aprovada
+Se um indicador mede consumo, não pode exibir `Despesas = R$ 0` quando há compras de cartão elegíveis. Se mede apenas saída efetiva de caixa, deve ser rotulado claramente como **Saídas de caixa**.
 
-Separar **disponível hoje** (somente recursos confirmados elegíveis) de **projetado** (confirmados + previsões elegíveis por data, descontados compromissos conforme V1). Ex.: R$ 300 disponíveis e salário de R$ 2.000 previsto: mostrar R$ 300 hoje e cenário simplificado de R$ 2.300 após recebimento, sem tratar previsão como dinheiro já recebido. Estados de UX: previsto, recebido, atrasado, não recebido; mapear esses estados para os estados efetivos do modelo V1 antes de codificar. Ao não receber, retirar o valor pendente da projeção e preservar histórico; ao atrasar, sinalizar pendência e data, sem presumir recebimento. Recebimento parcial: R$ 2.000 previstos, R$ 600 recebidos → R$ 600 na visão atual e R$ 1.400 pendentes na projeção, sem duplicação; respeitar remarcação, encerramento, reversão e diferença de valor do contrato V1. Mostrar cenários com/sem recebimento e com atraso na análise avançada; orçamento voluntário não muda automaticamente.
+### Ciclo de fechamento
 
-## 8. Correções retroativas — alternativa C aprovada
+Com fechamento no dia 5 e vencimento no dia 12, o dia de fechamento é o primeiro dia do novo ciclo:
 
-Lançamento esquecido de R$ 80 há cinco dias pertence à data correta. Recalcular apenas períodos/indicadores afetados, preservar snapshot/avaliação anterior, instante, motivo, versão de regra e proveniência; não alterar silenciosamente o orçamento originalmente aplicável ao dia. Histórico deve distinguir valor apresentado no fechamento e valor corrigido. Definir persistência versus reconstrução, idempotência, concorrência e retenção antes da implementação.
+- compra em 04/09 → vencimento 12/09;
+- compra em 05/09 → vencimento 12/10;
+- compra em 06/09 → vencimento 12/10.
 
-## 9. Check-in financeiro — alternativa C aprovada
+Testes obrigatórios: dia anterior, dia do fechamento, dia posterior, meses curtos, dia 31 e vencimento numericamente anterior ao fechamento.
 
-**Login não é check-in; ausência de lançamento não é gasto zero confirmado.** Ao entrar com dias anteriores pendentes, apresentar modal com data, gastos registrados e estado; permitir abrir cada dia, adicionar despesa esquecida, confirmar registros ou confirmar ausência de outras despesas. Permitir confirmação individual e em lote, com seleção explícita e confirmação antes de marcar vários dias sem gastos. Após validação, recalcular somente indicadores/períodos afetados e retornar ao dashboard atualizado. Não bloquear acesso ao dashboard: sinalizar dados incompletos. Dia confirmado sem variável tem variável R$ 0 e ainda pode ter custo estrutural. Correção posterior de dia confirmado mantém auditoria e recalcula. Notificações de pendência devem ser úteis e não repetitivas. Definir semântica de médias/folga para dias pendentes: **não imputar zero validado**. Fechamento no fuso `America/Sao_Paulo`, recuperação de dias não processados, permissões e deduplicação exigem contrato técnico.
+## 5. Contas, parcelas e recebimentos previstos
 
-## 10. Dashboard e UX — decisão aprovada
+Contas fixas, parcelas e `ExpenseCommitments` reduzem capacidade/disponibilidade financeira conforme sua natureza antes da saída de caixa, sem serem recriados como consumo fictício diário.
 
-Duas abas no mesmo dashboard, quando compatível com arquitetura: **Visão geral** com situação do mês, dinheiro disponível, orçamento, gastos e alertas essenciais; **Análise avançada** com histórico, categorias, orçamento × realizado, economia/excesso/líquido, capacidade, cenários, tendências e explicações. Evitar cards redundantes e poluição de números/porcentagens. Agrupar por títulos curtos como «Meu dinheiro», «Meus gastos», «Meu planejamento». Cada indicador deve responder pergunta diferente, ter nome simples, unidade, período, estado atual/projetado, atualização e ícone de ajuda acessível por mouse **e toque**; tooltip curto explica o que é e por que aparece, com exemplo se necessário. Texto/ícone acompanham cor; detalhes expansíveis no mobile. Exibir incerteza/dados incompletos, não inventar valores. Gráfico principal: orçamento diário aplicável × gasto diário realizado, capacidade opcional e diferença; gráfico secundário: folga líquida acumulada dos dias elegíveis encerrados. Tendência/média móvel é apoio, não substitui indicadores oficiais. Mudança de orçamento deve ser explicável.
+Receita esperada é **projeção**, nunca disponibilidade atual. R$ 2.000 previstos para amanhã não podem aumentar o valor que o usuário pode gastar hoje. Recebimentos parciais separam parte confirmada da parte ainda prevista.
 
-## 11. Metas — incremento mínimo aprovado
+O calendário financeiro deve considerar **valor + data**, permitindo visualizar salário, fatura, parcelas e contas na ordem em que afetam o caixa.
 
-Meta de R$ 3.000 com R$ 600 realmente reservados e 120 dias restantes: R$ 2.400 / 120 = R$ 20/dia teóricos. O valor-alvo, a data-alvo e a reserva já existente são suficientes para o primeiro incremento. **A necessidade diária é apenas informativa:** não cria aporte, não reduz orçamento diário, não transfere dinheiro e não transforma folga em investimento automaticamente.
+## 6. Ritmo financeiro e capacidade
 
-Para evitar uma segunda fonte de verdade, o valor «já reservado» deve vir de uma **Caixinha real vinculada** quando houver vínculo. Sem caixinha, a meta pode existir, mas o reservado é zero/indisponível; o usuário não digita manualmente um saldo fictício. Criar, editar ou excluir uma meta nunca cria, altera ou apaga lançamentos da caixinha.
+O sistema deve mostrar separadamente:
 
-O dashboard pode expor Metas em aba própria, com linguagem simples, ajuda contextual por toque/teclado e carregamento secundário para não atrasar a visão principal. A Tsuki deve tratar orçamento diário e metas como passos recomendados, não requisitos essenciais do sistema. Percentuais de progresso usam reservado real ÷ alvo; prazo encerrado, meta concluída e necessidade diária devem ser estados explicáveis. Estimar adiantamento/atraso, sugerir aporte automático, consumir folga automaticamente ou alterar capacidade/orçamento por causa da meta continuam fora deste incremento e exigem contrato próprio.
+- **Ritmo realizado:** média do consumo real por dia.
+- **Ritmo sustentável:** quanto pode ser gasto por dia daqui para frente depois de compromissos, essenciais e proteções elegíveis.
 
-## 12. Categorias, comportamento e pontuação — propostas condicionadas
+A pergunta de produto é: **“Quanto por dia eu estou gastando, tendo em vista as minhas contas e o que já está previsto?”**
 
-Categorias livres (alimentação, bebidas, combustível, transporte, viagem, lazer, assinaturas etc.); médias por categoria, participação, diferença contra orçamento, tendências 7/30/90 dias, extraordinário versus recorrente e concentração fora do padrão. Período de média e critérios de dados suficientes pendentes. Possível índice de eficiência 0–100 **não entra no primeiro incremento** sem nova aprovação: não premiar privação de essenciais; considerar aderência, compromissos, proteção, metas, estabilidade, relação fixos/receita, duração do déficit e anomalias. Inv deve validar pesos, casos extremos, explicabilidade e dados insuficientes; Lia valida linguagem. Faixas existentes da V1 não são automaticamente o score V2.
+Comparar os dois e explicar a consequência. Exemplo: `Seu ritmo está R$ 25/dia acima do sustentável.`
 
-## 13. Estados, matemática e invariantes
+Capacidade é análise, não comando. Ela pode mudar com fatos financeiros novos, mas **não altera automaticamente o orçamento definido pelo usuário**.
 
-Atual = fatos confirmados elegíveis; projetado = atual + previsões/obrigações elegíveis ainda não realizados; histórico fechado = avaliação preservada com revisão identificável. Distinguir fatos (receita, despesa, compromisso, pagamento, estorno, reembolso, previsão, aporte real) de indicadores derivados. Conjuntos de seleção mutuamente exclusivos; neutralizar transferências próprias; pagamento de fatura não duplica compra; estorno/reembolso corrige fato relacionado. Não usar `float`; regras monetárias determinísticas com decimal exato, arredondamento explícito, centavos preservados e mesmo resultado para mesmas entradas/versão. Não afirmar caixa negativo apenas por orçamento deficitário. Não gerar diagnósticos fortes com poucos dias ou dados pendentes. Cada mudança de orçamento deve ter origem explicável. Proteger isolamento por `user_id`, privacidade, trilha de auditoria e concorrência. Mês-calendário, dias corridos, fechamento em Brasília e demais regras de calendário seguem contrato V1 até revisão formal.
+## 7. Orçamento, folga e reservas
 
-## 14. Cenários de aceite mínimos
+Folga não é receita, saldo novo nem aporte automático. Orçamento diário é referência voluntária e deve preservar o valor aplicável historicamente ao dia.
 
-1. Orçamento 90, gasto 80 → folga +10, nenhuma receita ou aporte criado, amanhã 90.
-2. Orçamento 90, gasto 110 → folga −20, amanhã 90, projeção informativa recalculável.
-3. Gastos 60/70/200 com orçamento 90/dia → economia bruta 50, excesso 110, líquido −60.
-4. Nova renda confirmada eleva capacidade 100→150/dia; orçamento voluntário permanece 80/dia.
-5. Parcela fixa 600/30 → custo equivalente 20/dia, pagamento 600 na data real, sem segunda despesa.
-6. Cartão 1.200 em 6×200 → compra total acessível, 200 por mês comprometido, fatura liquida sem duplicar.
-7. Extraordinário 500 → impacta planejamento e caixa, não extrapola média cotidiana.
-8. Previsto 2.000, recebido 600 → atual +600, residual previsto 1.400; cancelamento/não recebimento retira residual da projeção sem apagar 600.
-9. Correção retroativa de 80 → data correta, recálculo e histórico anterior preservados.
-10. Dia sem login/lançamento → pendente, não zero confirmado; check-in individual ou lote confirma; dia sem variável ainda tem estrutural.
-11. Meta 2.400/120 → necessidade teórica 20/dia sem aporte fictício.
-12. Transferência, estorno, reembolso, antecipação, pagamento parcial e dívida entre meses seguem invariantes V1; testes de centavos, fim de mês, datas, usuário e execução duplicada.
+Reservar R$ 500 para uma meta reduz a disponibilidade para gastar quando a regra de proteção assim determinar, mas não é consumo e não reduz patrimônio líquido apenas por mover/alocar dinheiro entre posições próprias.
 
-## 15. Agentes e responsabilidades
+Metas e reservas devem usar valores reais vinculados quando houver fonte de verdade. Não criar saldo reservado fictício apenas para completar progresso visual.
 
-- **Inv:** matemática, fórmulas, denominadores, não duplicidade, folga, metas/score, cenários de fronteira.
-- **Atlas:** fronteiras fato/indicador, seleção, calculadoras puras, contratos de entrada/saída, versionamento e snapshots.
-- **Lia:** semântica, UX, nomenclatura, estados incompletos, ajuda contextual e configurações.
-- **Bento:** matriz de aceite independente, centavos, calendário, retroatividade, histórico, gráficos e regressão V1.
-- **Íris:** isolamento `user_id`, snapshots, privacidade e integrações.
-- **Nexo:** fechamento diário, recuperação, idempotência e concorrência.
-- **Nilo:** implementação somente após decisões/contratos técnicos aprovados.
+## 8. Check-in financeiro — obrigatório para fechamento da V2
 
-Consultar instruções, contratos e agentes existentes no repositório antes de modificar código. Alterações de implementação devem manter rastreabilidade de arquivos e datas no fluxo já adotado pelo projeto, sem criar documentos concorrentes para as decisões da V2.
+O domínio de check-in já existe no backend, mas a V2 não pode ser declarada completa sem uma entrada de UX clara e utilizável.
 
-## 16. Execução incremental e critérios de passagem
+**Login não é check-in; ausência de lançamento não é gasto zero confirmado.**
 
-**D0 — contrato conceitual:** decisões acima aprovadas; faltam fórmulas, entradas/saídas, elegibilidade e revisão dos agentes. **D1 — calculadora pura:** estrutural, variável, capacidade, orçamento, folga, acumulado e projeções, sem UI/efeitos colaterais, com testes. **D2 — seleção de dados:** conjuntos exclusivos, cartões, previsões, fixos, categorias, estornos e reembolsos. **D3 — histórico/check-in:** snapshots, correções, fechamento, lote, idempotência. **D4 — dashboard:** primeiro visão geral, depois análise avançada, gráficos, explicações e alertas. **D5 — metas:** somente após política específica aprovada. **D6 — score opcional:** somente após validação e aprovação. **D7 — consolidação:** revisão multidisciplinar, suíte completa, regressão V1, aceite desktop/mobile, release e smoke real. Ordem técnica D1/D2 pode ser refinada por Atlas, sem implementar cálculo sobre seleção ambígua.
+O check-in registra um snapshot diário histórico: orçamento aplicável, gasto elegível, margem e revisão. Alterações posteriores não devem apagar silenciosamente o que havia sido confirmado; correções usam revisão/auditoria.
 
-## 17. Questões abertas obrigatórias antes do código
+A UX deve permitir confirmar um dia, corrigir lançamento esquecido e tratar pendências sem bloquear o dashboard. Confirmação em lote exige seleção e confirmação explícitas. Dias pendentes não podem ser imputados como zero validado.
 
-1. Base de dias para custo estrutural (mês-calendário, restantes ou outra).
-2. Momento em que orçamento diário é fixado, e efeito de mutação/receita no meio do dia.
-3. Elegibilidade restante de fixos, estornos/reembolsos, transferências e extraordinários; para cartão ordinário já está decidido que a compra é reconhecida uma única vez na data da compra, enquanto parcelas são compromissos e pagamentos são liquidações.
-4. Como dias não confirmados afetam média, folga e projeção; abertura/fechamento de check-in, lote e correção posterior.
-5. Fórmula da capacidade atual/projetada por data, caixa disponível, compromissos e recebimentos parciais.
-6. Mapeamento «atrasado/não recebido» para estados existentes, cancelamento, reversão e remarcação.
-7. Fórmula e normalização do custo total; janelas 7/30/90 e mês com poucos dados.
-8. Persistência versus reconstrução, versionamento, auditoria, retenção, jobs perdidos, idempotência e concorrência.
-9. Metas: proteção/reserva versus recomendação, patrimônio anterior, política de aporte e escopo do MVP.
-10. Score: pesos, dados insuficientes, testes extremos e aprovação explícita antes de implementar.
-11. Conflitos específicos com o contrato V1, matriz de regressão, limites de arredondamento e critérios de release.
+Esse histórico é base para tendências, ritmo, consistência e gráficos de evolução.
 
-## 18. Fora do escopo e futura IA
+## 9. Dashboard, gráficos e explicabilidade
 
-Fora deste incremento: módulo Business/contabilidade empresarial, estoque, WhatsApp, importação OFX, importação JSON geral e cálculos financeiros livres por IA. A exportação JSON de diagnóstico foi autorizada posteriormente em 2026-09-23 e expõe apenas o domínio financeiro do usuário autenticado e indicadores determinísticos, sem credenciais, para permitir recálculo e comparação de divergências. **OFX é um módulo isolado**; eventuais correções próprias não devem bloquear a V2. Futuro assistente pode consultar e explicar métricas, resumir tendências e executar ações sob contratos explícitos, **nunca inventar saldo, verba, média, projeção ou score**; números vêm do motor determinístico versionado. Ex.: orçamento 74, gasto hoje 32, restante de referência 42 e projeção do mês 286 abaixo do orçamento atual são dados do motor, não geração livre.
+Cada indicador importante deve responder uma pergunta diferente, ter período, natureza financeira e composição explicáveis.
 
-## 19. Gate para contrato técnico e implementação
+Ao tocar/clicar em um número importante, o usuário deve conseguir entender de onde ele veio. Alertas devem explicar consequência, não apenas usar cor.
 
-Inv aprova matemática/invariantes; Atlas aprova arquitetura e contratos; Lia aprova semântica e UX; Bento possui cenários independentes; Íris e Nexo revisam isolamento e confiabilidade; conflitos com V1 são enumerados; questões abertas resolvidas ou explicitamente adiadas; escopo do primeiro incremento definido. **Este documento é o contrato conceitual consolidado, não evidência de implementação nem autorização para declarar a V2 pronta.**
+### Gráficos
+
+Usar **gráficos de linha** quando a pergunta for evolução/aumento/queda no tempo, especialmente:
+
+- gastos ao longo dos dias;
+- ritmo realizado × ritmo sustentável;
+- saldo/disponibilidade ao longo do tempo;
+- evolução patrimonial quando aplicável.
+
+Projeções devem ser visualmente distinguíveis de fatos realizados. Barras são adequadas para comparação de categorias; composição/distribuição deve usar visual apropriado sem poluição.
+
+A auditoria de indicadores inclui cards, gráficos, barras de progresso, distribuições, médias, projeções, comparações e alertas — não apenas cards numéricos.
+
+## 10. Ativos e Investimentos — núcleo enxuto da V2
+
+**Ativos/Investimentos é separado de Patrimônio.** Ativos registra as posições; Patrimônio agrega a visão superior.
+
+A V2 deve manter um núcleo manual e durável, suficiente para não precisar ser refeito quando chegar Open Finance:
+
+- ativo/tipo/ticker ou nome;
+- data de compra;
+- quantidade;
+- preço de compra;
+- taxas quando aplicáveis;
+- movimentos essenciais;
+- custo médio;
+- total investido;
+- posição/valor atual quando houver fonte confiável ou valor manual claramente identificado.
+
+Não exigir reconstrução completa de dividendos históricos desconhecidos. Rendimentos antigos só entram quando houver dado conhecido; o sistema não inventa histórico. Rendimento recebido e posteriormente gasto pode permanecer como fato histórico quando conhecido, mas não aumenta patrimônio atual.
+
+Investimentos alimentam Patrimônio, **não Caixa nem Disponível para gastar**, salvo quando uma posição realmente se transforma em caixa por evento registrado.
+
+## 11. Patrimônio
+
+Patrimônio é uma camada de consolidação: contas e liquidez + investimentos + outros ativos elegíveis − passivos, incluindo dívidas de cartão elegíveis.
+
+Liquidez e patrimônio não são sinônimos. Uma posição de investimento valorizada aumenta patrimônio conforme a fonte de avaliação adotada, mas não deve aparecer como dinheiro livre para despesas.
+
+Após a implementação do contrato financeiro atual e do check-in, executar auditoria específica de **Metas + Ativos/Investimentos + Patrimônio** antes de declarar a V2 encerrada.
+
+## 12. Open Finance e fronteira da V3
+
+Open Finance pertence à V3. A arquitetura da V2 deve preparar modelos e contratos para receber dados externos sem tornar a integração necessária para o funcionamento atual.
+
+Na V3, Open Finance pode sincronizar posições, saldos, transações, rendimentos e demais informações que o provedor efetivamente disponibilizar. Não presumir que Open Finance substitui uma API de mercado.
+
+Responsabilidades distintas:
+
+- **Open Finance:** fonte dos dados financeiros do usuário disponibilizados pela instituição/provedor.
+- **API de mercado opcional:** enriquecimento de cotação atual, histórico de preços e dados de mercado que Open Finance não fornecer adequadamente.
+
+Se o provedor de Open Finance entregar todos os dados necessários para determinada avaliação, não criar uma segunda dependência sem necessidade.
+
+## 13. Correções retroativas e histórico
+
+Lançamento esquecido pertence à data financeira correta. Recalcular apenas períodos/indicadores afetados e preservar proveniência, revisão e histórico anterior quando necessário.
+
+Mesmas entradas + mesma versão de regra devem produzir o mesmo resultado. Valores monetários não usam `float`; preservar centavos e arredondamento explícito.
+
+## 14. Isolamento, segurança e não duplicidade
+
+Todas as consultas financeiras são escopadas por `user_id`. Testes obrigatórios devem garantir que dados do usuário B nunca apareçam para o usuário A.
+
+Cobrir regressões de:
+
+- compra de cartão + fatura + pagamento;
+- estorno/reembolso;
+- pagamento parcial;
+- parcelas entre meses;
+- compromisso futuro;
+- receita prevista ainda não recebida;
+- check-in ausente/corrigido;
+- combinações entre cartão, contas, orçamento, categorias, metas e reservas.
+
+Não adicionar índices, migrations ou persistência nova “por precaução”; mudanças estruturais exigem necessidade demonstrada.
+
+## 15. Gate de completude da V2
+
+Antes de declarar a V2 concluída:
+
+1. Criar matriz final de cada card/gráfico/indicador: pergunta simples, natureza financeira, fonte de dados, entradas permitidas, exclusões, comportamento sem dados e testes.
+2. Validar regras cruzadas entre cartão, contas, parcelas, receita prevista, categorias, orçamento, reservas e metas, sem dupla contagem ou falsa disponibilidade.
+3. Executar cenários de fronteira: compra antes/no/depois do fechamento; fatura paga/pendente; parcela; estorno; recebimento previsto não recebido; conta futura; ausência de movimentos; combinações e isolamento A/B.
+4. Fazer varredura final de todas as telas financeiras procurando informação escondida, zerada incorretamente, contraditória ou omitida.
+5. Executar o **teste de falsa tranquilidade**: nenhuma tela pode aparentar situação saudável apenas porque uma obrigação conhecida ficou fora da leitura.
+6. Validar explicabilidade e reconciliação entre telas.
+7. **Inv** dá a palavra final sobre coerência matemática/financeira; **QA/Bento** valida regressões e cenários.
+
+Depois de aprovado, este contrato permanece fechado. Divergência encontrada durante implementação é tratada primeiro como bug/lacuna de implementação; só muda o contrato quando houver decisão explícita de negócio.
+
+## 16. Ordem de implementação restante
+
+1. Implementar e validar o contrato financeiro consolidado desta versão nos componentes/consultas existentes.
+2. Implementar a UX faltante do check-in e validar snapshots/correções.
+3. Implementar/auditar o núcleo enxuto de Ativos/Investimentos.
+4. Auditar Metas + Patrimônio e integração dos ativos à visão patrimonial.
+5. Executar matriz/gates finais, stress/regressão e revisão Inv + QA.
+6. Encerrar V2 somente depois desses gates.
+
+## 17. Processo de desenvolvimento e release
+
+Este documento **não é fonte de verdade do Git/deploy**. Antes de qualquer implementação, manutenção ou release, consultar obrigatoriamente:
+
+- `AGENTS.md`;
+- `.ai/rules/index.md`;
+- as regras específicas apontadas pelo índice, incluindo `.ai/rules/release-build.md` quando aplicável;
+- `docs/BUILD_BRANCH_WORKFLOW.md` para o procedimento operacional de build/release.
+
+O processo operacional deve ser obtido desses arquivos no momento da execução, e não da memória de uma conversa. O contrato apenas impõe o gate de que nenhuma implementação da V2 pode ignorar as regras vigentes do repositório.
+
+## 18. Responsabilidades
+
+- **Maia:** coordena etapas e garante leitura das fontes vigentes antes do trabalho.
+- **Inv:** matemática, invariantes, não duplicidade, capacidade, disponibilidade conservadora e gate financeiro final.
+- **Atlas:** arquitetura, fronteiras fato/indicador, contratos e seleção de dados.
+- **Lia:** semântica, nomenclatura, UX e explicabilidade.
+- **Bento/QA:** cenários independentes, calendário, centavos, isolamento, gráficos e regressões.
+- **Íris:** isolamento, privacidade e integrações.
+- **Nexo:** idempotência, concorrência e fechamento/histórico.
+- **Nilo:** implementação somente após leitura das regras e contratos aplicáveis.
+
+## 19. Fora do escopo atual
+
+Permanecem fora desta implementação: Open Finance completo, automação de reconstrução histórica de dividendos sem fonte confiável, score financeiro/comportamental não aprovado, WhatsApp, importação OFX geral e decisões financeiras livres geradas por IA.
+
+A IA pode explicar indicadores e tendências, mas números oficiais vêm do motor determinístico e de fontes rastreáveis.
