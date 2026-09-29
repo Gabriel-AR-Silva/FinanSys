@@ -205,6 +205,30 @@ const secondaryCards = computed(() => [
             </article>
         </section>
 
+        <section v-if="cardInvoice.next_due_on" class="mt-3 rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-sky-800">Cobertura prevista da próxima fatura</p>
+                    <p class="mt-1 text-sm text-slate-600">Compara apenas receitas ainda previstas até o vencimento. Não aumenta seu saldo nem o valor disponível hoje.</p>
+                </div>
+                <p class="text-sm font-semibold text-slate-800">Vence {{ formatDate(cardInvoice.next_due_on) }}</p>
+            </div>
+            <dl class="mt-4 grid gap-3 sm:grid-cols-3">
+                <div class="rounded-xl bg-white/80 p-3">
+                    <dt class="text-xs text-slate-500">Fatura a vencer</dt>
+                    <dd class="mt-1 font-semibold text-violet-800">{{ formatMoney(cardInvoice.next_due_pending) }}</dd>
+                </div>
+                <div class="rounded-xl bg-white/80 p-3">
+                    <dt class="text-xs text-slate-500">Receitas previstas até lá</dt>
+                    <dd class="mt-1 font-semibold text-sky-900">{{ formatMoney(cardInvoice.forecast_before_next_due) }}</dd>
+                </div>
+                <div class="rounded-xl bg-white/80 p-3">
+                    <dt class="text-xs text-slate-500">Diferença prevista</dt>
+                    <dd class="mt-1 font-semibold" :class="Number(cardInvoice.forecast_difference) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatMoney(cardInvoice.forecast_difference) }}</dd>
+                </div>
+            </dl>
+        </section>
+
         <section class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
             <Link v-if="patrimony.available" :href="route('patrimony.index')" class="group flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 hover:bg-emerald-50">
                 <div><p class="text-xs text-emerald-800">Patrimônio estimado</p><p class="mt-1 text-lg font-semibold text-slate-950">{{ formatMoney(patrimony.estimated_net_worth) }}</p><p class="mt-0.5 text-[11px] text-slate-500">Liquidez financeira + valor líquido dos bens cadastrados</p></div>
