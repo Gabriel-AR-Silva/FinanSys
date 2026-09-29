@@ -19,7 +19,7 @@ class PatrimonyOverviewQuery
         $financial = BigDecimal::of($financialBalance)->toScale(2, RoundingMode::Unnecessary);
         $cardLiability = $this->cardLiability($user);
 
-        if (! Schema::hasTable('patrimonial_assets')) {
+        if (!Schema::hasTable('patrimonial_assets')) {
             return [
                 'summary' => [
                     'asset_count' => 0,
@@ -75,6 +75,7 @@ class PatrimonyOverviewQuery
             ])->values()->all(),
         ];
     }
+
     private function cardLiability(User $user): BigDecimal
     {
         $installments = CardInstallment::query()->whereBelongsTo($user)
