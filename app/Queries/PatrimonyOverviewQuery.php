@@ -2,6 +2,9 @@
 
 namespace App\Queries;
 
+use App\Enums\CardInstallmentStatus;
+use App\Models\CardCharge;
+use App\Models\CardInstallment;
 use App\Models\PatrimonialAsset;
 use App\Models\User;
 use Brick\Math\BigDecimal;
@@ -47,6 +50,29 @@ class PatrimonyOverviewQuery
         )->toScale(2, RoundingMode::Unnecessary);
 
         $equity = $gross->minus($debt)->toScale(2, RoundingMode::Unnecessary);
+        $cardLiabilities = CardInstallment::query()
+            ->whereBelongsTo($user)
+            ->where('status', '!=', CardInstallmentStatus::Advanced)
+            ->get(['gross_amount', 'paid_amount'])
+            ->reduce(
+                fn (BigDecimal $total, CardInstallment $installment): BigDecimal => $total->plus(
+                    BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)
+                ),
+                BigDecimal::zero(),
+            )
+            ->plus(
+                CardCharge::query()
+                    ->whereBelongsTo($user)
+                    ->where('status', '!=', CardInstallmentStatus::Reversed)
+                    ->get(['amount', 'paid_amount'])
+                    ->reduce(
+                        fn (BigDecimal $total, CardCharge $charge): BigDecimal => $total->plus(
+                            BigDecimal::of($charge->amount)->minus($charge->paid_amount)
+                        ),
+                        BigDecimal::zero(),
+                    )
+            )->toScale(2, RoundingMode::Unnecessary);
+        $totalLiabilities = $debt->plus($cardLiabilities)->toScale(2, RoundingMode::Unnecessary);
 
         return [
             'summary' => [
@@ -54,8 +80,10 @@ class PatrimonyOverviewQuery
                 'financial_balance' => (string) $financial,
                 'assets_total' => (string) $gross,
                 'debts_total' => (string) $debt,
+                'card_liabilities' => (string) $cardLiabilities,
+                'liabilities_total' => (string) $totalLiabilities,
                 'asset_equity' => (string) $equity,
-                'estimated_net_worth' => (string) $financial->plus($equity)->toScale(2, RoundingMode::Unnecessary),
+                'estimated_net_worth' => (string) $financial->plus($gross)->minus($totalLiabilities)->toScale(2, RoundingMode::Unnecessary),
                 'available' => true,
             ],
             'assets' => $assets->map(fn (PatrimonialAsset $asset): array => [
