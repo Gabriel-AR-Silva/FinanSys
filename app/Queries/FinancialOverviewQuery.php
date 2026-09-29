@@ -9,7 +9,6 @@ use App\Models\CardCharge;
 use App\Models\CardPurchase;
 use App\Models\CardPurchaseReversal;
 use App\Models\Category;
-use App\Models\ExpenseRefund;
 use App\Models\LedgerEntry;
 use App\Models\User;
 use Brick\Math\BigDecimal;
@@ -474,28 +473,12 @@ class FinancialOverviewQuery
 
     private function monthlyExpense(User $user): string
     {
-        $start = now('America/Sao_Paulo')->startOfMonth();
-        $end = now('America/Sao_Paulo')->endOfMonth();
-        $gross = BigDecimal::of((string) LedgerEntry::query()->whereBelongsTo($user)
-            ->where('type', LedgerEntryType::Expense)->whereBetween('occurred_at', [$start, $end])->sum('amount'));
-        $refundEntries = ExpenseRefund::query()->whereBelongsTo($user)
-            ->whereHas('expenseEntry', fn (Builder $query) => $query->whereBetween('occurred_at', [$start, $end]))
-            ->whereHas('refundEntry', fn (Builder $query) => $query->whereBetween('occurred_at', [$start, $end]))
-            ->with('refundEntry')->get()->pluck('refundEntry')->filter();
-        $reversed = LedgerEntry::query()->whereBelongsTo($user)
-            ->whereIn('reversal_of_operation_id', $refundEntries->pluck('operation_id'))
-            ->pluck('reversal_of_operation_id')->all();
-        $refunded = $refundEntries
-            ->reject(fn (LedgerEntry $entry): bool => in_array($entry->operation_id, $reversed, true))
-            ->reduce(fn (BigDecimal $total, LedgerEntry $entry): BigDecimal => $total->plus($entry->amount), BigDecimal::zero());
+        $start = CarbonImmutable::now('America/Sao_Paulo')->startOfMonth();
+        $end = CarbonImmutable::now('America/Sao_Paulo')->endOfMonth();
+        $ledger = $this->sumAmounts($this->ledgerExpenseConsumption($user, $start, $end, null)->pluck('amount'));
+        $card = $this->cardConsumption($user, $start, $end, null)['total'];
 
-        $card = $this->cardConsumption(
-            $user,
-            CarbonImmutable::instance($start),
-            CarbonImmutable::instance($end),
-            null,
-        )['total'];
-
-        return (string) $gross->minus($refunded)->plus($card)->toScale(2, RoundingMode::Unnecessary);
+        return (string) $ledger->plus($card)->toScale(2, RoundingMode::Unnecessary);
     }
+
 }
