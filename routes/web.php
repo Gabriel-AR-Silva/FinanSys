@@ -20,6 +20,7 @@ use App\Http\Controllers\FinancialGoalController;
 use App\Http\Controllers\FinancialSettingsController;
 use App\Http\Controllers\HelpCenterController;
 use App\Http\Controllers\InternalAlertController;
+use App\Http\Controllers\InvestmentPositionController;
 use App\Http\Controllers\LedgerEntryController;
 use App\Http\Controllers\LedgerEntryCorrectionController;
 use App\Http\Controllers\LedgerEntryReversalController;
@@ -83,6 +84,8 @@ Route::middleware('auth')->group(function () {
     Route::put('/metas/{goal}', [FinancialGoalController::class, 'update'])->whereNumber('goal')->name('financial-goals.update');
     Route::delete('/metas/{goal}', [FinancialGoalController::class, 'destroy'])->whereNumber('goal')->name('financial-goals.destroy');
     Route::get('/avisos-financeiros', [InternalAlertController::class, 'index'])->name('internal-alerts.index');
+    Route::get('/investimentos', [InvestmentPositionController::class, 'index'])->name('investments.index');
+    Route::post('/investimentos', [InvestmentPositionController::class, 'store'])->name('investments.store');
     Route::get('/patrimonio', [PatrimonialAssetController::class, 'index'])->name('patrimony.index');
     Route::post('/patrimonio', [PatrimonialAssetController::class, 'store'])->name('patrimony.store');
     Route::put('/patrimonio/{asset}', [PatrimonialAssetController::class, 'update'])->whereNumber('asset')->name('patrimony.update');
