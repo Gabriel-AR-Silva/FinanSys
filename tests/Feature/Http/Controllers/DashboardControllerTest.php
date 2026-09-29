@@ -13,6 +13,7 @@ use App\Models\CreditCard;
 use App\Models\ExpenseCommitment;
 use App\Models\LedgerEntry;
 use App\Models\Pocket;
+use App\Models\ReceiptForecast;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -129,6 +130,36 @@ class DashboardControllerTest extends TestCase
                 ->where('planning.indicators.committed', '100.00')
                 ->where('planning.indicators.consolidated', '100.00')
                 ->where('planning.indicators.available_now', '400.00'));
+    }
+
+    public function test_available_now_stays_conservative_when_commitments_exceed_cash_even_with_forecast_income(): void
+    {
+        $this->travelTo('2026-09-28 12:00:00');
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => 'expense']);
+
+        $this->entry($user, $account, LedgerEntryType::OpeningBalance, '100.00', '2026-08-01 10:00:00');
+        ExpenseCommitment::factory()->for($user)->create([
+            'account_id' => $account->id,
+            'category_id' => $category->id,
+            'amount' => '150.00',
+            'paid_amount' => '0.00',
+            'status' => 'pending',
+            'due_on' => '2026-10-10',
+        ]);
+        ReceiptForecast::factory()->for($user)->create([
+            'amount' => '1000.00',
+            'expected_on' => '2026-09-29',
+        ]);
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('overview.general_balance', '100')
+                ->where('receivables.pending', '1000.00')
+                ->where('planning.indicators.committed', '150.00')
+                ->where('planning.indicators.consolidated', '150.00')
+                ->where('planning.indicators.available_now', '-50.00'));
     }
 
     public function test_card_payment_is_cash_outflow_but_never_a_second_consumption(): void
