@@ -85,6 +85,7 @@ class DashboardControllerTest extends TestCase
                 ->where('consumption.summary.card_consumption', '96.11')
                 ->where('consumption.summary.transaction_count', 1)
                 ->where('cardInvoice.pending', '96.11')
+                ->where('planning.card_commitments.pending', '96.11')
                 ->where('patrimony.card_liability', '96.11')
                 ->where('patrimony.estimated_net_worth', '-82.11'));
     }
