@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Enums\AuditAction;
+use App\Models\InvestmentMovement;
 use App\Models\InvestmentPosition;
 use App\Models\User;
 use App\Support\AuditRecorder;
@@ -27,6 +28,7 @@ class CreateInvestmentPosition
                 'asset_type' => trim((string) $data['asset_type']),
                 'ticker' => filled($data['ticker'] ?? null) ? strtoupper(trim((string) $data['ticker'])) : null,
                 'name' => trim((string) $data['name']),
+                'purchased_on' => (string) $data['purchased_on'],
                 'quantity' => (string) $quantity,
                 'average_cost' => (string) $averageCost,
                 'total_invested' => (string) $totalInvested,
@@ -37,6 +39,17 @@ class CreateInvestmentPosition
                 'valued_on' => $data['valued_on'] ?? null,
             ]);
 
+            InvestmentMovement::query()->create([
+                'user_id' => $user->id,
+                'investment_position_id' => $position->id,
+                'type' => 'buy',
+                'occurred_on' => (string) $data['purchased_on'],
+                'quantity' => (string) $quantity,
+                'unit_price' => (string) $averageCost,
+                'amount' => (string) $totalInvested,
+                'fees' => '0.00',
+                'notes' => 'Posição inicial',
+            ]);
             $this->auditRecorder->record($user, AuditAction::Created, $position);
 
             return $position;
