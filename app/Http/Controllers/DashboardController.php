@@ -15,6 +15,7 @@ use App\Queries\FinancialPlanningOverviewQuery;
 use App\Queries\MonthlyDailyPlanningDashboardQuery;
 use App\Queries\PatrimonyOverviewQuery;
 use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -78,8 +79,24 @@ class DashboardController extends Controller
 
         $planningView = $planning->forUser($request->user());
         if (isset($planningView['indicators'])) {
-            $planningView['indicators']['available_now'] = (string) BigDecimal::of($overviewView['general_balance'])
+            $availableNow = BigDecimal::of($overviewView['general_balance'])
                 ->minus($planningView['indicators']['committed']);
+            $planningView['indicators']['available_now'] = (string) $availableNow;
+
+            if (($planningView['configured'] ?? false) === true && $planningView['indicators']['sustainable_daily_pace'] !== null) {
+                $remainingDays = max(1, (int) $planningView['daily']['remaining_days']);
+                $cashDailyCapacity = $availableNow->isPositive()
+                    ? $availableNow->dividedBy($remainingDays, 2, RoundingMode::Down)
+                    : BigDecimal::zero();
+                $plannedDailyCapacity = BigDecimal::of($planningView['indicators']['sustainable_daily_pace']);
+                $sustainableDailyPace = $plannedDailyCapacity->compareTo($cashDailyCapacity) <= 0
+                    ? $plannedDailyCapacity
+                    : $cashDailyCapacity;
+                $planningView['indicators']['sustainable_daily_pace'] = (string) $sustainableDailyPace;
+                $planningView['indicators']['pace_difference'] = $planningView['indicators']['realized_daily_pace'] === null
+                    ? null
+                    : (string) BigDecimal::of($planningView['indicators']['realized_daily_pace'])->minus($sustainableDailyPace);
+            }
         }
 
         return Inertia::render('Dashboard', [
