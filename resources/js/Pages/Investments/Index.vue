@@ -8,6 +8,7 @@ const form = useForm({
     asset_type: 'Renda variável',
     ticker: '',
     name: '',
+    purchased_on: '',
     quantity: '',
     average_cost: '',
     current_value: '',
@@ -16,7 +17,7 @@ const form = useForm({
 
 const submit = () => form.post(route('investments.store'), {
     preserveScroll: true,
-    onSuccess: () => form.reset('ticker', 'name', 'quantity', 'average_cost', 'current_value', 'valued_on'),
+    onSuccess: () => form.reset('ticker', 'name', 'purchased_on', 'quantity', 'average_cost', 'current_value', 'valued_on'),
 });
 </script>
 
@@ -48,6 +49,7 @@ const submit = () => form.post(route('investments.store'), {
                 <input v-model="form.name" class="rounded-xl border-slate-300" placeholder="Nome do ativo" required />
                 <input v-model="form.ticker" class="rounded-xl border-slate-300" placeholder="Ticker (opcional)" />
                 <input v-model="form.asset_type" class="rounded-xl border-slate-300" placeholder="Tipo" required />
+                <input v-model="form.purchased_on" type="date" class="rounded-xl border-slate-300" required />
                 <input v-model="form.quantity" type="number" step="0.00000001" min="0" class="rounded-xl border-slate-300" placeholder="Quantidade" required />
                 <input v-model="form.average_cost" type="number" step="0.0001" min="0" class="rounded-xl border-slate-300" placeholder="Custo médio" required />
                 <input v-model="form.current_value" type="number" step="0.01" min="0" class="rounded-xl border-slate-300" placeholder="Valor atual manual" />
