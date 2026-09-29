@@ -22,8 +22,16 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __invoke(IndexDashboardRequest $request, FinancialOverviewQuery $overview, ConsumptionOverviewQuery $consumption, FinancialPlanningOverviewQuery $planning, RecalculateReceiptForecast $receiptProgress, MonthlyDailyPlanningDashboardQuery $dailyPlanning, PatrimonyOverviewQuery $patrimony): Response
-    {
+    public function __invoke(
+        IndexDashboardRequest $request,
+        FinancialOverviewQuery $overview,
+        ConsumptionOverviewQuery $consumption,
+        FinancialPlanningOverviewQuery $planning,
+        RecalculateReceiptForecast $receiptProgress,
+        MonthlyDailyPlanningDashboardQuery $dailyPlanning,
+        PatrimonyOverviewQuery $patrimony,
+    ): Response {
+
         $period = (int) $request->validated('period', 30);
         $period = in_array($period, [7, 15, 30, 60, 365], true) ? $period : 30;
         $categoryId = $request->validated('category_id');
@@ -50,25 +58,59 @@ class DashboardController extends Controller
         $dailyPlanningView = $dailyPlanning->forUser($request->user());
         $overviewView = $overview->forUser($request->user(), $period, $categoryId);
         $consumptionView = $consumption->forUser($request->user(), $period, $categoryId);
-        $invoiceStart = $start->addMonth()->startOfMonth();
-        $invoiceEnd = $invoiceStart->endOfMonth();
-        $cardInvoicePending = CardInstallment::query()->whereBelongsTo($request->user())
+        $today = CarbonImmutable::now('America/Sao_Paulo')->startOfDay();
+        $nextInstallmentDue = CardInstallment::query()->whereBelongsTo($request->user())
             ->where('status', CardInstallmentStatus::Pending)
-            ->whereBetween('due_on', [$invoiceStart->toDateString(), $invoiceEnd->toDateString()])
-            ->get(['gross_amount', 'paid_amount'])
-            ->reduce(fn (BigDecimal $total, CardInstallment $installment): BigDecimal => $total->plus(BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)), BigDecimal::zero())
-            ->plus(CardCharge::query()->whereBelongsTo($request->user())
+            ->whereDate('due_on', '>=', $today->toDateString())
+            ->min('due_on');
+        $nextChargeDue = CardCharge::query()->whereBelongsTo($request->user())
+            ->where('status', CardInstallmentStatus::Pending)
+            ->whereDate('due_on', '>=', $today->toDateString())
+            ->min('due_on');
+        $nextDue = collect([$nextInstallmentDue, $nextChargeDue])->filter()->sort()->first();
+        $invoiceStart = $nextDue === null
+            ? null
+            : CarbonImmutable::parse($nextDue, 'America/Sao_Paulo')->startOfMonth();
+        $invoiceEnd = $invoiceStart?->endOfMonth();
+        $cardInvoicePending = BigDecimal::zero();
+
+        if ($invoiceStart !== null && $invoiceEnd !== null) {
+            $cardInvoicePending = CardInstallment::query()->whereBelongsTo($request->user())
                 ->where('status', CardInstallmentStatus::Pending)
                 ->whereBetween('due_on', [$invoiceStart->toDateString(), $invoiceEnd->toDateString()])
-                ->get(['amount', 'paid_amount'])
-                ->reduce(fn (BigDecimal $total, CardCharge $charge): BigDecimal => $total->plus(BigDecimal::of($charge->amount)->minus($charge->paid_amount)), BigDecimal::zero()));
+                ->get(['gross_amount', 'paid_amount'])
+                ->reduce(
+                    fn (BigDecimal $total, CardInstallment $installment): BigDecimal => $total->plus(
+                        BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)
+                    ),
+                    BigDecimal::zero(),
+                )
+                ->plus(
+                    CardCharge::query()->whereBelongsTo($request->user())
+                        ->where('status', CardInstallmentStatus::Pending)
+                        ->whereBetween('due_on', [$invoiceStart->toDateString(), $invoiceEnd->toDateString()])
+                        ->get(['amount', 'paid_amount'])
+                        ->reduce(
+                            fn (BigDecimal $total, CardCharge $charge): BigDecimal => $total->plus(
+                                BigDecimal::of($charge->amount)->minus($charge->paid_amount)
+                            ),
+                            BigDecimal::zero(),
+                        )
+                );
+        }
+
+        $availableAfterInvoice = BigDecimal::of($overviewView['general_balance'])->minus($cardInvoicePending);
 
         return Inertia::render('Dashboard', [
             'overview' => $overviewView,
             'consumption' => $consumptionView,
             'patrimony' => $patrimony->forUser($request->user(), $overviewView['general_balance'])['summary'],
             'planning' => $planning->forUser($request->user()),
-            'cardInvoice' => ['month' => $invoiceStart->format('Y-m'), 'pending' => (string) $cardInvoicePending],
+            'cardInvoice' => [
+                'month' => $invoiceStart?->format('Y-m'),
+                'pending' => (string) $cardInvoicePending,
+                'available_after_invoice' => (string) $availableAfterInvoice,
+            ],
             'receivables' => ['month' => $month, 'pending' => (string) $pending, 'next_due_on' => $nextDueOn],
             'dailyCheckIns' => $dailyPlanningView['check_ins'],
             'dailyPlanning' => $dailyPlanningView,
