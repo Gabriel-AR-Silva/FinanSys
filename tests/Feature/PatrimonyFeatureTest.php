@@ -2,15 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Actions\CreateCardPurchase;
 use App\Enums\CategoryType;
+use App\Enums\ExpensePlanningType;
 use App\Enums\RecordStatus;
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\CreditCard;
 use App\Models\LedgerEntry;
 use App\Models\PatrimonialAsset;
 use App\Models\User;
 use App\Queries\OnboardingProgressQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -54,6 +58,41 @@ class PatrimonyFeatureTest extends TestCase
                 ->where('patrimony.summary.estimated_net_worth', '13000.00')
                 ->where('patrimony.assets.0.name', 'Moto')
                 ->where('patrimony.assets.0.equity', '7000.00'));
+    }
+
+
+    public function test_patrimony_subtracts_open_card_liabilities_without_reducing_cash_balance(): void
+    {
+        $this->travelTo('2026-09-29 12:00:00');
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => 'expense']);
+        $card = CreditCard::factory()->for($user)->create();
+
+        LedgerEntry::factory()->openingBalance()->create([
+            'user_id' => $user->id,
+            'reference_type' => $account->getMorphClass(),
+            'reference_id' => $account->id,
+            'amount' => '1000.00',
+        ]);
+
+        app(CreateCardPurchase::class)->handle($user, [
+            'credit_card_id' => $card->id,
+            'category_id' => $category->id,
+            'description' => 'Compra pendente',
+            'planning_type' => ExpensePlanningType::Ordinary->value,
+            'gross_amount' => '300.00',
+            'purchased_on' => '2026-09-29',
+            'installments_count' => 1,
+            'first_due_on' => '2026-10-12',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $this->actingAs($user)->get(route('patrimony.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('patrimony.summary.financial_balance', '1000.00')
+                ->where('patrimony.summary.card_liabilities', '300.00')
+                ->where('patrimony.summary.estimated_net_worth', '700.00'));
     }
 
     public function test_dashboard_exposes_only_authenticated_users_estimated_patrimony(): void
