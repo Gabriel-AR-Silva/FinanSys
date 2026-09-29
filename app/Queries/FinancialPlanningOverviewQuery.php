@@ -13,6 +13,7 @@ use App\Models\CardPurchase;
 use App\Models\CardPurchaseReversal;
 use App\Models\CardInstallment;
 use App\Models\EssentialBudget;
+use App\Models\ExpenseCommitment;
 use App\Models\LedgerEntry;
 use App\Models\MonthlyFinancialSetting;
 use App\Models\ReceiptForecast;
@@ -35,6 +36,7 @@ class FinancialPlanningOverviewQuery
     {
         $now = ($evaluatedAt ?? CarbonImmutable::now('America/Sao_Paulo'))->setTimezone('America/Sao_Paulo');
         $month = $now->format('Y-m');
+        $exposure = $this->financialExposure($user, $now);
         $settings = MonthlyFinancialSetting::query()
             ->whereBelongsTo($user)
             ->where('month', $month)
@@ -47,6 +49,15 @@ class FinancialPlanningOverviewQuery
                 'month' => $month,
                 'evaluated_at' => $now->toIso8601String(),
                 'reasons' => ['Configure a proteção e os gastos essenciais deste mês.'],
+                'indicators' => [
+                    'realized' => $exposure['realized'],
+                    'committed' => $exposure['committed'],
+                    'consolidated' => $exposure['consolidated'],
+                    'available_now' => null,
+                    'realized_daily_pace' => $exposure['realized_daily_pace'],
+                    'sustainable_daily_pace' => null,
+                    'pace_difference' => null,
+                ],
             ];
         }
 
@@ -167,38 +178,11 @@ class FinancialPlanningOverviewQuery
         $remainingDays = $this->math->remainingDaysInCurrentMonth($now);
         $daily = $this->math->dailyAllocation($dailyAvailable, $remainingDays);
 
-        $reversedPurchaseIds = CardPurchaseReversal::query()
-            ->whereBelongsTo($user)
-            ->whereDate('reversed_on', '<=', $now->toDateString())
-            ->pluck('card_purchase_id');
-        $cardPurchaseConsumption = $this->sum(
-            CardPurchase::query()
-                ->whereBelongsTo($user)
-                ->whereBetween('purchased_on', [$start->toDateString(), $now->toDateString()])
-                ->whereNotIn('id', $reversedPurchaseIds)
-                ->pluck('gross_amount')
-        );
-        $cardChargeConsumption = $this->sum(
-            CardCharge::query()
-                ->whereBelongsTo($user)
-                ->whereBetween('charged_on', [$start->toDateString(), $now->toDateString()])
-                ->where('status', '!=', CardInstallmentStatus::Reversed)
-                ->pluck('amount')
-        );
-        $realizedConsumption = $this->sum($expenses->pluck('amount'))
-            ->plus($cardPurchaseConsumption)
-            ->plus($cardChargeConsumption);
-        $completedDays = max(0, $now->day - 1);
-        $realizedDailyPace = $completedDays === 0
+        $realizedDailyPace = $exposure['realized_daily_pace'] === null
             ? null
-            : $realizedConsumption->dividedBy($completedDays, 2, RoundingMode::HalfUp);
+            : BigDecimal::of($exposure['realized_daily_pace']);
         $sustainableDailyPace = BigDecimal::of($daily['daily_amount']);
         $paceDifference = $realizedDailyPace?->minus($sustainableDailyPace);
-
-        $knownCommitments = $this->sum($cardCommitments->pluck('pending'))
-            ->plus(BigDecimal::of($previousCommitments['pending']));
-        $availableAfterCommitments = BigDecimal::of($freeMargin);
-        $consolidatedKnownImpact = $realizedConsumption->plus($knownCommitments);
 
         $reasons = [];
         if ($unclassified->isNotEmpty()) {
@@ -224,10 +208,10 @@ class FinancialPlanningOverviewQuery
             'essential_categories' => $essentialProjections->all(),
             'free_margin' => $freeMargin,
             'indicators' => [
-                'realized' => (string) $realizedConsumption,
-                'committed' => (string) $knownCommitments,
-                'consolidated' => (string) $consolidatedKnownImpact,
-                'available_now' => (string) $availableAfterCommitments,
+                'realized' => $exposure['realized'],
+                'committed' => $exposure['committed'],
+                'consolidated' => $exposure['consolidated'],
+                'available_now' => null,
                 'realized_daily_pace' => $realizedDailyPace === null ? null : (string) $realizedDailyPace,
                 'sustainable_daily_pace' => (string) $sustainableDailyPace,
                 'pace_difference' => $paceDifference === null ? null : (string) $paceDifference,
@@ -238,6 +222,122 @@ class FinancialPlanningOverviewQuery
                 'remainder' => $daily['remainder'],
                 'remaining_days' => $remainingDays,
             ],
+        ];
+    }
+
+    /** @return array{realized:string,committed:string,consolidated:string,realized_daily_pace:?string} */
+    private function financialExposure(User $user, CarbonImmutable $now): array
+    {
+        $start = $now->startOfMonth();
+        $end = $now;
+        $expenseEntries = LedgerEntry::query()
+            ->whereBelongsTo($user)
+            ->where('type', LedgerEntryType::Expense)
+            ->whereNull('reversal_of_operation_id')
+            ->whereBetween('occurred_at', [$start, $end])
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('ledger_entries as reversals')
+                ->whereColumn('reversals.reversal_of_operation_id', 'ledger_entries.operation_id')
+                ->where('reversals.user_id', $user->id)
+                ->whereNull('reversals.deleted_at'))
+            ->with('expenseRefunds.refundEntry')
+            ->get();
+        $refundOperations = $expenseEntries->pluck('expenseRefunds')->flatten()->pluck('refundEntry')->filter()->pluck('operation_id');
+        $reversedRefundOperations = LedgerEntry::query()->whereBelongsTo($user)
+            ->whereIn('reversal_of_operation_id', $refundOperations)
+            ->pluck('reversal_of_operation_id')
+            ->all();
+        $ledgerConsumption = $expenseEntries->map(fn (LedgerEntry $entry): array => [
+            'entry' => $entry,
+            'amount' => $this->netExpense($entry, $start, $end, $reversedRefundOperations),
+        ]);
+
+        $reversedPurchaseIds = CardPurchaseReversal::query()
+            ->whereBelongsTo($user)
+            ->whereDate('reversed_on', '<=', $now->toDateString())
+            ->pluck('card_purchase_id');
+        $purchases = CardPurchase::query()
+            ->whereBelongsTo($user)
+            ->whereBetween('purchased_on', [$start->toDateString(), $now->toDateString()])
+            ->whereNotIn('id', $reversedPurchaseIds)
+            ->get(['id', 'gross_amount', 'planning_type', 'purchased_on']);
+        $charges = CardCharge::query()
+            ->whereBelongsTo($user)
+            ->whereBetween('charged_on', [$start->toDateString(), $now->toDateString()])
+            ->where('status', '!=', CardInstallmentStatus::Reversed)
+            ->get(['id', 'amount', 'planning_type', 'charged_on']);
+
+        $realized = $this->sum($ledgerConsumption->pluck('amount'))
+            ->plus($this->sum($purchases->pluck('gross_amount')))
+            ->plus($this->sum($charges->pluck('amount')));
+
+        $openInstallments = CardInstallment::query()
+            ->whereBelongsTo($user)
+            ->where('status', CardInstallmentStatus::Pending)
+            ->whereHas('purchase')
+            ->with('purchase:id,purchased_on')
+            ->get();
+        $openCharges = CardCharge::query()
+            ->whereBelongsTo($user)
+            ->where('status', CardInstallmentStatus::Pending)
+            ->get();
+        $openExpenseCommitments = ExpenseCommitment::query()
+            ->whereBelongsTo($user)
+            ->where('status', 'pending')
+            ->get(['amount', 'paid_amount']);
+
+        $cardCommitted = $openInstallments->reduce(
+            fn (BigDecimal $total, CardInstallment $installment): BigDecimal => $total->plus(BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)),
+            BigDecimal::zero(),
+        )->plus($openCharges->reduce(
+            fn (BigDecimal $total, CardCharge $charge): BigDecimal => $total->plus(BigDecimal::of($charge->amount)->minus($charge->paid_amount)),
+            BigDecimal::zero(),
+        ));
+        $expenseCommitted = $openExpenseCommitments->reduce(
+            fn (BigDecimal $total, ExpenseCommitment $commitment): BigDecimal => $total->plus(BigDecimal::of($commitment->amount)->minus($commitment->paid_amount)),
+            BigDecimal::zero(),
+        );
+        $committed = $cardCommitted->plus($expenseCommitted);
+
+        $cardOverlap = $openInstallments
+            ->filter(fn (CardInstallment $installment): bool => $installment->purchase->purchased_on->betweenIncluded($start, $now))
+            ->reduce(
+                fn (BigDecimal $total, CardInstallment $installment): BigDecimal => $total->plus(BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)),
+                BigDecimal::zero(),
+            )
+            ->plus($openCharges
+                ->filter(fn (CardCharge $charge): bool => $charge->charged_on->betweenIncluded($start, $now))
+                ->reduce(
+                    fn (BigDecimal $total, CardCharge $charge): BigDecimal => $total->plus(BigDecimal::of($charge->amount)->minus($charge->paid_amount)),
+                    BigDecimal::zero(),
+                ));
+        $incrementalCommitment = $committed->minus($cardOverlap);
+        if ($incrementalCommitment->isNegative()) {
+            $incrementalCommitment = BigDecimal::zero();
+        }
+        $consolidated = $realized->plus($incrementalCommitment);
+
+        $completedDays = max(0, $now->day - 1);
+        $eligibleCompleted = $this->sum($ledgerConsumption
+            ->filter(fn (array $item): bool => $item['entry']->planning_type === ExpensePlanningType::Ordinary
+                && $item['entry']->occurred_at->setTimezone('America/Sao_Paulo')->isBefore($now->startOfDay()))
+            ->pluck('amount'))
+            ->plus($this->sum($purchases
+                ->filter(fn (CardPurchase $purchase): bool => $purchase->planning_type === ExpensePlanningType::Ordinary
+                    && $purchase->purchased_on->isBefore($now->startOfDay()))
+                ->pluck('gross_amount')))
+            ->plus($this->sum($charges
+                ->filter(fn (CardCharge $charge): bool => $charge->planning_type === ExpensePlanningType::Ordinary
+                    && $charge->charged_on->isBefore($now->startOfDay()))
+                ->pluck('amount')));
+        $realizedDailyPace = $completedDays === 0
+            ? null
+            : (string) $eligibleCompleted->dividedBy($completedDays, 2, RoundingMode::HalfUp);
+
+        return [
+            'realized' => (string) $realized,
+            'committed' => (string) $committed,
+            'consolidated' => (string) $consolidated,
+            'realized_daily_pace' => $realizedDailyPace,
         ];
     }
 
