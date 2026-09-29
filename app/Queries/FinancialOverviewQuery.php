@@ -56,13 +56,13 @@ class FinancialOverviewQuery
             'monthly_income' => $this->monthlyIncome($user),
             'monthly_expense' => $this->monthlyExpense($user),
             'period_summary' => [
-                'income' => (string) $income,
-                'expense' => (string) $expense,
-                'net' => (string) $net,
+                'income' => $this->moneyString($income),
+                'expense' => $this->moneyString($expense),
+                'net' => $this->moneyString($net),
                 'savings_rate' => $savingsRate,
                 'average_daily_expense' => (string) $expense->dividedBy($period, 2, RoundingMode::HalfUp),
                 'transaction_count' => $incomeEntries->count() + $ledgerConsumption->count() + $cardConsumption['count'],
-                'largest_expense' => (string) ($largestLedgerExpense->compareTo($cardConsumption['largest']) >= 0
+                'largest_expense' => $this->moneyString($largestLedgerExpense->compareTo($cardConsumption['largest']) >= 0
                     ? $largestLedgerExpense
                     : $cardConsumption['largest']),
             ],
@@ -227,7 +227,7 @@ class FinancialOverviewQuery
                 'id' => $category?->id,
                 'name' => $category?->name ?? 'Sem categoria',
                 'type' => $category?->type->value ?? $row['type'],
-                'total' => (string) ($isExpense ? $total->negated() : $total),
+                'total' => $this->moneyString($isExpense ? $total->negated() : $total),
             ];
         })->groupBy(fn (array $item): string => ($item['id'] ?? 'none').':'.$item['type'])
             ->map(function ($items): array {
@@ -237,7 +237,7 @@ class FinancialOverviewQuery
                     BigDecimal::zero(),
                 );
 
-                return [...$first, 'total' => (string) $total];
+                return [...$first, 'total' => $this->moneyString($total)];
             })->filter(fn (array $item): bool => BigDecimal::of($item['total'])->isZero() === false)
             ->sortByDesc(fn (array $item): string => (string) BigDecimal::of($item['total'])->abs())
             ->values()->all();
@@ -465,6 +465,11 @@ class FinancialOverviewQuery
             LedgerEntryType::CardPayment => 'Pagamento de cartão',
             LedgerEntryType::CardAdvance => 'Antecipação de cartão',
         };
+    }
+
+    private function moneyString(BigDecimal $value): string
+    {
+        return (string) $value->toScale(2, RoundingMode::Unnecessary);
     }
 
     private function monthlyIncome(User $user): string
