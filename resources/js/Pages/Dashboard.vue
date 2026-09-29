@@ -23,6 +23,18 @@ const props = defineProps({
 });
 
 const activeView = ref('overview');
+const setActiveView = (view) => {
+    activeView.value = view;
+
+    const url = new URL(window.location.href);
+    if (view === 'overview') {
+        url.searchParams.delete('view');
+    } else {
+        url.searchParams.set('view', view);
+    }
+    window.history.replaceState(window.history.state, '', url);
+};
+
 onMounted(() => {
     const requestedView = new URLSearchParams(window.location.search).get('view');
     if (['overview', 'advanced', 'goals'].includes(requestedView)) activeView.value = requestedView;
@@ -98,7 +110,7 @@ const periodCards = computed(() => [
                 :aria-selected="activeView === 'overview'"
                 class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none"
                 :class="activeView === 'overview' ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'"
-                @click="activeView = 'overview'"
+                @click="setActiveView('overview')"
             >
                 Visão geral
             </button>
@@ -108,7 +120,7 @@ const periodCards = computed(() => [
                 :aria-selected="activeView === 'advanced'"
                 class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none"
                 :class="activeView === 'advanced' ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'"
-                @click="activeView = 'advanced'"
+                @click="setActiveView('advanced')"
             >
                 Análise avançada
             </button>
@@ -118,7 +130,7 @@ const periodCards = computed(() => [
                 :aria-selected="activeView === 'goals'"
                 class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none"
                 :class="activeView === 'goals' ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'"
-                @click="activeView = 'goals'"
+                @click="setActiveView('goals')"
             >
                 Metas <span class="ml-1 text-[9px] uppercase opacity-70">Beta</span>
             </button>
@@ -193,6 +205,7 @@ const periodCards = computed(() => [
             v-show="activeView === 'advanced'"
             :daily-planning="dailyPlanning"
             :planning="planning"
+            @open-check-ins="setActiveView('overview')"
         />
         <FinancialGoalsPanel v-show="activeView === 'goals'" />
     </AuthenticatedLayout>
