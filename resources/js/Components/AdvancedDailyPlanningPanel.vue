@@ -7,6 +7,7 @@ import { Link } from '@inertiajs/vue3';
 const props = defineProps({
     dailyPlanning: { type: Object, required: true },
     planning: { type: Object, required: true },
+    cardInvoice: { type: Object, required: true },
 });
 
 const emit = defineEmits(['open-check-ins']);
@@ -153,6 +154,30 @@ const statusText = computed(() => {
                 </div>
             </div>
             <p v-else class="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">Ainda não há dias confirmados para formar o gráfico.</p>
+        </section>
+
+        <section v-if="cardInvoice.next_due_on" class="rounded-2xl border border-sky-200 bg-sky-50/60 p-4 shadow-sm sm:p-5">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h2 class="font-semibold text-slate-950">Salário previsto × próxima fatura</h2>
+                    <p class="mt-1 text-sm text-slate-600">Mostra se as receitas previstas até o vencimento seriam suficientes para cobrir a próxima fatura. É uma projeção; o dinheiro ainda não está disponível.</p>
+                </div>
+                <p class="text-sm font-semibold text-slate-800">Vence {{ formatDate(cardInvoice.next_due_on) }}</p>
+            </div>
+            <dl class="mt-4 grid gap-3 sm:grid-cols-3">
+                <div class="rounded-xl bg-white/80 p-3">
+                    <dt class="text-xs text-slate-500">Fatura a vencer</dt>
+                    <dd class="mt-1 font-semibold text-violet-800">{{ formatMoney(cardInvoice.next_due_pending) }}</dd>
+                </div>
+                <div class="rounded-xl bg-white/80 p-3">
+                    <dt class="text-xs text-slate-500">Receitas previstas antes do vencimento</dt>
+                    <dd class="mt-1 font-semibold text-sky-900">{{ formatMoney(cardInvoice.forecast_before_next_due) }}</dd>
+                </div>
+                <div class="rounded-xl bg-white/80 p-3">
+                    <dt class="text-xs text-slate-500">Diferença prevista</dt>
+                    <dd class="mt-1 font-semibold" :class="Number(cardInvoice.forecast_difference) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatMoney(cardInvoice.forecast_difference) }}</dd>
+                </div>
+            </dl>
         </section>
 
         <section class="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
