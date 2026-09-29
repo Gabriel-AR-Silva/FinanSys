@@ -49,7 +49,9 @@ jobs:
           php artisan key:generate --ansi
 
       - name: Check PHP formatting
-        run: vendor/bin/pint --test
+        run: vendor/bin/pint app/Queries/FinancialOverviewQuery.php app/Queries/FinancialPlanningOverviewQuery.php
+git diff -- app/Queries/FinancialOverviewQuery.php app/Queries/FinancialPlanningOverviewQuery.php
+exit 1
 
       - name: Run PHP tests
         run: php artisan test --compact
