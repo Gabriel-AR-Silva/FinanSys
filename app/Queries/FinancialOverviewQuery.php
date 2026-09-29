@@ -351,7 +351,8 @@ class FinancialOverviewQuery
 
         $purchases = CardPurchase::query()
             ->whereBelongsTo($user)
-            ->whereBetween('purchased_on', [$startDate, $endDate])
+            ->whereDate('purchased_on', '>=', $startDate)
+            ->whereDate('purchased_on', '<=', $endDate)
             ->whereNotIn('id', $reversedPurchaseIds)
             ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
             ->get(['category_id', 'gross_amount', 'purchased_on'])
@@ -362,7 +363,8 @@ class FinancialOverviewQuery
             ]);
         $charges = CardCharge::query()
             ->whereBelongsTo($user)
-            ->whereBetween('charged_on', [$startDate, $endDate])
+            ->whereDate('charged_on', '>=', $startDate)
+            ->whereDate('charged_on', '<=', $endDate)
             ->where('status', '!=', CardInstallmentStatus::Reversed)
             ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
             ->get(['category_id', 'amount', 'charged_on'])
