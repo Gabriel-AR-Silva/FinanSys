@@ -111,8 +111,8 @@ const priorityCards = computed(() => [
     },
     {
         label: 'Fatura atual do cartão',
-        value: props.cardInvoice.current_pending,
-        note: 'Parcelas e encargos com vencimento neste mês. Não inclui as próximas parcelas.',
+        value: props.cardInvoice.open_pending,
+        note: 'Valor da fatura que está aberta agora, calculado pelo ciclo de fechamento de cada cartão. Não inclui parcelas de faturas futuras.',
         icon: ReceiptText,
         tone: 'text-violet-700 bg-violet-50',
     },
@@ -215,7 +215,7 @@ const secondaryCards = computed(() => [
         </section>
 
         <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-6">
-            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Próxima fatura do cartão</p><p class="mt-1 font-semibold text-violet-700">{{ formatMoney(cardInvoice.pending) }}</p><p class="mt-0.5 text-[10px] text-slate-400">Parcelas e encargos do cartão que ainda precisam ser pagos no próximo mês.</p></article>
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Parcelas do próximo mês</p><p class="mt-1 font-semibold text-violet-700">{{ formatMoney(cardInvoice.pending) }}</p><p class="mt-0.5 text-[10px] text-slate-400">Parcelas e encargos com vencimento no próximo mês-calendário.</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Taxa de economia</p><p class="mt-1 font-semibold" :class="overview.period_summary.savings_rate === null ? 'text-slate-500' : Number(overview.period_summary.savings_rate) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatPercent(overview.period_summary.savings_rate) }}</p><p v-if="overview.period_summary.savings_rate === null" class="mt-0.5 text-[10px] text-slate-400">Sem receita no período para calcular a taxa.</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Movimentações</p><p class="mt-1 font-semibold text-slate-900">{{ overview.period_summary.transaction_count }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Maior despesa</p><p class="mt-1 truncate font-semibold text-rose-700" :title="formatMoney(overview.period_summary.largest_expense)">{{ formatMoney(overview.period_summary.largest_expense) }}</p></article>
