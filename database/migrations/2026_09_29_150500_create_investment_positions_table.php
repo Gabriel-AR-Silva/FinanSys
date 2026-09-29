@@ -14,6 +14,7 @@ return new class extends Migration
             $table->string('asset_type', 60);
             $table->string('ticker', 40)->nullable();
             $table->string('name', 120);
+            $table->date('purchased_on');
             $table->decimal('quantity', 24, 8);
             $table->decimal('average_cost', 19, 4);
             $table->decimal('total_invested', 19, 2);
