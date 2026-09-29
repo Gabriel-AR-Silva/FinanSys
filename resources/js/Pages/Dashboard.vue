@@ -67,9 +67,9 @@ const applyFilters = () => {
 
 const periodCards = computed(() => [
     { label: 'Receitas', value: props.overview.period_summary.income, icon: ArrowDownLeft, tone: 'text-emerald-700 bg-emerald-50' },
-    { label: 'Despesas', value: props.overview.period_summary.expense, icon: ArrowUpRight, tone: 'text-rose-700 bg-rose-50' },
-    { label: 'Resultado', value: props.overview.period_summary.net, icon: Landmark, tone: Number(props.overview.period_summary.net) >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50' },
-    { label: 'Média diária de despesas', value: props.overview.period_summary.average_daily_expense, icon: CalendarDays, tone: 'text-amber-700 bg-amber-50' },
+    { label: 'Gasto realizado', value: props.overview.period_summary.expense, icon: ArrowUpRight, tone: 'text-rose-700 bg-rose-50' },
+    { label: 'Receitas − consumo', value: props.overview.period_summary.net, icon: Landmark, tone: Number(props.overview.period_summary.net) >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50' },
+    { label: 'Média diária de consumo', value: props.overview.period_summary.average_daily_expense, icon: CalendarDays, tone: 'text-amber-700 bg-amber-50' },
 ]);
 </script>
 
@@ -162,7 +162,7 @@ const periodCards = computed(() => [
             </div>
         </section>
 
-        <section class="mt-6 min-w-0"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Evolução financeira</h2><p class="text-sm text-slate-500">Saldo acumulado e entradas versus saídas no período.</p></div><div class="grid min-w-0 gap-4 xl:grid-cols-2"><GeneralBalanceChart :chart="overview.chart" /><CashFlowChart :cash-flow="overview.cash_flow" /></div></section>
+        <section class="mt-6 min-w-0"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Evolução financeira</h2><p class="text-sm text-slate-500">Saldo acumulado e fluxo de caixa real no período. Compras no cartão aparecem no consumo, não como saída de caixa até a liquidação.</p></div><div class="grid min-w-0 gap-4 xl:grid-cols-2"><GeneralBalanceChart :chart="overview.chart" /><CashFlowChart :cash-flow="overview.cash_flow" /></div></section>
 
         <section class="mt-6"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Visualização por categoria</h2><p class="text-sm text-slate-500">Compare onde o dinheiro entrou e saiu sem perder o contexto.</p></div><div class="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
             <CategoryBreakdownChart :categories="overview.category_breakdown" />
