@@ -89,9 +89,9 @@ const applyFilters = () => {
 
 const priorityCards = computed(() => [
     {
-        label: 'Quanto gasto por dia',
+        label: 'Média de gastos por dia',
         value: props.overview.period_summary.average_daily_expense,
-        note: `Média dos últimos ${props.filters.period} dias selecionados.`,
+        note: `Todos os gastos reconhecidos ÷ ${props.filters.period} dias selecionados.`,
         icon: CalendarDays,
         tone: 'text-amber-700 bg-amber-50',
     },
