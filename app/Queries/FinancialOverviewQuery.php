@@ -70,29 +70,100 @@ class FinancialOverviewQuery
                     ? $largestLedgerExpense
                     : $cardConsumption['largest']),
             ],
-            'recent_entries' => (clone $entries)
-                ->whereBetween('occurred_at', [$start, $end])
-                ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
-                ->with('reference:id,name')
-                ->latest('occurred_at')
-                ->latest('id')
-                ->limit(5)
-                ->get()
-                ->map(fn (LedgerEntry $entry): array => [
-                    'id' => $entry->id,
-                    'type' => $entry->type->value,
-                    'type_label' => $this->typeLabel($entry->type),
-                    'amount' => $entry->amount,
-                    'is_positive' => in_array($entry->type, $this->positiveTypes(), true),
-                    'reference_name' => $entry->reference?->name,
-                    'occurred_at' => $entry->occurred_at,
-                    'description' => $entry->description,
-                ]),
+            'recent_entries' => $this->recentActivity($user, $start, $end, $categoryId),
             'chart' => $this->chart($user, $period),
             'cash_flow' => $this->cashFlow($user, $period, $categoryId),
             'consumption_flow' => $this->consumptionFlow($user, $period, $categoryId),
             'category_breakdown' => $this->categoryBreakdown($user, $period, $categoryId),
         ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function recentActivity(User $user, CarbonImmutable $start, CarbonImmutable $end, ?int $categoryId): array
+    {
+        $ledger = LedgerEntry::query()
+            ->whereBelongsTo($user)
+            ->whereBetween('occurred_at', [$start, $end])
+            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
+            ->with('reference:id,name')
+            ->latest('occurred_at')
+            ->latest('id')
+            ->limit(10)
+            ->get()
+            ->map(fn (LedgerEntry $entry): array => [
+                'id' => 'ledger-'.$entry->id,
+                'type' => $entry->type->value,
+                'type_label' => $this->typeLabel($entry->type),
+                'amount' => $entry->amount,
+                'is_positive' => in_array($entry->type, $this->positiveTypes(), true),
+                'reference_name' => $entry->reference?->name,
+                'occurred_at' => $entry->occurred_at,
+                'description' => $entry->description,
+                'sort_at' => $entry->occurred_at->timestamp,
+                'sort_id' => $entry->id,
+            ]);
+
+        $startDate = $start->setTimezone('America/Sao_Paulo')->toDateString();
+        $endDate = $end->setTimezone('America/Sao_Paulo')->toDateString();
+        $reversedPurchaseIds = CardPurchaseReversal::query()
+            ->whereBelongsTo($user)
+            ->whereDate('reversed_on', '<=', $endDate)
+            ->pluck('card_purchase_id');
+        $purchases = CardPurchase::query()
+            ->whereBelongsTo($user)
+            ->whereBetween('purchased_on', [$startDate, $endDate])
+            ->whereNotIn('id', $reversedPurchaseIds)
+            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
+            ->with('creditCard:id,name')
+            ->latest('purchased_on')
+            ->latest('id')
+            ->limit(10)
+            ->get()
+            ->map(fn (CardPurchase $purchase): array => [
+                'id' => 'card-purchase-'.$purchase->id,
+                'type' => 'card_purchase',
+                'type_label' => 'Compra no cartão',
+                'amount' => $purchase->gross_amount,
+                'is_positive' => false,
+                'reference_name' => $purchase->creditCard?->name,
+                'occurred_at' => $purchase->purchased_on->toDateString(),
+                'description' => $purchase->description,
+                'sort_at' => $purchase->purchased_on->endOfDay()->timestamp,
+                'sort_id' => $purchase->id,
+            ]);
+        $charges = CardCharge::query()
+            ->whereBelongsTo($user)
+            ->whereBetween('charged_on', [$startDate, $endDate])
+            ->where('status', '!=', CardInstallmentStatus::Reversed)
+            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
+            ->with('creditCard:id,name')
+            ->latest('charged_on')
+            ->latest('id')
+            ->limit(10)
+            ->get()
+            ->map(fn (CardCharge $charge): array => [
+                'id' => 'card-charge-'.$charge->id,
+                'type' => 'card_charge',
+                'type_label' => 'Encargo do cartão',
+                'amount' => $charge->amount,
+                'is_positive' => false,
+                'reference_name' => $charge->creditCard?->name,
+                'occurred_at' => $charge->charged_on->toDateString(),
+                'description' => $charge->description,
+                'sort_at' => $charge->charged_on->endOfDay()->timestamp,
+                'sort_id' => $charge->id,
+            ]);
+
+        return $ledger->concat($purchases)->concat($charges)
+            ->sortByDesc(fn (array $entry): string => str_pad((string) $entry['sort_at'], 20, '0', STR_PAD_LEFT).':'.str_pad((string) $entry['sort_id'], 20, '0', STR_PAD_LEFT))
+            ->take(5)
+            ->map(function (array $entry): array {
+                unset($entry['sort_at'], $entry['sort_id']);
+
+                return $entry;
+            })
+            ->values()
+            ->all();
     }
 
     /** @return array{total:BigDecimal,count:int,largest:BigDecimal} */
