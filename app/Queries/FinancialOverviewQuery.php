@@ -53,10 +53,7 @@ class FinancialOverviewQuery
             'general_balance' => $this->balance(clone $entries),
             'accounts_balance' => $this->balance((clone $entries)->where('reference_type', LedgerEntryReferenceType::Account->value)),
             'pockets_balance' => $this->balance((clone $entries)->where('reference_type', LedgerEntryReferenceType::Pocket->value)),
-            'monthly_income' => (clone $entries)
-                ->where('type', LedgerEntryType::Income)
-                ->whereBetween('occurred_at', [now('America/Sao_Paulo')->startOfMonth(), now('America/Sao_Paulo')->endOfMonth()])
-                ->sum('amount'),
+            'monthly_income' => $this->monthlyIncome($user),
             'monthly_expense' => $this->monthlyExpense($user),
             'period_summary' => [
                 'income' => (string) $income,
@@ -469,6 +466,24 @@ class FinancialOverviewQuery
             LedgerEntryType::CardPayment => 'Pagamento de cartão',
             LedgerEntryType::CardAdvance => 'Antecipação de cartão',
         };
+    }
+
+    private function monthlyIncome(User $user): string
+    {
+        $start = CarbonImmutable::now('America/Sao_Paulo')->startOfMonth();
+        $end = CarbonImmutable::now('America/Sao_Paulo')->endOfMonth();
+        $income = LedgerEntry::query()
+            ->whereBelongsTo($user)
+            ->where('type', LedgerEntryType::Income)
+            ->whereNull('reversal_of_operation_id')
+            ->whereBetween('occurred_at', [$start, $end])
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('ledger_entries as reversals')
+                ->whereColumn('reversals.reversal_of_operation_id', 'ledger_entries.operation_id')
+                ->where('reversals.user_id', $user->id)
+                ->whereNull('reversals.deleted_at'))
+            ->pluck('amount');
+
+        return (string) $this->sumAmounts($income)->toScale(2, RoundingMode::Unnecessary);
     }
 
     private function monthlyExpense(User $user): string
