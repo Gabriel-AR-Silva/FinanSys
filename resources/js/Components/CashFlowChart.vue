@@ -30,12 +30,12 @@ const labels = computed(() => {
             <svg class="h-44 w-full min-w-[34rem]" :viewBox="`0 0 ${width} ${height}`" role="img" aria-label="Gráfico diário de entradas e saídas de caixa">
                 <line x1="0" :y1="baseline" :x2="width" :y2="baseline" stroke="#cbd5e1" stroke-width="1" />
                 <g v-for="(point, index) in cashFlow.points" :key="point.date">
-                    <rect :x="index * slotWidth + slotWidth / 2 - barWidth - 1" :y="baseline - barHeight(point.income)" :width="barWidth" :height="barHeight(point.income)" fill="#10b981" rx="2"><title>{{ formatDate(point.date) }} — receitas {{ formatMoney(point.income) }}</title></rect>
+                    <rect :x="index * slotWidth + slotWidth / 2 - barWidth - 1" :y="baseline - barHeight(point.income)" :width="barWidth" :height="barHeight(point.income)" fill="#10b981" rx="2"><title>{{ formatDate(point.date) }} — entradas de caixa {{ formatMoney(point.income) }}</title></rect>
                     <rect :x="index * slotWidth + slotWidth / 2 + 1" :y="baseline - barHeight(point.expense)" :width="barWidth" :height="barHeight(point.expense)" fill="#f43f5e" rx="2"><title>{{ formatDate(point.date) }} — saídas de caixa {{ formatMoney(point.expense) }}</title></rect>
                 </g>
                 <text v-for="label in labels" :key="label.index" :x="label.index * slotWidth + slotWidth / 2" y="169" text-anchor="middle" fill="#64748b" font-size="11">{{ formatDate(label.date) }}</text>
             </svg>
         </div>
-        <div class="flex gap-4 text-xs text-slate-500"><span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-emerald-500" />Receitas</span><span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-rose-500" />Saídas de caixa</span></div>
+        <div class="flex gap-4 text-xs text-slate-500"><span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-emerald-500" />Entradas de caixa</span><span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-rose-500" />Saídas de caixa</span></div>
     </article>
 </template>
