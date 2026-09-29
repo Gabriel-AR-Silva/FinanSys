@@ -42,16 +42,16 @@ const positive = computed(() => Number(props.chart.change) >= 0);
 <template>
     <article class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-            <div><p class="text-sm font-semibold text-slate-950">Evolução do saldo de caixa</p><p class="mt-1 text-sm text-slate-500">Saldo acumulado pelas movimentações de caixa registradas. Consumo no cartão só altera esta linha quando houver liquidação.</p></div>
+            <div><p class="text-sm font-semibold text-slate-950">Como seu saldo mudou</p><p class="mt-1 text-sm text-slate-500">Mostra a mudança do saldo conforme o dinheiro entra e sai. Uma compra no cartão só reduz este saldo quando a fatura é paga.</p></div>
             <div class="flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-semibold" :class="positive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'"><TrendingUp v-if="positive" :size="15" /><TrendingDown v-else :size="15" /><span v-if="chart.change_percentage !== null">{{ positive ? '+' : '' }}{{ percent.format(Number(chart.change_percentage)) }}%</span><span v-else>Sem comparação</span></div>
         </div>
 
         <div class="mt-3 flex flex-wrap items-end justify-between gap-3">
-            <div><p class="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Variação de caixa no período</p><p class="mt-1 text-2xl font-semibold tracking-tight" :class="positive ? 'text-emerald-700' : 'text-rose-700'">{{ positive ? '+' : '' }}{{ formatMoney(chart.change) }}</p></div>
+            <div><p class="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Mudança do saldo no período</p><p class="mt-1 text-2xl font-semibold tracking-tight" :class="positive ? 'text-emerald-700' : 'text-rose-700'">{{ positive ? '+' : '' }}{{ formatMoney(chart.change) }}</p></div>
         </div>
 
         <div class="mt-3 w-full max-w-full overflow-x-auto">
-            <svg class="h-44 w-full min-w-[34rem]" :viewBox="`0 0 ${width} 176`" role="img" aria-label="Gráfico da evolução do saldo de caixa">
+            <svg class="h-44 w-full min-w-[34rem]" :viewBox="`0 0 ${width} 176`" role="img" aria-label="Gráfico de como o saldo mudou">
                 <defs><linearGradient id="balance-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0f172a" stop-opacity="0.16" /><stop offset="100%" stop-color="#0f172a" stop-opacity="0" /></linearGradient></defs>
                 <path v-if="coordinates.length" :d="`${path} L ${coordinates[coordinates.length - 1].x} ${lineBottom} L ${coordinates[0].x} ${lineBottom} Z`" fill="url(#balance-area)" />
                 <path v-if="coordinates.length" :d="path" fill="none" stroke="#0f172a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
@@ -61,7 +61,7 @@ const positive = computed(() => Number(props.chart.change) >= 0);
         </div>
 
         <div v-if="receivables" class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 p-3" aria-label="Recebimentos previstos do mês">
-            <div><p class="text-xs font-semibold uppercase tracking-wide text-sky-800">A receber neste mês</p><p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(receivables.pending) }}</p><p class="mt-1 text-xs text-slate-600">{{ receivables.next_due_on ? `Próxima data prevista: ${formatDate(receivables.next_due_on)}` : 'Sem recebimentos pendentes neste mês.' }} Previsões não fazem parte do saldo.</p></div>
+            <div><p class="text-xs font-semibold uppercase tracking-wide text-sky-800">A receber neste mês</p><p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(receivables.pending) }}</p><p class="mt-1 text-xs text-slate-600">{{ receivables.next_due_on ? `Próxima data prevista: ${formatDate(receivables.next_due_on)}` : 'Sem recebimentos pendentes neste mês.' }} Esse dinheiro ainda não entrou e por isso não faz parte do saldo.</p></div>
             <Link :href="route('financial-settings.edit', { month: receivables.month, tab: 'receipts' })" class="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-sky-800 ring-1 ring-sky-200 hover:bg-sky-100">Ver recebimentos previstos</Link>
         </div>
     </article>

@@ -25,14 +25,14 @@ const labels = computed(() => {
 
 <template>
     <article class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <h2 class="text-sm font-semibold text-slate-950">Consumo realizado por dia</h2>
-        <p class="mt-0.5 text-xs text-slate-500">Reconhece despesas no fato econômico, inclusive compras no cartão na data da compra. Liquidação da fatura não é somada novamente.</p>
+        <h2 class="text-sm font-semibold text-slate-950">Quanto gastei por dia</h2>
+        <p class="mt-0.5 text-xs text-slate-500">Conta cada despesa no dia em que ela aconteceu, inclusive compras no cartão. Pagar a fatura depois não conta a mesma despesa de novo.</p>
         <div class="mt-4 w-full max-w-full overflow-x-auto">
-            <svg class="h-44 w-full min-w-[34rem]" :viewBox="`0 0 ${width} ${height}`" role="img" aria-label="Gráfico diário de consumo realizado">
+            <svg class="h-44 w-full min-w-[34rem]" :viewBox="`0 0 ${width} ${height}`" role="img" aria-label="Gráfico diário de quanto foi gasto">
                 <line x1="0" :y1="baseline" :x2="width" :y2="baseline" stroke="#cbd5e1" stroke-width="1" />
                 <polyline v-if="consumptionFlow.points.length" :points="linePoints" fill="none" stroke="#334155" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
                 <g v-for="(point, index) in consumptionFlow.points" :key="point.date">
-                    <circle :cx="pointX(index)" :cy="pointY(point.realized)" r="3.5" fill="#334155"><title>{{ formatDate(point.date) }} — consumo {{ formatMoney(point.realized) }}</title></circle>
+                    <circle :cx="pointX(index)" :cy="pointY(point.realized)" r="3.5" fill="#334155"><title>{{ formatDate(point.date) }} — gasto {{ formatMoney(point.realized) }}</title></circle>
                 </g>
                 <text v-for="label in labels" :key="label.index" :x="label.index * slotWidth + slotWidth / 2" y="169" text-anchor="middle" fill="#64748b" font-size="11">{{ formatDate(label.date) }}</text>
             </svg>
