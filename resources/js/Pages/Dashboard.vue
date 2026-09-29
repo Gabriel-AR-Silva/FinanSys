@@ -1,5 +1,6 @@
 <script setup>
 import CashFlowChart from '@/Components/CashFlowChart.vue';
+import ConsumptionFlowChart from '@/Components/ConsumptionFlowChart.vue';
 import CategoryBreakdownChart from '@/Components/CategoryBreakdownChart.vue';
 import GeneralBalanceChart from '@/Components/GeneralBalanceChart.vue';
 import DailyCheckInPanel from '@/Components/DailyCheckInPanel.vue';
@@ -163,7 +164,7 @@ const periodCards = computed(() => [
             </div>
         </section>
 
-        <section class="mt-6 min-w-0"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Evolução financeira</h2><p class="text-sm text-slate-500">Saldo acumulado e fluxo de caixa real no período. Compras no cartão aparecem no consumo, não como saída de caixa até a liquidação.</p></div><div class="grid min-w-0 gap-4 xl:grid-cols-2"><GeneralBalanceChart :chart="overview.chart" /><CashFlowChart :cash-flow="overview.cash_flow" /></div></section>
+        <section class="mt-6 min-w-0"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Evolução financeira</h2><p class="text-sm text-slate-500">Saldo acumulado e fluxo de caixa real no período. Compras no cartão aparecem no consumo, não como saída de caixa até a liquidação.</p></div><div class="grid min-w-0 gap-4 xl:grid-cols-3"><GeneralBalanceChart :chart="overview.chart" /><CashFlowChart :cash-flow="overview.cash_flow" /><ConsumptionFlowChart :consumption-flow="overview.consumption_flow" /></div></section>
 
         <section class="mt-6"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Visualização por categoria</h2><p class="text-sm text-slate-500">Receitas e consumo por categoria. Compras no cartão preservam a categoria original; pagamento da fatura não vira novo consumo.</p></div><div class="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
             <CategoryBreakdownChart :categories="overview.category_breakdown" />
