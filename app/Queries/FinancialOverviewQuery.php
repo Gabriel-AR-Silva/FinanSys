@@ -140,22 +140,56 @@ class FinancialOverviewQuery
             ->select(['category_id', 'type'])
             ->selectRaw('SUM(amount) AS total')
             ->groupBy('category_id', 'type')
-            ->get();
-        $categories = Category::query()->whereBelongsTo($user)
-            ->whereIn('id', $rows->pluck('category_id')->filter())
-            ->get(['id', 'name', 'type'])
-            ->keyBy('id');
+            ->get()
+            ->map(fn (LedgerEntry $row): array => [
+                'category_id' => $row->category_id,
+                'type' => $row->type->value,
+                'total' => (string) BigDecimal::of((string) $row->getAttribute('total')),
+            ]);
 
-        return $rows->map(function (LedgerEntry $row) use ($categories): array {
-            $category = $row->category_id === null ? null : $categories->get($row->category_id);
-            $type = $row->type;
-            $total = BigDecimal::of((string) $row->getAttribute('total'));
+        $startDate = $start->setTimezone('America/Sao_Paulo')->toDateString();
+        $endDate = $end->setTimezone('America/Sao_Paulo')->toDateString();
+        $reversedPurchaseIds = CardPurchaseReversal::query()->whereBelongsTo($user)
+            ->whereDate('reversed_on', '<=', $endDate)->pluck('card_purchase_id');
+
+        $cardRows = CardPurchase::query()->whereBelongsTo($user)
+            ->whereBetween('purchased_on', [$startDate, $endDate])
+            ->whereNotIn('id', $reversedPurchaseIds)
+            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
+            ->get(['category_id', 'gross_amount'])
+            ->map(fn (CardPurchase $purchase): array => [
+                'category_id' => $purchase->category_id,
+                'type' => LedgerEntryType::Expense->value,
+                'total' => $purchase->gross_amount,
+            ])
+            ->concat(
+                CardCharge::query()->whereBelongsTo($user)
+                    ->whereBetween('charged_on', [$startDate, $endDate])
+                    ->where('status', '!=', CardInstallmentStatus::Reversed)
+                    ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
+                    ->get(['category_id', 'amount'])
+                    ->map(fn (CardCharge $charge): array => [
+                        'category_id' => $charge->category_id,
+                        'type' => LedgerEntryType::Expense->value,
+                        'total' => $charge->amount,
+                    ])
+            );
+
+        $rows = $rows->concat($cardRows);
+        $categories = Category::query()->whereBelongsTo($user)
+            ->whereIn('id', $rows->pluck('category_id')->filter()->unique())
+            ->get(['id', 'name', 'type'])->keyBy('id');
+
+        return $rows->map(function (array $row) use ($categories): array {
+            $category = $row['category_id'] === null ? null : $categories->get($row['category_id']);
+            $total = BigDecimal::of((string) $row['total']);
+            $isExpense = $row['type'] === LedgerEntryType::Expense->value;
 
             return [
                 'id' => $category?->id,
                 'name' => $category?->name ?? 'Sem categoria',
-                'type' => $category?->type->value ?? $type->value,
-                'total' => (string) ($type === LedgerEntryType::Expense ? $total->negated() : $total),
+                'type' => $category?->type->value ?? $row['type'],
+                'total' => (string) ($isExpense ? $total->negated() : $total),
             ];
         })->groupBy(fn (array $item): string => ($item['id'] ?? 'none').':'.$item['type'])
             ->map(function ($items): array {
