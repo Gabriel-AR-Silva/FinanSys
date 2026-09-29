@@ -22,8 +22,8 @@ class FinancialOverviewQuery
     public function forUser(User $user, int $period = 30, ?int $categoryId = null): array
     {
         $entries = LedgerEntry::query()->whereBelongsTo($user);
-        $start = CarbonImmutable::now()->startOfDay()->subDays($period - 1);
-        $end = CarbonImmutable::now()->endOfDay();
+        $start = CarbonImmutable::now('America/Sao_Paulo')->startOfDay()->subDays($period - 1);
+        $end = CarbonImmutable::now('America/Sao_Paulo')->endOfDay();
         $periodEntries = LedgerEntry::query()->whereBelongsTo($user)
             ->whereIn('type', [LedgerEntryType::Income, LedgerEntryType::Expense])
             ->whereBetween('occurred_at', [$start, $end])
@@ -132,8 +132,8 @@ class FinancialOverviewQuery
 
     private function categoryBreakdown(User $user, int $period, ?int $categoryId): array
     {
-        $start = CarbonImmutable::now()->startOfDay()->subDays($period - 1);
-        $end = CarbonImmutable::now()->endOfDay();
+        $start = CarbonImmutable::now('America/Sao_Paulo')->startOfDay()->subDays($period - 1);
+        $end = CarbonImmutable::now('America/Sao_Paulo')->endOfDay();
         $rows = LedgerEntry::query()->whereBelongsTo($user)
             ->whereIn('type', [LedgerEntryType::Income, LedgerEntryType::Expense])
             ->whereBetween('occurred_at', [$start, $end])
@@ -207,8 +207,8 @@ class FinancialOverviewQuery
 
     private function cashFlow(User $user, int $period, ?int $categoryId): array
     {
-        $end = CarbonImmutable::now()->endOfDay();
-        $start = CarbonImmutable::now()->startOfDay()->subDays($period - 1);
+        $end = CarbonImmutable::now('America/Sao_Paulo')->endOfDay();
+        $start = CarbonImmutable::now('America/Sao_Paulo')->startOfDay()->subDays($period - 1);
         $rows = LedgerEntry::query()->whereBelongsTo($user)
             ->whereIn('type', [LedgerEntryType::Income, LedgerEntryType::Expense])
             ->whereBetween('occurred_at', [$start, $end])
@@ -238,8 +238,8 @@ class FinancialOverviewQuery
 
     private function consumptionFlow(User $user, int $period, ?int $categoryId): array
     {
-        $end = CarbonImmutable::now()->endOfDay();
-        $start = CarbonImmutable::now()->startOfDay()->subDays($period - 1);
+        $end = CarbonImmutable::now('America/Sao_Paulo')->endOfDay();
+        $start = CarbonImmutable::now('America/Sao_Paulo')->startOfDay()->subDays($period - 1);
         $points = [];
 
         for ($date = $start; $date->lte($end); $date = $date->addDay()) {
@@ -264,8 +264,8 @@ class FinancialOverviewQuery
 
     private function chart(User $user, int $period): array
     {
-        $end = CarbonImmutable::now()->endOfDay();
-        $start = CarbonImmutable::now()->startOfDay()->subDays($period - 1);
+        $end = CarbonImmutable::now('America/Sao_Paulo')->endOfDay();
+        $start = CarbonImmutable::now('America/Sao_Paulo')->startOfDay()->subDays($period - 1);
         $entries = LedgerEntry::query()->whereBelongsTo($user);
         $opening = BigDecimal::of($this->balance((clone $entries)->where('occurred_at', '<', $start)));
         $positiveValues = array_map(fn (LedgerEntryType $type): string => $type->value, $this->positiveTypes());
