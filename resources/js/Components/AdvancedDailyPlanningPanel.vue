@@ -68,9 +68,9 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
         <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Indicadores do planejamento diário">
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700"><TrendingUp :size="16" /></span>
-                <p class="mt-3 text-xs text-slate-500">Quanto gasto por dia</p>
+                <p class="mt-3 text-xs text-slate-500">Gasto cotidiano por dia</p>
                 <p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(planning.indicators.realized_daily_pace) }}</p>
-                <p class="mt-1 text-[11px] leading-4 text-slate-400">Média dos gastos cotidianos dos dias completos deste mês.</p>
+                <p class="mt-1 text-[11px] leading-4 text-slate-400">Média apenas dos gastos cotidianos dos dias completos deste mês; fixos e extraordinários ficam fora.</p>
             </article>
 
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
