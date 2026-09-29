@@ -324,6 +324,13 @@ class FinancialOverviewQuery
             ->reject(fn (LedgerEntry $entry): bool => in_array($entry->operation_id, $reversed, true))
             ->reduce(fn (BigDecimal $total, LedgerEntry $entry): BigDecimal => $total->plus($entry->amount), BigDecimal::zero());
 
-        return (string) $gross->minus($refunded)->toScale(2, RoundingMode::Unnecessary);
+        $card = $this->cardConsumption(
+            $user,
+            CarbonImmutable::instance($start),
+            CarbonImmutable::instance($end),
+            null,
+        )['total'];
+
+        return (string) $gross->minus($refunded)->plus($card)->toScale(2, RoundingMode::Unnecessary);
     }
 }
