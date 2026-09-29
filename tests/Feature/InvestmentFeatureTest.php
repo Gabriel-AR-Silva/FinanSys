@@ -61,6 +61,66 @@ class InvestmentFeatureTest extends TestCase
                 ->where('patrimony.summary.estimated_net_worth', '1250.00'));
     }
 
+    public function test_buy_and_sell_movements_recalculate_cost_basis_without_touching_cash(): void
+    {
+        $user = User::factory()->create();
+        $position = InvestmentPosition::factory()->for($user)->create([
+            'quantity' => '10.00000000',
+            'average_cost' => '20.0000',
+            'total_invested' => '200.00',
+            'current_value' => '220.00',
+        ]);
+
+        $entriesBefore = LedgerEntry::query()->count();
+
+        $this->actingAs($user)->post(route('investments.movements.store', $position), [
+            'type' => 'buy',
+            'occurred_on' => '2026-09-20',
+            'quantity' => '10',
+            'unit_price' => '30',
+            'fees' => '0',
+        ])->assertRedirect(route('investments.index'));
+
+        $position->refresh();
+        $this->assertSame('20.00000000', $position->quantity);
+        $this->assertSame('500.00', $position->total_invested);
+        $this->assertSame('25.0000', $position->average_cost);
+        $this->assertNull($position->current_value);
+
+        $this->actingAs($user)->post(route('investments.movements.store', $position), [
+            'type' => 'sell',
+            'occurred_on' => '2026-09-25',
+            'quantity' => '4',
+            'unit_price' => '40',
+            'fees' => '0',
+        ])->assertRedirect(route('investments.index'));
+
+        $position->refresh();
+        $this->assertSame('16.00000000', $position->quantity);
+        $this->assertSame('400.00', $position->total_invested);
+        $this->assertSame('25.0000', $position->average_cost);
+        $this->assertSame($entriesBefore, LedgerEntry::query()->count());
+    }
+
+    public function test_manual_valuation_updates_patrimony_but_not_cash(): void
+    {
+        $user = User::factory()->create();
+        $position = InvestmentPosition::factory()->for($user)->create([
+            'total_invested' => '200.00',
+            'current_value' => null,
+            'valued_on' => null,
+        ]);
+
+        $this->actingAs($user)->patch(route('investments.valuation.update', $position), [
+            'current_value' => '260.00',
+            'valued_on' => '2026-09-29',
+        ])->assertRedirect(route('investments.index'));
+
+        $position->refresh();
+        $this->assertSame('260.00', $position->current_value);
+        $this->assertSame('manual', $position->valuation_source);
+    }
+
     public function test_investments_are_isolated_by_user(): void
     {
         $user = User::factory()->create();
