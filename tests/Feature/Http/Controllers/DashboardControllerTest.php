@@ -87,6 +87,7 @@ class DashboardControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('cardInvoice.month', '2026-10')
                 ->where('cardInvoice.pending', '120.00')
+                ->where('cardInvoice.open_pending', '120.00')
                 ->where('overview.period_summary.expense', '120.00')
                 ->where('overview.period_summary.net', '-120.00')
                 ->where('overview.period_summary.transaction_count', 1)
