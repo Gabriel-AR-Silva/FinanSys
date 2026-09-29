@@ -101,6 +101,46 @@ class DashboardControllerTest extends TestCase
                 ->where('overview.recent_entries.0.type', 'card_purchase'));
     }
 
+    public function test_dashboard_projects_forecast_income_against_next_open_invoice_without_increasing_available_now(): void
+    {
+        $this->travelTo('2026-09-29 12:00:00');
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => 'expense']);
+        $card = CreditCard::factory()->for($user)->create(['closing_day' => 5, 'due_day' => 12]);
+
+        $this->entry($user, $account, LedgerEntryType::OpeningBalance, '100.00', '2026-09-01 08:00:00');
+
+        app(CreateCardPurchase::class)->handle($user, [
+            'credit_card_id' => $card->id,
+            'category_id' => $category->id,
+            'description' => 'Fatura aberta',
+            'planning_type' => ExpensePlanningType::Extraordinary->value,
+            'gross_amount' => '400.00',
+            'purchased_on' => '2026-09-29',
+            'installments_count' => 1,
+            'first_due_on' => '2026-10-12',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        ReceiptForecast::factory()->for($user)->create([
+            'amount' => '500.00',
+            'expected_on' => '2026-10-05',
+        ]);
+        ReceiptForecast::factory()->for($user)->create([
+            'amount' => '900.00',
+            'expected_on' => '2026-10-13',
+        ]);
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('cardInvoice.next_due_on', '2026-10-12')
+                ->where('cardInvoice.next_due_pending', '400.00')
+                ->where('cardInvoice.forecast_before_next_due', '500.00')
+                ->where('cardInvoice.forecast_difference', '100.00')
+                ->where('planning.indicators.available_now', '-300.00'));
+    }
+
     public function test_dashboard_available_now_funds_all_known_commitments_without_leaking_other_users(): void
     {
         $this->travelTo('2026-09-28 12:00:00');
