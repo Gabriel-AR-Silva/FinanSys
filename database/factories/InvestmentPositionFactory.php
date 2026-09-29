@@ -18,6 +18,7 @@ class InvestmentPositionFactory extends Factory
             'asset_type' => 'Renda variável',
             'ticker' => strtoupper(fake()->lexify('????')).'3',
             'name' => fake()->company(),
+            'purchased_on' => now('America/Sao_Paulo')->subMonth()->toDateString(),
             'quantity' => '10.00000000',
             'average_cost' => '20.0000',
             'total_invested' => '200.00',
