@@ -86,6 +86,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/avisos-financeiros', [InternalAlertController::class, 'index'])->name('internal-alerts.index');
     Route::get('/investimentos', [InvestmentPositionController::class, 'index'])->name('investments.index');
     Route::post('/investimentos', [InvestmentPositionController::class, 'store'])->name('investments.store');
+    Route::post('/investimentos/{position}/movimentos', [InvestmentPositionController::class, 'storeMovement'])->whereNumber('position')->name('investments.movements.store');
+    Route::patch('/investimentos/{position}/avaliacao', [InvestmentPositionController::class, 'updateValuation'])->whereNumber('position')->name('investments.valuation.update');
     Route::get('/patrimonio', [PatrimonialAssetController::class, 'index'])->name('patrimony.index');
     Route::post('/patrimonio', [PatrimonialAssetController::class, 'store'])->name('patrimony.store');
     Route::put('/patrimonio/{asset}', [PatrimonialAssetController::class, 'update'])->whereNumber('asset')->name('patrimony.update');
