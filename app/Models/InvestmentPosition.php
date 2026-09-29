@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['user_id', 'asset_type', 'ticker', 'name', 'quantity', 'average_cost', 'total_invested', 'current_value', 'valuation_source', 'valued_on'])]
+#[Fillable(['user_id', 'asset_type', 'ticker', 'name', 'purchased_on', 'quantity', 'average_cost', 'total_invested', 'current_value', 'valuation_source', 'valued_on'])]
 class InvestmentPosition extends Model
 {
     /** @use HasFactory<InvestmentPositionFactory> */
@@ -18,6 +18,7 @@ class InvestmentPosition extends Model
     protected function casts(): array
     {
         return [
+            'purchased_on' => 'immutable_date',
             'quantity' => 'decimal:8',
             'average_cost' => 'decimal:4',
             'total_invested' => 'decimal:2',
