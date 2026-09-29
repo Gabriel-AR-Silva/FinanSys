@@ -148,21 +148,26 @@ const periodCards = computed(() => [
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Categoria ativa</p><p class="mt-1 truncate font-semibold text-slate-900" :title="selectedCategoryName">{{ selectedCategoryName }}</p></article>
         </section>
 
-        <section v-if="planning.configured" class="mt-4 grid gap-3 lg:grid-cols-3" aria-label="Dinheiro comprometido">
+        <section class="mt-4 grid gap-3 lg:grid-cols-3" aria-label="Dinheiro comprometido">
             <article class="rounded-2xl border border-violet-200 bg-violet-50/70 p-4 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">Já comprometido no cartão</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ formatMoney(planning.card_commitments.pending) }}</p>
-                <p class="mt-1 text-xs leading-5 text-slate-600">Parcelas e encargos que vencem neste mês e ainda precisam ser pagos. Esse valor já participa do planejamento.</p>
+                <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">Próxima fatura comprometida</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ formatMoney(cardInvoice.pending) }}</p>
+                <p class="mt-1 text-xs leading-5 text-slate-600">Valor já assumido no cartão e ainda não liquidado na próxima fatura conhecida.</p>
             </article>
-            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Compromissos anteriores</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ formatMoney(planning.previous_commitments.pending) }}</p>
-                <p class="mt-1 text-xs leading-5 text-slate-500">Pendências de meses anteriores que ainda reservam verba agora.</p>
+            <article class="rounded-2xl border p-4 shadow-sm" :class="Number(cardInvoice.available_after_invoice) >= 0 ? 'border-emerald-200 bg-emerald-50/60' : 'border-rose-200 bg-rose-50/60'">
+                <p class="text-xs font-semibold uppercase tracking-wide" :class="Number(cardInvoice.available_after_invoice) >= 0 ? 'text-emerald-700' : 'text-rose-700'">Caixa após reservar a próxima fatura</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ formatMoney(cardInvoice.available_after_invoice) }}</p>
+                <p class="mt-1 text-xs leading-5 text-slate-600">Saldo financeiro atual menos a próxima fatura. Não inclui receitas apenas previstas.</p>
             </article>
-            <article class="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Margem realmente livre</p>
+            <article v-if="planning.configured" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Margem livre do planejamento</p>
                 <p class="mt-2 text-2xl font-semibold text-slate-950">{{ formatMoney(planning.free_margin) }}</p>
-                <p class="mt-1 text-xs leading-5 text-slate-600">O que sobra no planejamento depois de proteção, compromissos e reservas essenciais — não é o saldo da conta.</p>
+                <p class="mt-1 text-xs leading-5 text-slate-600">Quanto o orçamento mensal ainda comporta após compromissos e reservas. Não é saldo bancário.</p>
+            </article>
+            <article v-else class="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-wide text-amber-800">Planejamento incompleto</p>
+                <p class="mt-2 text-sm font-semibold text-amber-950">Margem livre indisponível</p>
+                <p class="mt-1 text-xs leading-5 text-amber-900">Configure proteção e essenciais para o FinanSys calcular quanto do orçamento está realmente livre.</p>
             </article>
         </section>
 
