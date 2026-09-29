@@ -77,9 +77,9 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
 
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700"><CircleDollarSign :size="16" /></span>
-                <p class="mt-3 text-xs text-slate-500">Gasto elegível confirmado</p>
+                <p class="mt-3 text-xs text-slate-500">Gasto cotidiano confirmado</p>
                 <p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(dailyPlanning.total_spent) }}</p>
-                <p class="mt-1 text-[11px] leading-4 text-slate-400">Somente dias confirmados no check-in.</p>
+                <p class="mt-1 text-[11px] leading-4 text-slate-400">Soma apenas os gastos cotidianos dos dias confirmados. Gastos fixos e extraordinários ficam fora deste indicador.</p>
             </article>
 
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -156,8 +156,8 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                 <div class="flex items-start justify-between gap-3">
                     <div>
-                        <h2 class="font-semibold text-slate-950">Realizado × projetado</h2>
-                        <p class="mt-1 text-sm text-slate-500">Previsão é cenário; não é dinheiro disponível nem gasto confirmado da V2.</p>
+                        <h2 class="font-semibold text-slate-950">Planejamento do restante do mês</h2>
+                        <p class="mt-1 text-sm text-slate-500">Esta parte mostra uma estimativa do planejamento mensal. Ela não é saldo disponível e não substitui os dias confirmados acima.</p>
                     </div>
                     <HelpHint label="Ajuda">Os valores projetados deste bloco ainda vêm do planejamento mensal vigente da V1. Eles ficam separados dos check-ins confirmados da V2 para evitar dupla contagem.</HelpHint>
                 </div>
@@ -175,17 +175,17 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
                     <div class="rounded-xl bg-slate-50 p-3">
                         <p class="text-xs font-medium text-slate-700">Despesas variáveis do planejamento mensal</p>
                         <div class="mt-2 flex items-center justify-between gap-3 text-sm">
-                            <span class="text-slate-600">Computado pela V1</span><strong class="text-slate-950">{{ formatMoney(planning.variable.realized) }}</strong>
+                            <span class="text-slate-600">Já considerado no planejamento</span><strong class="text-slate-950">{{ formatMoney(planning.variable.realized) }}</strong>
                         </div>
                         <div class="mt-1 flex items-center justify-between gap-3 text-sm">
                             <span class="text-slate-600">Estimativa de fechamento</span><strong class="text-indigo-900">{{ formatMoney(planning.variable.projected) }}</strong>
                         </div>
-                        <p class="mt-2 text-[11px] leading-4 text-slate-500">Não some estes valores ao gasto elegível confirmado acima. São visões diferentes.</p>
+                        <p class="mt-2 text-[11px] leading-4 text-slate-500">Não some este bloco ao gasto cotidiano confirmado acima: uma visão acompanha os check-ins e a outra estima o planejamento do mês.</p>
                     </div>
                     <div class="rounded-xl border border-dashed border-slate-200 p-3 text-xs leading-5 text-slate-600">
                         <strong class="text-slate-800">Capacidade diária estimada:</strong>
-                        {{ formatMoney(planning.daily.amount) }} · {{ planning.daily.remaining_days }} dia(s) restantes.
-                        É capacidade calculada do planejamento mensal, não altera seu orçamento diário voluntário.
+                        {{ formatMoney(planning.indicators.sustainable_daily_pace) }} · {{ planning.daily.remaining_days }} dia(s) restantes.
+                        É o menor valor entre o que o planejamento permite e o que seu caixa atual comporta depois das contas conhecidas. Não altera seu orçamento diário.
                     </div>
                 </div>
                 <p v-else class="mt-4 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900">Configure proteção e essenciais do mês para liberar os cenários projetados. Os indicadores confirmados da V2 continuam válidos separadamente.</p>
