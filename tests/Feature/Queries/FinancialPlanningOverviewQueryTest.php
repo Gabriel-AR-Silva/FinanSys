@@ -100,6 +100,35 @@ class FinancialPlanningOverviewQueryTest extends TestCase
         $this->assertSame('100.00', $result['indicators']['consolidated']);
     }
 
+    public function test_future_card_installments_do_not_create_extra_realized_daily_spending(): void
+    {
+        $user = User::factory()->create();
+        $category = Category::factory()->for($user)->create(['type' => 'expense']);
+        $card = CreditCard::factory()->for($user)->create();
+
+        app(CreateCardPurchase::class)->handle($user, [
+            'credit_card_id' => $card->id,
+            'category_id' => $category->id,
+            'description' => 'Compra parcelada',
+            'planning_type' => ExpensePlanningType::Ordinary->value,
+            'gross_amount' => '300.00',
+            'purchased_on' => '2026-09-05',
+            'installments_count' => 3,
+            'first_due_on' => '2026-10-12',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $result = app(FinancialPlanningOverviewQuery::class)->forUser(
+            $user,
+            CarbonImmutable::parse('2026-09-10 12:00:00', 'America/Sao_Paulo'),
+        );
+
+        $this->assertSame('300.00', $result['indicators']['realized']);
+        $this->assertSame('300.00', $result['indicators']['committed']);
+        $this->assertSame('300.00', $result['indicators']['consolidated']);
+        $this->assertSame('33.33', $result['indicators']['realized_daily_pace']);
+    }
+
     public function test_open_expense_commitment_is_visible_even_without_monthly_planning_configuration(): void
     {
         $user = User::factory()->create();
