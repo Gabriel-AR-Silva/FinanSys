@@ -140,8 +140,7 @@ const periodCards = computed(() => [
             <div class="hidden items-center rounded-xl border border-slate-200 bg-white px-4 text-xs text-slate-500 sm:flex">Bens não contam como dinheiro disponível.</div>
         </section>
 
-        <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Próxima fatura</p><p class="mt-1 font-semibold text-violet-700">{{ formatMoney(cardInvoice.pending) }}</p><p class="mt-0.5 text-[10px] text-slate-400">Compromisso futuro; não é somado de novo ao consumo.</p></article>
+        <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Taxa de economia</p><p class="mt-1 font-semibold" :class="consumption.summary.savings_rate === null ? 'text-slate-500' : Number(consumption.summary.savings_rate) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatPercent(consumption.summary.savings_rate) }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Movimentações</p><p class="mt-1 font-semibold text-slate-900">{{ consumption.summary.transaction_count }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Maior despesa</p><p class="mt-1 truncate font-semibold text-rose-700" :title="formatMoney(consumption.summary.largest_expense)">{{ formatMoney(consumption.summary.largest_expense) }}</p></article>
