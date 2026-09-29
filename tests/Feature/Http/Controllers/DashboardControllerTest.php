@@ -8,6 +8,7 @@ use App\Models\CardInstallment;
 use App\Models\CardPurchase;
 use App\Models\Category;
 use App\Models\CreditCard;
+use App\Models\ExpenseCommitment;
 use App\Models\MonthlyFinancialSetting;
 use App\Models\Pocket;
 use App\Models\User;
@@ -77,6 +78,12 @@ class DashboardControllerTest extends TestCase
         CardInstallment::factory()->for($user)->for($purchase, 'purchase')->create([
             'gross_amount' => '96.11', 'paid_amount' => '0.00', 'due_on' => '2026-10-12', 'original_due_on' => '2026-10-12',
         ]);
+        ExpenseCommitment::factory()->for($user)->create([
+            'amount' => '50.00',
+            'paid_amount' => '0.00',
+            'due_on' => '2026-10-05',
+            'status' => 'pending',
+        ]);
 
         $this->actingAs($user)->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page
@@ -88,6 +95,10 @@ class DashboardControllerTest extends TestCase
                 ->where('cardInvoice.month', '2026-10')
                 ->where('cardInvoice.pending', '96.11')
                 ->where('cardInvoice.available_after_invoice', '-82.11')
+                ->where('knownCommitments.card', '96.11')
+                ->where('knownCommitments.other', '50.00')
+                ->where('knownCommitments.total', '146.11')
+                ->where('knownCommitments.available_after', '-132.11')
                 ->where('planning.card_commitments.pending', '0')
                 ->where('patrimony.card_liability', '96.11')
                 ->where('patrimony.estimated_net_worth', '-82.11'));
