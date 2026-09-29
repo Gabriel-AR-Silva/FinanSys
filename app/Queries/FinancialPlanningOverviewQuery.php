@@ -9,9 +9,9 @@ use App\Enums\LedgerEntryType;
 use App\Enums\ReceiptForecastStatus;
 use App\Models\CardAdvanceAllocation;
 use App\Models\CardCharge;
+use App\Models\CardInstallment;
 use App\Models\CardPurchase;
 use App\Models\CardPurchaseReversal;
-use App\Models\CardInstallment;
 use App\Models\EssentialBudget;
 use App\Models\ExpenseCommitment;
 use App\Models\LedgerEntry;
@@ -29,8 +29,7 @@ class FinancialPlanningOverviewQuery
     public function __construct(
         private FinancialPlanningMath $math,
         private RecalculateReceiptForecast $recalculateForecast,
-    ) {
-    }
+    ) {}
 
     /** @return array<string, mixed> */
     public function forUser(User $user, ?CarbonImmutable $evaluatedAt = null): array
