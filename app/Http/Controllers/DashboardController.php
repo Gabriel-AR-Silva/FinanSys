@@ -9,6 +9,7 @@ use App\Http\Requests\IndexDashboardRequest;
 use App\Models\CardCharge;
 use App\Models\CardInstallment;
 use App\Models\Category;
+use App\Models\ExpenseCommitment;
 use App\Models\ReceiptForecast;
 use App\Queries\ConsumptionOverviewQuery;
 use App\Queries\FinancialOverviewQuery;
@@ -99,7 +100,20 @@ class DashboardController extends Controller
                 );
         }
 
+        $commitmentHorizon = $invoiceEnd ?? $today->endOfMonth();
+        $otherCommitmentsPending = ExpenseCommitment::query()->whereBelongsTo($request->user())
+            ->where('status', 'pending')
+            ->whereBetween('due_on', [$today->toDateString(), $commitmentHorizon->toDateString()])
+            ->get(['amount', 'paid_amount'])
+            ->reduce(
+                fn (BigDecimal $total, ExpenseCommitment $commitment): BigDecimal => $total->plus(
+                    BigDecimal::of($commitment->amount)->minus($commitment->paid_amount)
+                ),
+                BigDecimal::zero(),
+            );
+        $knownCommitments = $cardInvoicePending->plus($otherCommitmentsPending);
         $availableAfterInvoice = BigDecimal::of($overviewView['general_balance'])->minus($cardInvoicePending);
+        $availableAfterKnownCommitments = BigDecimal::of($overviewView['general_balance'])->minus($knownCommitments);
 
         return Inertia::render('Dashboard', [
             'overview' => $overviewView,
@@ -110,6 +124,13 @@ class DashboardController extends Controller
                 'month' => $invoiceStart?->format('Y-m'),
                 'pending' => (string) $cardInvoicePending,
                 'available_after_invoice' => (string) $availableAfterInvoice,
+            ],
+            'knownCommitments' => [
+                'through' => $commitmentHorizon->toDateString(),
+                'card' => (string) $cardInvoicePending,
+                'other' => (string) $otherCommitmentsPending,
+                'total' => (string) $knownCommitments,
+                'available_after' => (string) $availableAfterKnownCommitments,
             ],
             'receivables' => ['month' => $month, 'pending' => (string) $pending, 'next_due_on' => $nextDueOn],
             'dailyCheckIns' => $dailyPlanningView['check_ins'],
