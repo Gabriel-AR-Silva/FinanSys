@@ -56,7 +56,7 @@ class FinancialOverviewQuery
             'pockets_balance' => $this->balance((clone $entries)->where('reference_type', LedgerEntryReferenceType::Pocket->value)),
             'monthly_income' => (clone $entries)
                 ->where('type', LedgerEntryType::Income)
-                ->whereBetween('occurred_at', [now()->startOfMonth(), now()->endOfMonth()])
+                ->whereBetween('occurred_at', [now('America/Sao_Paulo')->startOfMonth(), now('America/Sao_Paulo')->endOfMonth()])
                 ->sum('amount'),
             'monthly_expense' => $this->monthlyExpense($user),
             'period_summary' => [
