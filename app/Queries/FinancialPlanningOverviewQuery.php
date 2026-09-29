@@ -9,6 +9,8 @@ use App\Enums\LedgerEntryType;
 use App\Enums\ReceiptForecastStatus;
 use App\Models\CardAdvanceAllocation;
 use App\Models\CardCharge;
+use App\Models\CardPurchase;
+use App\Models\CardPurchaseReversal;
 use App\Models\CardInstallment;
 use App\Models\EssentialBudget;
 use App\Models\LedgerEntry;
@@ -164,7 +166,27 @@ class FinancialPlanningOverviewQuery
         $remainingDays = $this->math->remainingDaysInCurrentMonth($now);
         $daily = $this->math->dailyAllocation($dailyAvailable, $remainingDays);
 
-        $realizedConsumption = $this->sum($expenses->pluck('amount'));
+        $reversedPurchaseIds = CardPurchaseReversal::query()
+            ->whereBelongsTo($user)
+            ->whereDate('reversed_on', '<=', $now->toDateString())
+            ->pluck('card_purchase_id');
+        $cardPurchaseConsumption = $this->sum(
+            CardPurchase::query()
+                ->whereBelongsTo($user)
+                ->whereBetween('purchased_on', [$start->toDateString(), $now->toDateString()])
+                ->whereNotIn('id', $reversedPurchaseIds)
+                ->pluck('gross_amount')
+        );
+        $cardChargeConsumption = $this->sum(
+            CardCharge::query()
+                ->whereBelongsTo($user)
+                ->whereBetween('charged_on', [$start->toDateString(), $now->toDateString()])
+                ->where('status', '!=', CardInstallmentStatus::Reversed)
+                ->pluck('amount')
+        );
+        $realizedConsumption = $this->sum($expenses->pluck('amount'))
+            ->plus($cardPurchaseConsumption)
+            ->plus($cardChargeConsumption);
         $elapsedDays = max(1, $now->day);
         $realizedDailyPace = $realizedConsumption->dividedBy($elapsedDays, 2, \Brick\Math\RoundingMode::HalfUp);
         $sustainableDailyPace = BigDecimal::of($daily['daily_amount']);
