@@ -29,7 +29,8 @@ class FinancialPlanningOverviewQuery
     public function __construct(
         private FinancialPlanningMath $math,
         private RecalculateReceiptForecast $recalculateForecast,
-    ) {}
+    ) {
+    }
 
     /** @return array<string, mixed> */
     public function forUser(User $user, ?CarbonImmutable $evaluatedAt = null): array
@@ -154,9 +155,9 @@ class FinancialPlanningOverviewQuery
                 'daily_rate' => $ordinaryProjection['daily_rate'],
             ];
         })->values();
-        $nonEssentialOrdinary = $ordinary->filter(fn (array $item): bool => ! $essentialCategoryIds->contains($item['entry']->category_id));
-        $nonEssentialExtraordinary = $extraordinary->filter(fn (array $item): bool => ! $essentialCategoryIds->contains($item['entry']->category_id));
-        $nonEssentialCard = $cardCommitments->filter(fn (array $item): bool => ! $essentialCategoryIds->contains($item['category_id']));
+        $nonEssentialOrdinary = $ordinary->filter(fn (array $item): bool => $essentialCategoryIds->contains($item['entry']->category_id) === false);
+        $nonEssentialExtraordinary = $extraordinary->filter(fn (array $item): bool => $essentialCategoryIds->contains($item['entry']->category_id) === false);
+        $nonEssentialCard = $cardCommitments->filter(fn (array $item): bool => $essentialCategoryIds->contains($item['category_id']) === false);
         $nonEssentialProjection = $this->ordinaryProjection($nonEssentialOrdinary, $now);
         $unclassifiedTotal = $this->sum($unclassified->pluck('amount'));
         $cardPaid = $this->sum($cardCommitments->pluck('paid'));
