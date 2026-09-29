@@ -59,7 +59,7 @@ class DashboardControllerTest extends TestCase
             ->where('overview.recent_entries.0.reference_name', 'Reserva'));
     }
 
-    public function test_dashboard_exposes_next_month_card_invoice_without_counting_it_as_realized_expense(): void
+    public function test_dashboard_exposes_card_purchase_as_realized_consumption_without_counting_invoice_as_second_expense(): void
     {
         $this->travelTo('2026-09-28 12:00:00');
         $user = User::factory()->create();
@@ -82,7 +82,11 @@ class DashboardControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('cardInvoice.month', '2026-10')
                 ->where('cardInvoice.pending', '120.00')
-                ->where('overview.period_summary.expense', '0'));
+                ->where('overview.period_summary.expense', '120.00')
+                ->where('overview.period_summary.net', '-120.00')
+                ->where('overview.period_summary.transaction_count', 1)
+                ->where('overview.period_summary.largest_expense', '120.00')
+                ->where('overview.period_summary.savings_rate', null));
     }
 
     #[DataProvider('periods')]
