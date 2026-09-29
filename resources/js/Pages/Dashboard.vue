@@ -110,11 +110,18 @@ const priorityCards = computed(() => [
         tone: 'text-rose-700 bg-rose-50',
     },
     {
-        label: 'Ainda preciso pagar',
-        value: props.planning.indicators?.committed,
-        note: 'Contas, parcelas e encargos que continuam em aberto.',
+        label: 'Fatura atual do cartão',
+        value: props.cardInvoice.current_pending,
+        note: 'Parcelas e encargos com vencimento neste mês. Não inclui as próximas parcelas.',
         icon: ReceiptText,
         tone: 'text-violet-700 bg-violet-50',
+    },
+    {
+        label: 'Ainda preciso pagar',
+        value: props.planning.indicators?.committed,
+        note: 'Total de contas, parcelas e encargos que continuam em aberto, inclusive meses futuros.',
+        icon: ReceiptText,
+        tone: 'text-fuchsia-700 bg-fuchsia-50',
     },
 ]);
 
@@ -178,7 +185,7 @@ const secondaryCards = computed(() => [
 
         <section class="mt-4 grid min-w-0 gap-3 xl:grid-cols-[1.05fr_2fr]">
             <article class="flex min-h-36 flex-col justify-between rounded-2xl bg-slate-950 p-5 text-white shadow-lg shadow-slate-200"><div class="flex items-center justify-between gap-3 text-sm text-slate-400"><span class="flex items-center gap-2"><Landmark :size="17" /> Saldo geral</span><span class="text-xs">Contas + caixinhas</span></div><div><p class="mt-5 text-3xl font-semibold tracking-tight">{{ formatMoney(overview.general_balance) }}</p><p class="mt-2 text-xs leading-5 text-slate-400">Dinheiro que existe agora. Parcelas futuras aparecem separadas nas obrigações.</p></div></article>
-            <div class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <article v-for="card in priorityCards" :key="card.label" class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <span class="flex h-8 w-8 items-center justify-center rounded-lg" :class="card.tone"><component :is="card.icon" :size="16" /></span>
                     <p class="mt-3 text-xs leading-4 text-slate-500">{{ card.label }}</p>
@@ -208,7 +215,6 @@ const secondaryCards = computed(() => [
         </section>
 
         <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-6">
-            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Compromisso de cartão neste mês</p><p class="mt-1 font-semibold text-violet-700">{{ formatMoney(cardInvoice.current_pending) }}</p><p class="mt-0.5 text-[10px] text-slate-400">Valor do cartão que ainda precisa ser pago neste mês. Ele não conta como uma nova despesa.</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Próxima fatura do cartão</p><p class="mt-1 font-semibold text-violet-700">{{ formatMoney(cardInvoice.pending) }}</p><p class="mt-0.5 text-[10px] text-slate-400">Parcelas e encargos do cartão que ainda precisam ser pagos no próximo mês.</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Taxa de economia</p><p class="mt-1 font-semibold" :class="overview.period_summary.savings_rate === null ? 'text-slate-500' : Number(overview.period_summary.savings_rate) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatPercent(overview.period_summary.savings_rate) }}</p><p v-if="overview.period_summary.savings_rate === null" class="mt-0.5 text-[10px] text-slate-400">Sem receita no período para calcular a taxa.</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Movimentações</p><p class="mt-1 font-semibold text-slate-900">{{ overview.period_summary.transaction_count }}</p></article>
