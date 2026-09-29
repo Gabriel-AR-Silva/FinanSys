@@ -3,7 +3,7 @@ import QuickActionModal from '@/Components/QuickActionModal.vue';
 import ToastHost from '@/Components/ToastHost.vue';
 import TsukiOnboarding from '@/Components/TsukiOnboarding.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, BellRing, ChevronDown, CircleHelp, CreditCard, FileUp, Landmark, LayoutDashboard, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, RotateCcw, Settings, Sun, Tags, WalletCards, Wrench, X } from '@lucide/vue';
+import { ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, BellRing, ChevronDown, CircleHelp, CreditCard, FileUp, Landmark, LayoutDashboard, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, RotateCcw, Settings, Sun, Tags, TrendingUp, WalletCards, Wrench, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { getPreferredTheme, setTheme } from '@/Support/theme';
 
@@ -29,6 +29,7 @@ const sections = [
         { label: 'Caixinhas', route: 'pockets.index', icon: PiggyBank },
         { label: 'Lançamentos', route: 'ledger-entries.index', icon: ReceiptText },
         { label: 'Cartões', route: 'credit-cards.index', icon: CreditCard },
+        { label: 'Investimentos', route: 'investments.index', icon: TrendingUp },
         { label: 'Patrimônio', route: 'patrimony.index', icon: Landmark },
     ] },
     { label: 'Organização', items: [{ label: 'Categorias', route: 'categories.index', icon: Tags }] },
