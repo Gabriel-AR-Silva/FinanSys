@@ -169,33 +169,8 @@ class FinancialOverviewQuery
     /** @return array{total:BigDecimal,count:int,largest:BigDecimal} */
     private function cardConsumption(User $user, CarbonImmutable $start, CarbonImmutable $end, ?int $categoryId): array
     {
-        $startDate = $start->setTimezone('America/Sao_Paulo')->toDateString();
-        $endDate = $end->setTimezone('America/Sao_Paulo')->toDateString();
-
-        $reversedPurchaseIds = CardPurchaseReversal::query()
-            ->whereBelongsTo($user)
-            ->whereDate('reversed_on', '<=', $endDate)
-            ->pluck('card_purchase_id');
-
-        $purchases = CardPurchase::query()
-            ->whereBelongsTo($user)
-            ->whereBetween('purchased_on', [$startDate, $endDate])
-            ->whereNotIn('id', $reversedPurchaseIds)
-            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
-            ->get(['gross_amount']);
-
-        $charges = CardCharge::query()
-            ->whereBelongsTo($user)
-            ->whereBetween('charged_on', [$startDate, $endDate])
-            ->where('status', '!=', CardInstallmentStatus::Reversed)
-            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
-            ->get(['amount']);
-
-        $amounts = $purchases->pluck('gross_amount')->concat($charges->pluck('amount'));
-        $total = $amounts->reduce(
-            fn (BigDecimal $sum, $amount): BigDecimal => $sum->plus((string) $amount),
-            BigDecimal::zero(),
-        );
+        $amounts = $this->cardConsumptionRows($user, $start, $end, $categoryId)->pluck('amount');
+        $total = $this->sumAmounts($amounts);
         $largest = $amounts->reduce(
             function (BigDecimal $max, $amount): BigDecimal {
                 $candidate = BigDecimal::of((string) $amount);
@@ -235,33 +210,12 @@ class FinancialOverviewQuery
             ]);
         $rows = $incomeRows->concat($expenseRows);
 
-        $startDate = $start->setTimezone('America/Sao_Paulo')->toDateString();
-        $endDate = $end->setTimezone('America/Sao_Paulo')->toDateString();
-        $reversedPurchaseIds = CardPurchaseReversal::query()->whereBelongsTo($user)
-            ->whereDate('reversed_on', '<=', $endDate)->pluck('card_purchase_id');
-
-        $cardRows = CardPurchase::query()->whereBelongsTo($user)
-            ->whereBetween('purchased_on', [$startDate, $endDate])
-            ->whereNotIn('id', $reversedPurchaseIds)
-            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
-            ->get(['category_id', 'gross_amount'])
-            ->map(fn (CardPurchase $purchase): array => [
-                'category_id' => $purchase->category_id,
+        $cardRows = $this->cardConsumptionRows($user, $start, $end, $categoryId)
+            ->map(fn (array $row): array => [
+                'category_id' => $row['category_id'],
                 'type' => LedgerEntryType::Expense->value,
-                'total' => $purchase->gross_amount,
-            ])
-            ->concat(
-                CardCharge::query()->whereBelongsTo($user)
-                    ->whereBetween('charged_on', [$startDate, $endDate])
-                    ->where('status', '!=', CardInstallmentStatus::Reversed)
-                    ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
-                    ->get(['category_id', 'amount'])
-                    ->map(fn (CardCharge $charge): array => [
-                        'category_id' => $charge->category_id,
-                        'type' => LedgerEntryType::Expense->value,
-                        'total' => $charge->amount,
-                    ])
-            );
+                'total' => $row['amount'],
+            ]);
 
         $rows = $rows->concat($cardRows);
         $categories = Category::query()->whereBelongsTo($user)
@@ -387,7 +341,7 @@ class FinancialOverviewQuery
         ]);
     }
 
-    /** @return Collection<int, array{date:string,amount:string}> */
+    /** @return Collection<int, array{date:string,amount:string,category_id:?int}> */
     private function cardConsumptionRows(User $user, CarbonImmutable $start, CarbonImmutable $end, ?int $categoryId): Collection
     {
         $startDate = $start->setTimezone('America/Sao_Paulo')->toDateString();
@@ -402,20 +356,22 @@ class FinancialOverviewQuery
             ->whereBetween('purchased_on', [$startDate, $endDate])
             ->whereNotIn('id', $reversedPurchaseIds)
             ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
-            ->get(['gross_amount', 'purchased_on'])
+            ->get(['category_id', 'gross_amount', 'purchased_on'])
             ->map(fn (CardPurchase $purchase): array => [
                 'date' => $purchase->purchased_on->toDateString(),
                 'amount' => $purchase->gross_amount,
+                'category_id' => $purchase->category_id,
             ]);
         $charges = CardCharge::query()
             ->whereBelongsTo($user)
             ->whereBetween('charged_on', [$startDate, $endDate])
             ->where('status', '!=', CardInstallmentStatus::Reversed)
             ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
-            ->get(['amount', 'charged_on'])
+            ->get(['category_id', 'amount', 'charged_on'])
             ->map(fn (CardCharge $charge): array => [
                 'date' => $charge->charged_on->toDateString(),
                 'amount' => $charge->amount,
+                'category_id' => $charge->category_id,
             ]);
 
         return $purchases->concat($charges)->values();
