@@ -210,12 +210,24 @@ class FinancialOverviewQuery
         $end = CarbonImmutable::now('America/Sao_Paulo')->endOfDay();
         $start = CarbonImmutable::now('America/Sao_Paulo')->startOfDay()->subDays($period - 1);
         $rows = LedgerEntry::query()->whereBelongsTo($user)
-            ->whereIn('type', [LedgerEntryType::Income, LedgerEntryType::Expense])
+            ->whereIn('type', [
+                LedgerEntryType::Income,
+                LedgerEntryType::Expense,
+                LedgerEntryType::Refund,
+                LedgerEntryType::CardPayment,
+                LedgerEntryType::CardAdvance,
+            ])
             ->whereBetween('occurred_at', [$start, $end])
             ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
             ->selectRaw('DATE(occurred_at) AS entry_date')
-            ->selectRaw('SUM(CASE WHEN type = ? THEN amount ELSE 0 END) AS income', [LedgerEntryType::Income->value])
-            ->selectRaw('SUM(CASE WHEN type = ? THEN amount ELSE 0 END) AS expense', [LedgerEntryType::Expense->value])
+            ->selectRaw(
+                'SUM(CASE WHEN type IN (?, ?) THEN amount ELSE 0 END) AS income',
+                [LedgerEntryType::Income->value, LedgerEntryType::Refund->value],
+            )
+            ->selectRaw(
+                'SUM(CASE WHEN type IN (?, ?, ?) THEN amount ELSE 0 END) AS expense',
+                [LedgerEntryType::Expense->value, LedgerEntryType::CardPayment->value, LedgerEntryType::CardAdvance->value],
+            )
             ->groupBy('entry_date')
             ->get()
             ->keyBy('entry_date');
