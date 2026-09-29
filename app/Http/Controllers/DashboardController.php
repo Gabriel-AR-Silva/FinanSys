@@ -50,6 +50,20 @@ class DashboardController extends Controller
         $overviewView = $overview->forUser($request->user(), $period, $categoryId);
         $invoiceStart = $start->addMonth()->startOfMonth();
         $invoiceEnd = $invoiceStart->endOfMonth();
+        $currentInvoiceStart = $start->startOfMonth();
+        $currentInvoiceEnd = $start->endOfMonth();
+        $currentCardCommitment = CardInstallment::query()
+            ->whereBelongsTo($request->user())
+            ->where('status', CardInstallmentStatus::Pending)
+            ->whereBetween('due_on', [$currentInvoiceStart->toDateString(), $currentInvoiceEnd->toDateString()])
+            ->get()
+            ->reduce(fn (BigDecimal $total, CardInstallment $installment): BigDecimal => $total->plus(BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)), BigDecimal::zero())
+            ->plus(CardCharge::query()
+                ->whereBelongsTo($request->user())
+                ->whereBetween('due_on', [$currentInvoiceStart->toDateString(), $currentInvoiceEnd->toDateString()])
+                ->get()
+                ->reduce(fn (BigDecimal $total, CardCharge $charge): BigDecimal => $total->plus(BigDecimal::of($charge->amount)->minus($charge->paid_amount)), BigDecimal::zero()));
+
         $cardInvoicePending = CardInstallment::query()
             ->whereBelongsTo($request->user())
             ->where('status', CardInstallmentStatus::Pending)
@@ -66,7 +80,12 @@ class DashboardController extends Controller
             'overview' => $overviewView,
             'patrimony' => $patrimony->forUser($request->user(), $overviewView['general_balance'])['summary'],
             'planning' => $planning->forUser($request->user()),
-            'cardInvoice' => ['month' => $invoiceStart->format('Y-m'), 'pending' => (string) $cardInvoicePending],
+            'cardInvoice' => [
+                'current_month' => $currentInvoiceStart->format('Y-m'),
+                'current_pending' => (string) $currentCardCommitment,
+                'month' => $invoiceStart->format('Y-m'),
+                'pending' => (string) $cardInvoicePending,
+            ],
             'receivables' => ['month' => $month, 'pending' => (string) $pending, 'next_due_on' => $nextDueOn],
             'dailyCheckIns' => $dailyPlanningView['check_ins'],
             'dailyPlanning' => $dailyPlanningView,
