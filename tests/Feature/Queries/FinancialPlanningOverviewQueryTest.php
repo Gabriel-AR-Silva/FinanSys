@@ -156,7 +156,7 @@ class FinancialPlanningOverviewQueryTest extends TestCase
 
         $this->assertSame('0.00', $before['variable']['realized']);
         $this->assertSame('100.00', $before['variable']['projected']);
-        $this->assertSame('0.00', $after['variable']['realized']);
+        $this->assertSame('60.00', $after['variable']['realized']);
         $this->assertSame('100.00', $after['variable']['projected']);
         $this->assertSame('200.00', $after['indicators']['realized']);
         $this->assertSame('60.00', $purchase->installments()->oldest('due_on')->first()->fresh()->paid_amount);
@@ -185,7 +185,7 @@ class FinancialPlanningOverviewQueryTest extends TestCase
 
         $this->assertSame('0.00', $before['variable']['realized']);
         $this->assertSame('15.00', $before['variable']['projected']);
-        $this->assertSame('0.00', $after['variable']['realized']);
+        $this->assertSame('15.00', $after['variable']['realized']);
         $this->assertSame('15.00', $after['variable']['projected']);
         $this->assertSame('15.00', $after['indicators']['realized']);
     }
@@ -217,9 +217,9 @@ class FinancialPlanningOverviewQueryTest extends TestCase
         ]);
         $afterCharge = app(FinancialPlanningOverviewQuery::class)->forUser($user, CarbonImmutable::parse('2026-09-09', 'America/Sao_Paulo'));
 
-        $this->assertSame('0.00', $beforeCharge['variable']['realized']);
+        $this->assertSame('300.00', $beforeCharge['variable']['realized']);
         $this->assertSame('500.00', $beforeCharge['variable']['projected']);
-        $this->assertSame('0.00', $afterCharge['variable']['realized']);
+        $this->assertSame('300.00', $afterCharge['variable']['realized']);
         $this->assertSame('515.00', $afterCharge['variable']['projected']);
         $this->assertSame('500.00', $card->purchases()->firstOrFail()->installments()->sole()->gross_amount);
         $this->assertSame('300.00', $card->purchases()->firstOrFail()->installments()->sole()->paid_amount);
