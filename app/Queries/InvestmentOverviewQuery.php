@@ -54,6 +54,7 @@ class InvestmentOverviewQuery
                 'asset_type' => $position->asset_type,
                 'ticker' => $position->ticker,
                 'name' => $position->name,
+                'purchased_on' => $position->purchased_on->toDateString(),
                 'quantity' => $position->quantity,
                 'average_cost' => $position->average_cost,
                 'total_invested' => $position->total_invested,
