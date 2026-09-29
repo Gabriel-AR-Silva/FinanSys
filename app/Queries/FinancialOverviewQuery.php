@@ -494,5 +494,4 @@ class FinancialOverviewQuery
 
         return (string) $ledger->plus($card)->toScale(2, RoundingMode::Unnecessary);
     }
-
 }
