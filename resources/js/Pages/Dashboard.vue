@@ -14,6 +14,7 @@ const props = defineProps({
     overview: { type: Object, required: true },
     consumption: { type: Object, required: true },
     cardInvoice: { type: Object, required: true },
+    knownCommitments: { type: Object, required: true },
     planning: { type: Object, required: true },
     categories: { type: Array, required: true },
     filters: { type: Object, required: true },
@@ -153,10 +154,10 @@ const periodCards = computed(() => [
                 <p class="mt-2 text-2xl font-semibold text-slate-950">{{ formatMoney(cardInvoice.pending) }}</p>
                 <p class="mt-1 text-xs leading-5 text-slate-600">Valor já assumido no cartão e ainda não liquidado na próxima fatura conhecida.</p>
             </article>
-            <article class="rounded-2xl border p-4 shadow-sm" :class="Number(cardInvoice.available_after_invoice) >= 0 ? 'border-emerald-200 bg-emerald-50/60' : 'border-rose-200 bg-rose-50/60'">
-                <p class="text-xs font-semibold uppercase tracking-wide" :class="Number(cardInvoice.available_after_invoice) >= 0 ? 'text-emerald-700' : 'text-rose-700'">Caixa após reservar a próxima fatura</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ formatMoney(cardInvoice.available_after_invoice) }}</p>
-                <p class="mt-1 text-xs leading-5 text-slate-600">Saldo financeiro atual menos a próxima fatura. Não inclui receitas apenas previstas.</p>
+            <article class="rounded-2xl border p-4 shadow-sm" :class="Number(knownCommitments.available_after) >= 0 ? 'border-emerald-200 bg-emerald-50/60' : 'border-rose-200 bg-rose-50/60'">
+                <p class="text-xs font-semibold uppercase tracking-wide" :class="Number(knownCommitments.available_after) >= 0 ? 'text-emerald-700' : 'text-rose-700'">Caixa após compromissos conhecidos</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-950">{{ formatMoney(knownCommitments.available_after) }}</p>
+                <p class="mt-1 text-xs leading-5 text-slate-600">Reserva {{ formatMoney(knownCommitments.card) }} de cartão + {{ formatMoney(knownCommitments.other) }} de outras contas até {{ formatDate(knownCommitments.through) }}. Receitas previstas não entram.</p>
             </article>
             <article v-if="planning.configured" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Margem livre do planejamento</p>
