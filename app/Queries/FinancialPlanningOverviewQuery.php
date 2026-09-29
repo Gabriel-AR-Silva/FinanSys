@@ -187,10 +187,12 @@ class FinancialPlanningOverviewQuery
         $realizedConsumption = $this->sum($expenses->pluck('amount'))
             ->plus($cardPurchaseConsumption)
             ->plus($cardChargeConsumption);
-        $elapsedDays = max(1, $now->day);
-        $realizedDailyPace = $realizedConsumption->dividedBy($elapsedDays, 2, \Brick\Math\RoundingMode::HalfUp);
+        $completedDays = max(0, $now->day - 1);
+        $realizedDailyPace = $completedDays === 0
+            ? null
+            : $realizedConsumption->dividedBy($completedDays, 2, \Brick\Math\RoundingMode::HalfUp);
         $sustainableDailyPace = BigDecimal::of($daily['daily_amount']);
-        $paceDifference = $realizedDailyPace->minus($sustainableDailyPace);
+        $paceDifference = $realizedDailyPace?->minus($sustainableDailyPace);
 
         $knownCommitments = $this->sum($cardCommitments->pluck('pending'))
             ->plus(BigDecimal::of($previousCommitments['pending']));
@@ -225,9 +227,9 @@ class FinancialPlanningOverviewQuery
                 'committed' => (string) $knownCommitments,
                 'consolidated' => (string) $consolidatedKnownImpact,
                 'available_now' => (string) $availableAfterCommitments,
-                'realized_daily_pace' => (string) $realizedDailyPace,
+                'realized_daily_pace' => $realizedDailyPace === null ? null : (string) $realizedDailyPace,
                 'sustainable_daily_pace' => (string) $sustainableDailyPace,
-                'pace_difference' => (string) $paceDifference,
+                'pace_difference' => $paceDifference === null ? null : (string) $paceDifference,
             ],
             'daily' => [
                 'available' => $freeMargin,
