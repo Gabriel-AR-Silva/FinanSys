@@ -66,8 +66,8 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700"><CalendarCheck2 :size="16" /></span>
                 <p class="mt-3 text-xs text-slate-500">Folga líquida acumulada</p>
-                <p class="mt-1 text-xl font-semibold" :class="Number(dailyPlanning.net_margin) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatMoney(dailyPlanning.net_margin) }}</p>
-                <p class="mt-1 text-[11px] leading-4 text-slate-400">{{ dailyPlanning.confirmed_days }} dia(s) confirmado(s).</p>
+                <p class="mt-1 text-xl font-semibold"  :class="dailyPlanning.net_margin === null ? 'text-slate-500' : Number(dailyPlanning.net_margin) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatMoney(dailyPlanning.net_margin) }}</p>
+                <p class="mt-1 text-[11px] leading-4 text-slate-400">{{ dailyPlanning.confirmed_days ? `${dailyPlanning.confirmed_days} dia(s) confirmado(s).` : 'Sem base confirmada; pendência não é zero.' }}</p>
             </article>
         </section>
 

@@ -10,8 +10,8 @@ const maxValue = computed(() => Math.max(...props.categories.map((category) => M
 <template>
     <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div>
-            <h2 class="text-sm font-semibold text-slate-950">Movimentação por categoria</h2>
-            <p class="mt-0.5 text-xs text-slate-500">Categorias ordenadas pelo maior impacto.</p>
+            <h2 class="text-sm font-semibold text-slate-950">Receitas e consumo por categoria</h2>
+            <p class="mt-0.5 text-xs text-slate-500">Categorias ordenadas pelo maior impacto. Compras no cartão entram pela categoria da compra; liquidação da fatura não entra novamente.</p>
         </div>
         <div v-if="categories.length" class="mt-4 grid max-h-64 gap-3 overflow-y-auto pr-1">
             <div v-for="category in categories" :key="`${category.id ?? 'none'}-${category.type}`">
@@ -19,6 +19,6 @@ const maxValue = computed(() => Math.max(...props.categories.map((category) => M
                 <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full" :class="category.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'" :style="{ width: `${Math.max(2, Math.abs(Number(category.total)) / maxValue * 100)}%` }" /></div>
             </div>
         </div>
-        <p v-else class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">Sem movimentações no período.</p>
+        <p v-else class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">Sem receitas ou consumo reconhecido no período.</p>
     </article>
 </template>

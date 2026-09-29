@@ -46,7 +46,7 @@ class DashboardReceivablesTest extends TestCase
 
         $before = $this->actingAs($user)->get(route('dashboard'));
         $before->assertInertia(fn (Assert $page) => $page->component('Dashboard')
-            ->where('receivables.pending', '100.00')->where('overview.period_summary.income', '0')->etc());
+            ->where('receivables.pending', '100.00')->where('overview.period_summary.income', '0.00')->etc());
 
         app(RecordForecastReceipt::class)->handle($user, $forecast->id, [
             'account_id' => $account->id, 'amount' => '40.00', 'occurred_at' => '2026-09-18',
@@ -55,6 +55,6 @@ class DashboardReceivablesTest extends TestCase
 
         $this->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->component('Dashboard')
             ->where('receivables.pending', '60.00')->where('receivables.next_due_on', '2026-09-20')
-            ->where('overview.period_summary.income', '40')->etc());
+            ->where('overview.period_summary.income', '40.00')->etc());
     }
 }
