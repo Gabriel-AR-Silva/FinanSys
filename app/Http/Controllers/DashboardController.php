@@ -83,7 +83,7 @@ class DashboardController extends Controller
         $today = CarbonImmutable::now('America/Sao_Paulo')->startOfDay();
         $cards = CreditCard::query()
             ->whereBelongsTo($request->user())
-            ->where('status', RecordStatus::Active)
+            ->where('status', RecordStatus::Active->value)
             ->get(['id', 'closing_day', 'due_day']);
 
         foreach ($cards as $card) {
@@ -94,7 +94,7 @@ class DashboardController extends Controller
             $openInvoicePending = $openInvoicePending
                 ->plus(CardInstallment::query()
                     ->whereBelongsTo($request->user())
-                    ->where('credit_card_id', $card->id)
+                    ->whereHas('purchase', fn ($query) => $query->where('credit_card_id', $card->id))
                     ->where('status', CardInstallmentStatus::Pending)
                     ->whereBetween('due_on', [$dueStart->toDateString(), $dueEnd->toDateString()])
                     ->get()
