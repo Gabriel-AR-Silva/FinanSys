@@ -103,11 +103,12 @@ onMounted(() => {
 
         <p v-if="!summary.available" class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">O módulo patrimonial está temporariamente indisponível enquanto a atualização do banco de dados é concluída. Seu saldo financeiro continua disponível normalmente.</p>
 
-        <section class="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Resumo patrimonial">
+        <section class="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-6" aria-label="Resumo patrimonial">
             <article class="rounded-2xl bg-slate-950 p-4 text-white sm:col-span-2 xl:col-span-1"><p class="text-xs text-slate-400">Patrimônio estimado total</p><p class="mt-2 text-2xl font-semibold">{{ formatMoney(summary.estimated_net_worth) }}</p><p class="mt-2 text-[11px] text-slate-400">Financeiro + patrimônio líquido dos bens</p></article>
             <article class="rounded-2xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Liquidez financeira</p><p class="mt-2 text-xl font-semibold text-slate-950">{{ formatMoney(summary.financial_balance) }}</p><p class="mt-1 text-[11px] text-slate-400">Contas + caixinhas</p></article>
             <article class="rounded-2xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Bens estimados</p><p class="mt-2 text-xl font-semibold text-slate-950">{{ formatMoney(summary.assets_total) }}</p><p class="mt-1 text-[11px] text-slate-400">{{ summary.asset_count }} bem(ns)</p></article>
             <article class="rounded-2xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Dívidas patrimoniais</p><p class="mt-2 text-xl font-semibold text-rose-700">{{ formatMoney(summary.debts_total) }}</p><p class="mt-1 text-[11px] text-slate-400">Saldo devedor informado</p></article>
+            <article class="rounded-2xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Passivo de cartões</p><p class="mt-2 text-xl font-semibold text-rose-700">{{ formatMoney(summary.card_liabilities) }}</p><p class="mt-1 text-[11px] text-slate-400">Parcelas e encargos ainda não liquidados</p></article>
             <article class="rounded-2xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Patrimônio líquido dos bens</p><p class="mt-2 text-xl font-semibold" :class="equityTone(summary.asset_equity)">{{ formatMoney(summary.asset_equity) }}</p><p class="mt-1 text-[11px] text-slate-400">Valor dos bens menos dívidas</p></article>
         </section>
 
