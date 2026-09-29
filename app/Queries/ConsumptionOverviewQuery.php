@@ -61,10 +61,18 @@ class ConsumptionOverviewQuery
     private function categoryBreakdown(User $user, Collection $incomeEntries, Collection $expenseEntries, Collection $purchases, Collection $charges): array
     {
         $rows = collect();
-        foreach ($incomeEntries as $entry) $rows->push(['category_id' => $entry->category_id, 'type' => 'income', 'amount' => BigDecimal::of($entry->amount)]);
-        foreach ($expenseEntries as $entry) $rows->push(['category_id' => $entry->category_id, 'type' => 'expense', 'amount' => BigDecimal::of($entry->amount)]);
-        foreach ($purchases as $purchase) $rows->push(['category_id' => $purchase->category_id, 'type' => 'expense', 'amount' => BigDecimal::of($purchase->gross_amount)]);
-        foreach ($charges as $charge) $rows->push(['category_id' => $charge->category_id, 'type' => 'expense', 'amount' => BigDecimal::of($charge->amount)]);
+        foreach ($incomeEntries as $entry) {
+            $rows->push(['category_id' => $entry->category_id, 'type' => 'income', 'amount' => BigDecimal::of($entry->amount)]);
+        }
+        foreach ($expenseEntries as $entry) {
+            $rows->push(['category_id' => $entry->category_id, 'type' => 'expense', 'amount' => BigDecimal::of($entry->amount)]);
+        }
+        foreach ($purchases as $purchase) {
+            $rows->push(['category_id' => $purchase->category_id, 'type' => 'expense', 'amount' => BigDecimal::of($purchase->gross_amount)]);
+        }
+        foreach ($charges as $charge) {
+            $rows->push(['category_id' => $charge->category_id, 'type' => 'expense', 'amount' => BigDecimal::of($charge->amount)]);
+        }
 
         $categories = Category::query()->whereBelongsTo($user)->whereIn('id', $rows->pluck('category_id')->filter()->unique())->get(['id', 'name'])->keyBy('id');
 
