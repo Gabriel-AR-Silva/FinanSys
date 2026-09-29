@@ -12,6 +12,7 @@ use App\Models\ExpenseCommitment;
 use App\Models\MonthlyFinancialSetting;
 use App\Models\Pocket;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -62,7 +63,7 @@ class DashboardControllerTest extends TestCase
 
     public function test_dashboard_separates_card_consumption_from_future_invoice_and_cash_balance(): void
     {
-        $this->travelTo('2026-09-28 12:00:00');
+        $this->travelTo(CarbonImmutable::parse('2026-09-28 12:00:00', 'America/Sao_Paulo'));
         $user = User::factory()->create();
         $account = Account::factory()->for($user)->create();
         $category = Category::factory()->for($user)->create(['type' => 'expense']);
@@ -106,7 +107,7 @@ class DashboardControllerTest extends TestCase
 
     public function test_card_payment_changes_cash_and_liability_without_counting_consumption_twice(): void
     {
-        $this->travelTo('2026-09-28 12:00:00');
+        $this->travelTo(CarbonImmutable::parse('2026-09-28 12:00:00', 'America/Sao_Paulo'));
         $user = User::factory()->create();
         $account = Account::factory()->for($user)->create();
         $card = CreditCard::factory()->for($user)->create();
@@ -126,7 +127,7 @@ class DashboardControllerTest extends TestCase
 
     public function test_dashboard_does_not_leak_another_users_card_consumption_or_liability(): void
     {
-        $this->travelTo('2026-09-28 12:00:00');
+        $this->travelTo(CarbonImmutable::parse('2026-09-28 12:00:00', 'America/Sao_Paulo'));
         $user = User::factory()->create();
         $other = User::factory()->create();
         $card = CreditCard::factory()->for($other)->create();
@@ -142,7 +143,7 @@ class DashboardControllerTest extends TestCase
 
     public function test_zero_income_exposes_no_savings_rate_instead_of_a_fake_zero_percent(): void
     {
-        $this->travelTo('2026-09-28 12:00:00');
+        $this->travelTo(CarbonImmutable::parse('2026-09-28 12:00:00', 'America/Sao_Paulo'));
         $user = User::factory()->create();
         CardPurchase::factory()->for($user)->create(['gross_amount' => '50.00', 'purchased_on' => '2026-09-28']);
 
