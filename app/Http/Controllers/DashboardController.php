@@ -76,10 +76,16 @@ class DashboardController extends Controller
                 ->get()
                 ->reduce(fn (BigDecimal $total, CardCharge $charge): BigDecimal => $total->plus(BigDecimal::of($charge->amount)->minus($charge->paid_amount)), BigDecimal::zero()));
 
+        $planningView = $planning->forUser($request->user());
+        if (($planningView['configured'] ?? false) === true) {
+            $planningView['indicators']['available_now'] = (string) BigDecimal::of($overviewView['general_balance'])
+                ->minus($currentCardCommitment);
+        }
+
         return Inertia::render('Dashboard', [
             'overview' => $overviewView,
             'patrimony' => $patrimony->forUser($request->user(), $overviewView['general_balance'])['summary'],
-            'planning' => $planning->forUser($request->user()),
+            'planning' => $planningView,
             'cardInvoice' => [
                 'current_month' => $currentInvoiceStart->format('Y-m'),
                 'current_pending' => (string) $currentCardCommitment,
