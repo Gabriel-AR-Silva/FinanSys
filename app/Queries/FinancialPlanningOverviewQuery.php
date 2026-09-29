@@ -161,7 +161,20 @@ class FinancialPlanningOverviewQuery
         $variableRemaining = BigDecimal::of($currentBase)->minus($variableActual);
         $freeMargin = $this->math->freeMargin((string) $variableRemaining, $essentialProjections->pluck('remaining')->all());
         $dailyAvailable = BigDecimal::of($freeMargin)->isNegative() ? '0.00' : $freeMargin;
-        $daily = $this->math->dailyAllocation($dailyAvailable, $this->math->remainingDaysInCurrentMonth($now));
+        $remainingDays = $this->math->remainingDaysInCurrentMonth($now);
+        $daily = $this->math->dailyAllocation($dailyAvailable, $remainingDays);
+
+        $realizedConsumption = $this->sum($expenses->pluck('amount'));
+        $elapsedDays = max(1, $now->day);
+        $realizedDailyPace = $realizedConsumption->dividedBy($elapsedDays, 2, \Brick\Math\RoundingMode::HalfUp);
+        $sustainableDailyPace = BigDecimal::of($daily['daily_amount']);
+        $paceDifference = $realizedDailyPace->minus($sustainableDailyPace);
+
+        $knownCommitments = $this->sum($cardCommitments->pluck('pending'))
+            ->plus(BigDecimal::of($previousCommitments['pending']));
+        $availableAfterCommitments = BigDecimal::of($freeMargin);
+        $consolidatedKnownImpact = $realizedConsumption->plus($knownCommitments);
+
         $reasons = [];
         if ($unclassified->isNotEmpty()) {
             $reasons[] = $unclassified->count().' despesa(s) antiga(s) ainda não têm classificação de planejamento.';
@@ -185,11 +198,20 @@ class FinancialPlanningOverviewQuery
             'projected' => ['base' => $projectedBase, 'deficit' => $projectedDeficit->isPositive() ? (string) $projectedDeficit : null, 'percentage' => $projectedSituation['percentage'], 'situation' => $projectedSituation['situation']->value, 'diagnostic_available' => $now->day > 2],
             'essential_categories' => $essentialProjections->all(),
             'free_margin' => $freeMargin,
+            'indicators' => [
+                'realized' => (string) $realizedConsumption,
+                'committed' => (string) $knownCommitments,
+                'consolidated' => (string) $consolidatedKnownImpact,
+                'available_now' => (string) $availableAfterCommitments,
+                'realized_daily_pace' => (string) $realizedDailyPace,
+                'sustainable_daily_pace' => (string) $sustainableDailyPace,
+                'pace_difference' => (string) $paceDifference,
+            ],
             'daily' => [
                 'available' => $freeMargin,
                 'amount' => $daily['daily_amount'],
                 'remainder' => $daily['remainder'],
-                'remaining_days' => $this->math->remainingDaysInCurrentMonth($now),
+                'remaining_days' => $remainingDays,
             ],
         ];
     }
