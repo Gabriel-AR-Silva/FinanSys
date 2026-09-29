@@ -257,12 +257,14 @@ class FinancialPlanningOverviewQuery
             ->pluck('card_purchase_id');
         $purchases = CardPurchase::query()
             ->whereBelongsTo($user)
-            ->whereBetween('purchased_on', [$start->toDateString(), $now->toDateString()])
+            ->whereDate('purchased_on', '>=', $start->toDateString())
+            ->whereDate('purchased_on', '<=', $now->toDateString())
             ->whereNotIn('id', $reversedPurchaseIds)
             ->get(['id', 'gross_amount', 'planning_type', 'purchased_on']);
         $charges = CardCharge::query()
             ->whereBelongsTo($user)
-            ->whereBetween('charged_on', [$start->toDateString(), $now->toDateString()])
+            ->whereDate('charged_on', '>=', $start->toDateString())
+            ->whereDate('charged_on', '<=', $now->toDateString())
             ->where('status', '!=', CardInstallmentStatus::Reversed)
             ->get(['id', 'amount', 'planning_type', 'charged_on']);
 
