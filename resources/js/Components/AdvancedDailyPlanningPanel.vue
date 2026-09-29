@@ -67,11 +67,25 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
         </section>
         <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Indicadores do planejamento diário">
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700"><TrendingUp :size="16" /></span>
+                <p class="mt-3 text-xs text-slate-500">Quanto gasto por dia</p>
+                <p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(planning.indicators.realized_daily_pace) }}</p>
+                <p class="mt-1 text-[11px] leading-4 text-slate-400">Média dos gastos cotidianos dos dias completos deste mês.</p>
+            </article>
+
+            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700"><Gauge :size="16" /></span>
+                <p class="mt-3 text-xs text-slate-500">Quanto posso gastar por dia</p>
+                <p class="mt-1 text-xl font-semibold text-indigo-900">{{ formatMoney(planning.indicators.sustainable_daily_pace) }}</p>
+                <p class="mt-1 text-[11px] leading-4 text-slate-400">Considera seu planejamento, o caixa atual e as contas conhecidas.</p>
+            </article>
+
+            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div class="flex items-center justify-between gap-2">
-                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700"><Gauge :size="16" /></span>
-                    <HelpHint label="Ajuda">É o valor voluntário vigente para orientar o gasto do dia. Não é saldo bancário nem capacidade calculada.</HelpHint>
+                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700"><CalendarCheck2 :size="16" /></span>
+                    <HelpHint label="Ajuda">É o valor voluntário que você definiu para orientar o gasto do dia. Ele não muda automaticamente.</HelpHint>
                 </div>
-                <p class="mt-3 text-xs text-slate-500">Orçamento diário vigente</p>
+                <p class="mt-3 text-xs text-slate-500">Meu orçamento diário</p>
                 <p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(dailyPlanning.current_daily_budget) }}</p>
             </article>
 
@@ -79,28 +93,27 @@ const statusText = computed(() => props.dailyPlanning.pending_days === 0
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700"><CircleDollarSign :size="16" /></span>
                 <p class="mt-3 text-xs text-slate-500">Gasto cotidiano confirmado</p>
                 <p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(dailyPlanning.total_spent) }}</p>
-                <p class="mt-1 text-[11px] leading-4 text-slate-400">Soma apenas os gastos cotidianos dos dias confirmados. Gastos fixos e extraordinários ficam fora deste indicador.</p>
+                <p class="mt-1 text-[11px] leading-4 text-slate-400">Soma apenas os gastos cotidianos dos dias confirmados. Fixos e extraordinários ficam fora.</p>
             </article>
 
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700"><TrendingUp :size="16" /></span>
-                <p class="mt-3 text-xs text-slate-500">Economia bruta</p>
-                <p class="mt-1 text-xl font-semibold text-emerald-700">{{ formatMoney(dailyPlanning.gross_savings) }}</p>
-                <p class="mt-1 text-[11px] leading-4 text-slate-400">Soma apenas folgas positivas.</p>
-            </article>
-
-            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-700"><TrendingDown :size="16" /></span>
-                <p class="mt-3 text-xs text-slate-500">Excesso bruto</p>
-                <p class="mt-1 text-xl font-semibold text-rose-700">{{ formatMoney(dailyPlanning.gross_excess) }}</p>
-                <p class="mt-1 text-[11px] leading-4 text-slate-400">Soma o que ultrapassou o plano, sem compensar automaticamente.</p>
-            </article>
-
-            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700"><CalendarCheck2 :size="16" /></span>
                 <p class="mt-3 text-xs text-slate-500">Folga líquida acumulada</p>
-                <p class="mt-1 text-xl font-semibold"  :class="dailyPlanning.net_margin === null ? 'text-slate-500' : Number(dailyPlanning.net_margin) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatMoney(dailyPlanning.net_margin) }}</p>
+                <p class="mt-1 text-xl font-semibold" :class="dailyPlanning.net_margin === null ? 'text-slate-500' : Number(dailyPlanning.net_margin) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatMoney(dailyPlanning.net_margin) }}</p>
                 <p class="mt-1 text-[11px] leading-4 text-slate-400">{{ dailyPlanning.confirmed_days ? `${dailyPlanning.confirmed_days} dia(s) confirmado(s).` : 'Sem base confirmada; pendência não é zero.' }}</p>
+            </article>
+        </section>
+
+        <section class="grid gap-3 sm:grid-cols-2">
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs text-slate-500">Folga positiva acumulada</p>
+                <p class="mt-1 font-semibold text-emerald-700">{{ formatMoney(dailyPlanning.gross_savings) }}</p>
+                <p class="mt-1 text-[11px] text-slate-400">Soma apenas os dias em que ficou abaixo do orçamento.</p>
+            </article>
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs text-slate-500">Excesso acumulado</p>
+                <p class="mt-1 font-semibold text-rose-700">{{ formatMoney(dailyPlanning.gross_excess) }}</p>
+                <p class="mt-1 text-[11px] text-slate-400">Soma apenas os dias em que passou do orçamento.</p>
             </article>
         </section>
 
