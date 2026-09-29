@@ -89,6 +89,26 @@ class DashboardControllerTest extends TestCase
                 ->where('patrimony.estimated_net_worth', '-82.11'));
     }
 
+    public function test_card_payment_changes_cash_and_liability_without_counting_consumption_twice(): void
+    {
+        $this->travelTo('2026-09-28 12:00:00');
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $card = CreditCard::factory()->for($user)->create();
+        $purchase = CardPurchase::factory()->for($user)->for($card)->create(['gross_amount' => '100.00', 'purchased_on' => '2026-09-28', 'installments_count' => 1]);
+        CardInstallment::factory()->for($user)->for($purchase, 'purchase')->create(['gross_amount' => '100.00', 'paid_amount' => '100.00', 'status' => 'paid', 'due_on' => '2026-10-12', 'original_due_on' => '2026-10-12']);
+        $this->entry($user, $account, LedgerEntryType::OpeningBalance, '150.00', '2026-09-28 08:00:00');
+        $this->entry($user, $account, LedgerEntryType::CardPayment, '100.00', '2026-09-28 10:00:00');
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('overview.general_balance', '50')
+                ->where('consumption.summary.expense', '100.00')
+                ->where('cardInvoice.pending', '0')
+                ->where('patrimony.card_liability', '0.00')
+                ->where('patrimony.estimated_net_worth', '50.00'));
+    }
+
     public function test_dashboard_does_not_leak_another_users_card_consumption_or_liability(): void
     {
         $this->travelTo('2026-09-28 12:00:00');
