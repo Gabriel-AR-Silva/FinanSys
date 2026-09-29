@@ -59,7 +59,9 @@ class FinancialOverviewQuery
                 'savings_rate' => $savingsRate,
                 'average_daily_expense' => (string) $expense->dividedBy($period, 2, RoundingMode::HalfUp),
                 'transaction_count' => (int) $periodSummary->transaction_count + $cardConsumption['count'],
-                'largest_expense' => (string) BigDecimal::of((string) $periodSummary->largest_expense)->max($cardConsumption['largest']),
+                'largest_expense' => (string) (BigDecimal::of((string) $periodSummary->largest_expense)->compareTo($cardConsumption['largest']) >= 0
+                    ? BigDecimal::of((string) $periodSummary->largest_expense)
+                    : $cardConsumption['largest']),
             ],
             'recent_entries' => (clone $entries)
                 ->whereBetween('occurred_at', [$start, $end])
@@ -116,7 +118,11 @@ class FinancialOverviewQuery
             BigDecimal::zero(),
         );
         $largest = $amounts->reduce(
-            fn (BigDecimal $max, $amount): BigDecimal => $max->max(BigDecimal::of((string) $amount)),
+            function (BigDecimal $max, $amount): BigDecimal {
+                $candidate = BigDecimal::of((string) $amount);
+
+                return $candidate->compareTo($max) > 0 ? $candidate : $max;
+            },
             BigDecimal::zero(),
         );
 
