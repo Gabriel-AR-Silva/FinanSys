@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Actions\RecalculateReceiptForecast;
+use App\Enums\CardInstallmentStatus;
 use App\Enums\ReceiptForecastStatus;
 use App\Http\Requests\IndexDashboardRequest;
-use App\Enums\CardInstallmentStatus;
 use App\Models\CardCharge;
 use App\Models\CardInstallment;
 use App\Models\Category;
