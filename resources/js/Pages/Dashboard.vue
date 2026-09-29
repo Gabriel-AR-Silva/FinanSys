@@ -12,6 +12,8 @@ import { computed, onMounted, ref } from 'vue';
 
 const props = defineProps({
     overview: { type: Object, required: true },
+    consumption: { type: Object, required: true },
+    cardInvoice: { type: Object, required: true },
     planning: { type: Object, required: true },
     categories: { type: Array, required: true },
     filters: { type: Object, required: true },
@@ -30,7 +32,7 @@ const selectedCategory = ref(props.filters.category_id ? String(props.filters.ca
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const formatMoney = (value) => currency.format(Number(value));
 const formatDate = (value) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(value));
-const formatPercent = (value) => `${Number(value).toFixed(1)}%`;
+const formatPercent = (value) => value === null || value === undefined ? '—' : `${Number(value).toFixed(1)}%`;
 const situationDetails = {
     no_basis: { label: 'Sem base para comparar', message: 'Ainda falta chão pra fazer essa conta, Chefe 🤝', tone: 'text-slate-700', bar: 'bg-slate-400' },
     insufficient: { label: 'Verba insuficiente', message: 'A conta apertou. Bora ajustar sem drama 😅', tone: 'text-rose-700', bar: 'bg-rose-500' },
@@ -65,10 +67,10 @@ const applyFilters = () => {
 };
 
 const periodCards = computed(() => [
-    { label: 'Receitas', value: props.overview.period_summary.income, icon: ArrowDownLeft, tone: 'text-emerald-700 bg-emerald-50' },
-    { label: 'Despesas', value: props.overview.period_summary.expense, icon: ArrowUpRight, tone: 'text-rose-700 bg-rose-50' },
-    { label: 'Resultado', value: props.overview.period_summary.net, icon: Landmark, tone: Number(props.overview.period_summary.net) >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50' },
-    { label: 'Média diária de despesas', value: props.overview.period_summary.average_daily_expense, icon: CalendarDays, tone: 'text-amber-700 bg-amber-50' },
+    { label: 'Receitas do período', value: props.consumption.summary.income, icon: ArrowDownLeft, tone: 'text-emerald-700 bg-emerald-50' },
+    { label: 'Consumo do período', value: props.consumption.summary.expense, icon: ArrowUpRight, tone: 'text-rose-700 bg-rose-50' },
+    { label: 'Resultado após consumo', value: props.consumption.summary.net, icon: Landmark, tone: Number(props.consumption.summary.net) >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50' },
+    { label: 'Média diária de consumo', value: props.consumption.summary.average_daily_expense, icon: CalendarDays, tone: 'text-amber-700 bg-amber-50' },
 ]);
 </script>
 
@@ -76,7 +78,7 @@ const periodCards = computed(() => [
     <Head title="Visão geral" />
     <AuthenticatedLayout>
         <section class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div><p class="text-sm font-medium text-emerald-700">Olá, {{ $page.props.auth.user.name }}</p><h1 class="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Painel financeiro</h1><p class="mt-1 text-sm text-slate-500">Uma leitura rápida do seu saldo, fluxo e categorias.</p></div>
+            <div><p class="text-sm font-medium text-emerald-700">Olá, {{ $page.props.auth.user.name }}</p><h1 class="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Painel financeiro</h1><p class="mt-1 text-sm text-slate-500">Caixa, consumo e compromissos separados para evitar dupla contagem.</p></div>
             <Link :href="route('ledger-entries.index')" class="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800">Ver lançamentos <ArrowRight :size="16" /></Link>
         </section>
 
@@ -131,17 +133,18 @@ const periodCards = computed(() => [
 
         <section class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
             <Link v-if="patrimony.available" :href="route('patrimony.index')" class="group flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 hover:bg-emerald-50">
-                <div><p class="text-xs text-emerald-800">Patrimônio estimado</p><p class="mt-1 text-lg font-semibold text-slate-950">{{ formatMoney(patrimony.estimated_net_worth) }}</p><p class="mt-0.5 text-[11px] text-slate-500">Liquidez financeira + valor líquido dos bens cadastrados</p></div>
+                <div><p class="text-xs text-emerald-800">Patrimônio estimado</p><p class="mt-1 text-lg font-semibold text-slate-950">{{ formatMoney(patrimony.estimated_net_worth) }}</p><p class="mt-0.5 text-[11px] text-slate-500">Liquidez + bens líquidos − dívida pendente do cartão</p></div>
                 <ArrowRight :size="18" class="shrink-0 text-emerald-600 transition group-hover:translate-x-0.5" />
             </Link>
             <div v-else class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"><p class="text-xs font-semibold text-amber-900">Patrimônio em atualização</p><p class="mt-1 text-[11px] leading-5 text-amber-800">O saldo financeiro continua funcionando; o indicador patrimonial será liberado após a atualização do banco.</p></div>
             <div class="hidden items-center rounded-xl border border-slate-200 bg-white px-4 text-xs text-slate-500 sm:flex">Bens não contam como dinheiro disponível.</div>
         </section>
 
-        <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Taxa de economia</p><p class="mt-1 font-semibold" :class="Number(overview.period_summary.savings_rate) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatPercent(overview.period_summary.savings_rate) }}</p></article>
-            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Movimentações</p><p class="mt-1 font-semibold text-slate-900">{{ overview.period_summary.transaction_count }}</p></article>
-            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Maior despesa</p><p class="mt-1 truncate font-semibold text-rose-700" :title="formatMoney(overview.period_summary.largest_expense)">{{ formatMoney(overview.period_summary.largest_expense) }}</p></article>
+        <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Próxima fatura</p><p class="mt-1 font-semibold text-violet-700">{{ formatMoney(cardInvoice.pending) }}</p><p class="mt-0.5 text-[10px] text-slate-400">Compromisso futuro; não é somado de novo ao consumo.</p></article>
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Taxa de economia</p><p class="mt-1 font-semibold" :class="consumption.summary.savings_rate === null ? 'text-slate-500' : Number(consumption.summary.savings_rate) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatPercent(consumption.summary.savings_rate) }}</p></article>
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Movimentações</p><p class="mt-1 font-semibold text-slate-900">{{ consumption.summary.transaction_count }}</p></article>
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Maior despesa</p><p class="mt-1 truncate font-semibold text-rose-700" :title="formatMoney(consumption.summary.largest_expense)">{{ formatMoney(consumption.summary.largest_expense) }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Categoria ativa</p><p class="mt-1 truncate font-semibold text-slate-900" :title="selectedCategoryName">{{ selectedCategoryName }}</p></article>
         </section>
 
@@ -160,11 +163,11 @@ const periodCards = computed(() => [
             </div>
         </section>
 
-        <section class="mt-6 min-w-0"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Evolução financeira</h2><p class="text-sm text-slate-500">Saldo acumulado e entradas versus saídas no período.</p></div><div class="grid min-w-0 gap-4 xl:grid-cols-2"><GeneralBalanceChart :chart="overview.chart" /><CashFlowChart :cash-flow="overview.cash_flow" /></div></section>
+        <section class="mt-6 min-w-0"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Evolução financeira</h2><p class="text-sm text-slate-500">Saldo de caixa e lançamentos realizados; compras no cartão aparecem no consumo acima.</p></div><div class="grid min-w-0 gap-4 xl:grid-cols-2"><GeneralBalanceChart :chart="overview.chart" /><CashFlowChart :cash-flow="overview.cash_flow" /></div></section>
 
         <section class="mt-6"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Visualização por categoria</h2><p class="text-sm text-slate-500">Compare onde o dinheiro entrou e saiu sem perder o contexto.</p></div><div class="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-            <CategoryBreakdownChart :categories="overview.category_breakdown" />
-            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div class="flex items-center justify-between gap-4"><div><h3 class="font-semibold text-slate-950">Atividade recente</h3><p class="text-xs text-slate-500">{{ selectedCategoryName }}</p></div><ReceiptText :size="18" class="text-slate-400" /></div><div v-if="overview.recent_entries.length" class="mt-3 divide-y divide-slate-100"><div v-for="entry in overview.recent_entries" :key="entry.id" class="flex items-center gap-3 py-2.5"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="entry.is_positive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'"><ArrowDownLeft v-if="entry.is_positive" :size="15" /><ArrowUpRight v-else :size="15" /></span><div class="min-w-0 flex-1"><p class="truncate text-sm font-medium text-slate-800">{{ entry.description || entry.type_label }}</p><p class="truncate text-xs text-slate-500">{{ entry.reference_name }} · {{ formatDate(entry.occurred_at) }}</p></div><p class="shrink-0 text-xs font-semibold" :class="entry.is_positive ? 'text-emerald-700' : 'text-rose-700'">{{ entry.is_positive ? '+' : '−' }} {{ formatMoney(entry.amount) }}</p></div></div><p v-else class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">Nenhuma movimentação para estes filtros.</p></article>
+            <CategoryBreakdownChart :categories="consumption.category_breakdown" />
+            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div class="flex items-center justify-between gap-4"><div><h3 class="font-semibold text-slate-950">Atividade recente</h3><p class="text-xs text-slate-500">{{ selectedCategoryName }}</p></div><ReceiptText :size="18" class="text-slate-400" /></div><div v-if="consumption.recent_activity.length" class="mt-3 divide-y divide-slate-100"><div v-for="entry in consumption.recent_activity" :key="entry.key" class="flex items-center gap-3 py-2.5"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" :class="entry.is_positive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'"><ArrowDownLeft v-if="entry.is_positive" :size="15" /><ArrowUpRight v-else :size="15" /></span><div class="min-w-0 flex-1"><p class="truncate text-sm font-medium text-slate-800">{{ entry.description || entry.type_label }}</p><p class="truncate text-xs text-slate-500">{{ entry.reference_name }} · {{ formatDate(entry.occurred_at) }}</p></div><p class="shrink-0 text-xs font-semibold" :class="entry.is_positive ? 'text-emerald-700' : 'text-rose-700'">{{ entry.is_positive ? '+' : '−' }} {{ formatMoney(entry.amount) }}</p></div></div><p v-else class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">Nenhuma movimentação para estes filtros.</p></article>
         </div></section>
 
         <section class="mt-4 grid gap-3 sm:grid-cols-2"><Link :href="route('accounts.index')" class="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:bg-slate-50"><span class="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><WalletCards :size="17" /></span><span class="flex-1 text-sm font-medium text-slate-800">Gerenciar contas</span><ArrowRight :size="16" class="text-slate-300 group-hover:text-slate-600" /></Link><Link :href="route('categories.index')" class="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:bg-slate-50"><span class="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-700"><Tags :size="17" /></span><span class="flex-1 text-sm font-medium text-slate-800">Gerenciar categorias</span><ArrowRight :size="16" class="text-slate-300 group-hover:text-slate-600" /></Link></section>
