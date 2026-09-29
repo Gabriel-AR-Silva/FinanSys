@@ -4,7 +4,11 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\LedgerEntryType;
 use App\Models\Account;
+use App\Models\CardCharge;
+use App\Models\CardInstallment;
+use App\Models\CardPurchase;
 use App\Models\Category;
+use App\Models\CreditCard;
 use App\Models\Pocket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -53,6 +57,64 @@ class DashboardControllerTest extends TestCase
             ->has('overview.cash_flow.points', 30)
             ->has('overview.recent_entries', 4)
             ->where('overview.recent_entries.0.reference_name', 'Reserva'));
+    }
+
+    public function test_dashboard_separates_card_consumption_from_future_invoice_and_cash_balance(): void
+    {
+        $this->travelTo('2026-09-28 12:00:00');
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $category = Category::factory()->for($user)->create(['type' => 'expense']);
+        $card = CreditCard::factory()->for($user)->create();
+        $this->entry($user, $account, LedgerEntryType::OpeningBalance, '14.00', '2026-09-28 08:00:00');
+        $purchase = CardPurchase::factory()->for($user)->for($card)->create([
+            'category_id' => $category->id,
+            'gross_amount' => '96.11',
+            'purchased_on' => '2026-09-28',
+            'installments_count' => 1,
+        ]);
+        CardInstallment::factory()->for($user)->for($purchase, 'purchase')->create([
+            'gross_amount' => '96.11', 'paid_amount' => '0.00', 'due_on' => '2026-10-12', 'original_due_on' => '2026-10-12',
+        ]);
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('overview.general_balance', '14')
+                ->where('overview.period_summary.expense', '0')
+                ->where('consumption.summary.expense', '96.11')
+                ->where('consumption.summary.card_consumption', '96.11')
+                ->where('consumption.summary.transaction_count', 1)
+                ->where('cardInvoice.pending', '96.11')
+                ->where('patrimony.card_liability', '96.11')
+                ->where('patrimony.estimated_net_worth', '-82.11'));
+    }
+
+    public function test_dashboard_does_not_leak_another_users_card_consumption_or_liability(): void
+    {
+        $this->travelTo('2026-09-28 12:00:00');
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $card = CreditCard::factory()->for($other)->create();
+        $purchase = CardPurchase::factory()->for($other)->for($card)->create(['gross_amount' => '900.00', 'purchased_on' => '2026-09-28', 'installments_count' => 1]);
+        CardInstallment::factory()->for($other)->for($purchase, 'purchase')->create(['gross_amount' => '900.00', 'due_on' => '2026-10-12', 'original_due_on' => '2026-10-12']);
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('consumption.summary.expense', '0')
+                ->where('cardInvoice.pending', '0')
+                ->where('patrimony.card_liability', '0.00'));
+    }
+
+    public function test_zero_income_exposes_no_savings_rate_instead_of_a_fake_zero_percent(): void
+    {
+        $this->travelTo('2026-09-28 12:00:00');
+        $user = User::factory()->create();
+        CardPurchase::factory()->for($user)->create(['gross_amount' => '50.00', 'purchased_on' => '2026-09-28']);
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('consumption.summary.expense', '50.00')
+                ->where('consumption.summary.savings_rate', null));
     }
 
     #[DataProvider('periods')]
