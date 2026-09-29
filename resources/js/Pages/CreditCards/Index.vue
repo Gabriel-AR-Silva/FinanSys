@@ -942,7 +942,9 @@ const date = (value) => value.split("-").reverse().join("/");
                             max="31"
                             required
                             class="mt-2 w-full"
-                        /><InputError :message="cardForm.errors.closing_day" />
+                        />
+                        <p class="mt-1 text-[11px] leading-4 text-slate-500">Este é o primeiro dia do novo ciclo. Ex.: fechamento 5 → dia 4 ainda pertence à fatura atual; dia 5 entra na próxima.</p>
+                        <InputError :message="cardForm.errors.closing_day" />
                     </div>
                     <div>
                         <InputLabel
