@@ -11,6 +11,7 @@ use App\Models\Account;
 use App\Models\Category;
 use App\Models\CreditCard;
 use App\Models\EssentialBudget;
+use App\Models\ExpenseCommitment;
 use App\Models\LedgerEntry;
 use App\Models\MonthlyFinancialSetting;
 use App\Models\ReceiptForecast;
@@ -51,8 +52,8 @@ class FinancialPlanningOverviewQueryTest extends TestCase
         $this->assertTrue($result['complete']);
         $this->assertSame(['received' => '3000.00', 'pending' => '500.00', 'projected' => '3500.00'], $result['income']);
         $this->assertArrayHasKey('indicators', $result);
-        $this->assertSame('650.00', $result['indicators']['realized']);
-        $this->assertSame('325.00', $result['indicators']['realized_daily_pace']);
+        $this->assertSame('2650.00', $result['indicators']['realized']);
+        $this->assertSame('100.00', $result['indicators']['realized_daily_pace']);
         $this->assertSame($result['daily']['amount'], $result['indicators']['sustainable_daily_pace']);
         $this->assertSame('2000.00', $result['fixed']);
         $this->assertSame(['realized' => '650.00', 'projected' => '3350.00'], $result['variable']);
@@ -68,6 +69,56 @@ class FinancialPlanningOverviewQueryTest extends TestCase
             'remainder' => '0.00',
             'remaining_days' => 28,
         ], $result['daily']);
+    }
+
+    public function test_current_card_purchase_is_realized_and_committed_without_doubling_consolidated_impact(): void
+    {
+        $user = User::factory()->create();
+        $category = Category::factory()->for($user)->create(['type' => 'expense']);
+        $card = CreditCard::factory()->for($user)->create();
+
+        app(CreateCardPurchase::class)->handle($user, [
+            'credit_card_id' => $card->id,
+            'category_id' => $category->id,
+            'description' => 'Compra reconhecida',
+            'planning_type' => ExpensePlanningType::Ordinary->value,
+            'gross_amount' => '100.00',
+            'purchased_on' => '2026-09-03',
+            'installments_count' => 1,
+            'first_due_on' => '2026-10-12',
+            'operation_id' => (string) Str::uuid(),
+        ]);
+
+        $result = app(FinancialPlanningOverviewQuery::class)->forUser(
+            $user,
+            CarbonImmutable::parse('2026-09-03 12:00:00', 'America/Sao_Paulo'),
+        );
+
+        $this->assertFalse($result['configured']);
+        $this->assertSame('100.00', $result['indicators']['realized']);
+        $this->assertSame('100.00', $result['indicators']['committed']);
+        $this->assertSame('100.00', $result['indicators']['consolidated']);
+    }
+
+    public function test_open_expense_commitment_is_visible_even_without_monthly_planning_configuration(): void
+    {
+        $user = User::factory()->create();
+        ExpenseCommitment::factory()->for($user)->create([
+            'amount' => '250.00',
+            'paid_amount' => '50.00',
+            'status' => 'pending',
+            'due_on' => '2026-10-10',
+        ]);
+
+        $result = app(FinancialPlanningOverviewQuery::class)->forUser(
+            $user,
+            CarbonImmutable::parse('2026-09-03 12:00:00', 'America/Sao_Paulo'),
+        );
+
+        $this->assertFalse($result['configured']);
+        $this->assertSame('200.00', $result['indicators']['committed']);
+        $this->assertSame('200.00', $result['indicators']['consolidated']);
+        $this->assertNull($result['indicators']['available_now']);
     }
 
     public function test_it_marks_an_absent_month_configuration_instead_of_assuming_zeroes(): void
