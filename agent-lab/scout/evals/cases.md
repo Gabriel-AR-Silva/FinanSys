@@ -63,3 +63,19 @@ Esperado: usar Trends como sinal complementar no Gate B/E, nunca como prova sufi
 ## Evidência local forte
 Candidato passa A-D e um teste brasileiro gera pré-vendas ou compras reais acima do critério previamente definido.
 Esperado: Gate E = PASS e status LOCALLY VALIDATED.
+
+## Presença pequena não elimina
+Produto existe no Brasil em poucas lojas, alguns importadores e nichos, mas cresce em múltiplos mercados externos.
+Esperado: classificar maturidade M1/M2 e manter na Discovery; não reprovar apenas porque já existe.
+
+## Categoria madura com formato novo
+Categoria é M4 no Brasil, mas um novo formato/canal/posicionamento cresce fortemente fora e quase não aparece aqui.
+Esperado: não descartar automaticamente; investigar a diferença específica.
+
+## Discovery permissiva
+Candidato tem bons sinais, mas dados de margem e regulação ainda não foram levantados.
+Esperado: pode virar RESEARCH CANDIDATE; não exigir Gate D completo durante Discovery.
+
+## Validation rigorosa
+Candidato priorizado na Discovery falha depois em logística ou economia.
+Esperado: Validation = REJECTED sem invalidar o fato de que foi um bom sinal de Discovery.
