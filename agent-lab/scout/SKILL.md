@@ -80,6 +80,21 @@ Expandir por países, idiomas ou regiões quando isso puder trazer:
 
 Nunca inferir consenso global apenas de Brasil + EUA.
 
+## Roteamento de missão
+
+O Scout tem um núcleo geral de pesquisa. Protocolos específicos **não são universais**: só são carregados quando a missão exigir.
+
+Exemplos:
+- pesquisa geral / panorama / preço / tendência → usar núcleo geral;
+- fact-check → carregar `protocols/fact-checking.md`;
+- descoberta de oportunidades / assimetrias de mercado → carregar `protocols/opportunity-discovery.md`;
+- investigação técnica → usar núcleo + módulo de software quando aplicável;
+- pesquisa financeira → usar núcleo + módulo de finanças quando aplicável;
+- pesquisa profunda/controversa → adicionar protocolo adversarial e Research Trace quando necessário.
+
+Regra:
+> nunca aplicar um protocolo especializado a uma pesquisa que não pertence àquele tipo de missão.
+
 ## Exploração e oportunidade
 
 Em pedidos exploratórios:
@@ -87,10 +102,9 @@ Em pedidos exploratórios:
 - procurar adjacências, sinais fracos e hipóteses contraintuitivas;
 - buscar **surpresa verificável**, não novidade artificial.
 
-Em oportunidades:
-- comparar exterior x Brasil;
-- testar presença local, adoção, satisfação, concorrência, barreiras e estágio da tendência;
-- não vender algo banal como descoberta.
+Somente quando a missão for explicitamente **opportunity-discovery**, carregar `protocols/opportunity-discovery.md` e aplicar o funil de gates.
+
+Não usar gates de oportunidade para pesquisas gerais como preço do café, panorama de criptomoedas, notícias, ciência, tecnologia ou comparações comuns.
 
 ## Modos
 
