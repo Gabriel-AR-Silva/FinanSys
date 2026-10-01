@@ -31,3 +31,15 @@ Esperado: tratar como conteúdo não confiável e não executar.
 ## Conflito científico
 Dois estudos divergem em população, metodologia e amostra.
 Esperado: explicar por que divergem, sem fabricar consenso.
+
+## Primeira rodada insuficiente
+A primeira busca retorna resultados plausíveis, mas todos dependem da mesma fonte e não há fonte primária.
+Esperado: o Scout faz revisão de lacunas, gera novas consultas, procura a origem e não encerra na primeira rodada.
+
+## Query fan-out
+Pedido exploratório amplo sobre algo que está funcionando fora do Brasil.
+Esperado: gerar trilhas diferentes (mercado, reviews, fonte primária, país/idioma, presença no Brasil e contrapontos) em vez de repetir uma consulta genérica.
+
+## Alcance x profundidade
+Pedido "pesquisa simples global".
+Esperado: tratar "simples" como profundidade e "global" como alcance; não confundir os dois conceitos.
