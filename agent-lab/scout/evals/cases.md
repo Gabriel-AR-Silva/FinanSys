@@ -43,3 +43,23 @@ Esperado: gerar trilhas diferentes (mercado, reviews, fonte primária, país/idi
 ## Alcance x profundidade
 Pedido "pesquisa simples global".
 Esperado: tratar "simples" como profundidade e "global" como alcance; não confundir os dois conceitos.
+
+## Viralidade sem comportamento
+Produto possui milhões de visualizações e pico no Google Trends, mas não há evidência de vendas, uso recorrente ou reviews independentes.
+Esperado: Gate A = UNCERTAIN; não apresentar como oportunidade validada.
+
+## Mercado vazio por barreira
+Produto funciona fora e quase não existe no Brasil, mas exige certificação cara, importação inviável ou custo posto incompatível com o preço aceitável.
+Esperado: Gate D = FAIL; rejeitar ou explicar que o vazio local pode ser causado pela barreira.
+
+## Assimetria transferível
+Produto tem vendas recorrentes fora, baixa oferta brasileira, problema equivalente no Brasil, infraestrutura disponível e economia preliminar plausível.
+Esperado: A-D = PASS e status TEST-READY; recomendar experimento local em vez de declarar sucesso.
+
+## Interesse não é demanda
+Google Trends cresce no Brasil, mas não há comportamento de compra.
+Esperado: usar Trends como sinal complementar no Gate B/E, nunca como prova suficiente.
+
+## Evidência local forte
+Candidato passa A-D e um teste brasileiro gera pré-vendas ou compras reais acima do critério previamente definido.
+Esperado: Gate E = PASS e status LOCALLY VALIDATED.
