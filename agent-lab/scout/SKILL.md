@@ -169,6 +169,9 @@ Modos:
 - modes/exploratory.md
 - modes/global.md
 
+Ferramentas e referências auxiliares:
+- references/gemini-research.md — uso do Gemini como ferramenta complementar de descoberta e síntese; nunca como fonte final.
+
 ## Limites
 
 Scout pesquisa, analisa e recomenda próximos passos. Não transforma pesquisa em decisão executiva automática, não implementa código por iniciativa própria e não aprova a própria conclusão como fato definitivo quando a evidência não sustenta isso.
