@@ -3,14 +3,13 @@ import CashFlowChart from '@/Components/CashFlowChart.vue';
 import ConsumptionFlowChart from '@/Components/ConsumptionFlowChart.vue';
 import CategoryBreakdownChart from '@/Components/CategoryBreakdownChart.vue';
 import GeneralBalanceChart from '@/Components/GeneralBalanceChart.vue';
-import DailyCheckInPanel from '@/Components/DailyCheckInPanel.vue';
 import AdvancedDailyPlanningPanel from '@/Components/AdvancedDailyPlanningPanel.vue';
 import FinancialGoalsPanel from '@/Components/FinancialGoalsPanel.vue';
 import InfoTooltip from '@/Components/InfoTooltip.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowDownLeft, ArrowRight, ArrowUpRight, CalendarDays, CircleGauge, Filter, Landmark, ReceiptText, Settings2, Tags, WalletCards } from '@lucide/vue';
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays, CircleGauge, Eye, EyeOff, Filter, Landmark, ReceiptText, Settings2, Tags, WalletCards } from '@lucide/vue';
+import { computed, onMounted, ref } from 'vue';
 
 const props = defineProps({
     overview: { type: Object, required: true },
@@ -25,7 +24,6 @@ const props = defineProps({
 });
 
 const activeView = ref('overview');
-const dailyCheckInPanel = ref(null);
 const setActiveView = (view) => {
     activeView.value = view;
 
@@ -37,21 +35,54 @@ const setActiveView = (view) => {
     }
     window.history.replaceState(window.history.state, '', url);
 };
-const openPendingCheckIns = async () => {
-    setActiveView('overview');
-    await nextTick();
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-    dailyCheckInPanel.value?.open();
-};
+
 
 onMounted(() => {
     const requestedView = new URLSearchParams(window.location.search).get('view');
     if (['overview', 'advanced', 'goals'].includes(requestedView)) activeView.value = requestedView;
+    try {
+        const savedVisibility = window.localStorage.getItem('finansys.dashboard-values-visible');
+        if (savedVisibility !== null) valuesVisible.value = savedVisibility !== 'false';
+    } catch (_) { /* storage may be blocked */ }
 });
+const valuesVisible = ref(true);
+const toggleValuesVisibility = () => {
+    valuesVisible.value = !valuesVisible.value;
+    try { window.localStorage.setItem('finansys.dashboard-values-visible', String(valuesVisible.value)); } catch (_) { /* storage may be blocked */ }
+};
+const priorityCarousel = ref(null);
+const carouselDragging = ref(false);
+let carouselStartX = 0;
+let carouselStartScrollLeft = 0;
+const startCarouselDrag = (event) => {
+    if (event.pointerType === 'touch' || event.button === 0) {
+        carouselDragging.value = true;
+        carouselStartX = event.clientX;
+        carouselStartScrollLeft = priorityCarousel.value?.scrollLeft ?? 0;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+    }
+};
+const moveCarouselDrag = (event) => {
+    if (!carouselDragging.value || !priorityCarousel.value) return;
+    priorityCarousel.value.scrollLeft = carouselStartScrollLeft - (event.clientX - carouselStartX);
+};
+const stopCarouselDrag = (event) => {
+    carouselDragging.value = false;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+};
+const scrollPriorityCards = (direction) => {
+    const carousel = priorityCarousel.value;
+    if (!carousel) return;
+    const card = carousel.querySelector('[data-priority-card]');
+    const distance = card ? card.getBoundingClientRect().width + 12 : carousel.clientWidth;
+    carousel.scrollBy({ left: direction * distance, behavior: 'smooth' });
+};
+
 const selectedPeriod = ref(String(props.filters.period));
 const selectedCategory = ref(props.filters.category_id ? String(props.filters.category_id) : 'all');
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const formatMoney = (value) => value === null || value === undefined ? '—' : currency.format(Number(value));
+const displayMoney = (value) => valuesVisible.value ? formatMoney(value) : '••••••';
 const formatDate = (value) => {
     const normalized = /^\d{4}-\d{2}-\d{2}$/.test(String(value)) ? `${value}T12:00:00` : value;
 
@@ -197,7 +228,6 @@ const secondaryCards = computed(() => [
         </div>
 
         <div v-show="activeView === 'overview'">
-        <DailyCheckInPanel ref="dailyCheckInPanel" :days="dailyCheckIns" />
         <section class="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-row lg:items-center">
             <div class="flex items-center gap-2 px-2 text-sm font-semibold text-slate-700"><Filter :size="16" class="text-emerald-600" />Analisar período</div>
             <div class="grid flex-1 gap-2 sm:grid-cols-[10rem_minmax(13rem,1fr)]">
@@ -208,19 +238,23 @@ const secondaryCards = computed(() => [
         </section>
 
         <section class="mt-4 grid min-w-0 gap-3 xl:grid-cols-[0.85fr_2.15fr]">
-            <article class="relative flex min-h-28 overflow-hidden rounded-2xl bg-slate-950 p-4 text-white shadow-lg shadow-slate-200 xl:min-h-36 xl:p-5">
-                <div class="pointer-events-none absolute -bottom-12 -right-10 h-32 w-32 rounded-full border border-white/10" />
-                <div class="pointer-events-none absolute -bottom-5 -right-2 h-20 w-20 rounded-full bg-white/[0.04]" />
+            <article class="relative flex min-h-28 rounded-2xl bg-slate-950 p-4 text-white shadow-lg shadow-slate-200 xl:min-h-36 xl:p-5">
+                <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl"><div class="absolute -bottom-12 -right-10 h-32 w-32 rounded-full border border-white/10" /><div class="absolute -bottom-5 -right-2 h-20 w-20 rounded-full bg-white/[0.04]" /></div>
                 <div class="relative flex w-full flex-col justify-between">
                     <div class="flex items-start justify-between gap-3 text-sm text-slate-400">
                         <span class="flex items-center gap-2"><Landmark :size="17" /> Saldo geral</span>
-                        <InfoTooltip text="Dinheiro que existe agora em contas e caixinhas. Parcelas e outras obrigações futuras aparecem separadamente e não reduzem este saldo até serem pagas." label="Explicação: Saldo geral" />
+                        <div class="flex items-center gap-1"><InfoTooltip text="Dinheiro que existe agora em contas e caixinhas. Parcelas e outras obrigações futuras aparecem separadamente e não reduzem este saldo até serem pagas." label="Explicação: Saldo geral" /><button type="button" class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400" :aria-label="valuesVisible ? 'Ocultar valores do dashboard' : 'Mostrar valores do dashboard'" @click="toggleValuesVisibility"><EyeOff v-if="valuesVisible" :size="16" /><Eye v-else :size="16" /></button></div>
                     </div>
-                    <p class="mt-4 text-2xl font-semibold tracking-tight xl:text-3xl">{{ formatMoney(overview.general_balance) }}</p>
+                    <p class="mt-4 text-2xl font-semibold tracking-tight xl:text-3xl">{{ displayMoney(overview.general_balance) }}</p>
                 </div>
             </article>
-            <div class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-6">
-                <article v-for="card in priorityCards" :key="card.label" class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="min-w-0">
+                <div class="mb-2 flex justify-end gap-2">
+                    <button type="button" class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50" aria-label="Cards anteriores" @click="scrollPriorityCards(-1)"><ArrowLeft :size="16" /></button>
+                    <button type="button" class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50" aria-label="Próximos cards" @click="scrollPriorityCards(1)"><ArrowRight :size="16" /></button>
+                </div>
+                <div ref="priorityCarousel" class="flex min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" :class="carouselDragging ? 'cursor-grabbing select-none snap-none' : 'cursor-grab'" @pointerdown="startCarouselDrag" @pointermove="moveCarouselDrag" @pointerup="stopCarouselDrag" @pointercancel="stopCarouselDrag" @pointerleave="stopCarouselDrag">
+                <article v-for="card in priorityCards" :key="card.label" data-priority-card class="min-w-0 shrink-0 basis-full snap-start rounded-2xl sm:basis-[calc((100%-0.75rem)/2)] lg:basis-[calc((100%-1.5rem)/3)] 2xl:basis-[calc((100%-2.25rem)/4)] border border-slate-200 bg-white p-4 shadow-sm">
                     <div class="flex items-start justify-between gap-2">
                         <span class="flex h-8 w-8 items-center justify-center rounded-lg" :class="card.tone"><component :is="card.icon" :size="16" /></span>
                         <InfoTooltip
@@ -236,10 +270,11 @@ const secondaryCards = computed(() => [
                         <Link :href="route('financial-settings.edit', { month: planning.month })" class="mt-1 inline-block text-[10px] font-semibold text-emerald-700 underline">Configurar planejamento</Link>
                     </template>
                     <template v-else>
-                        <p class="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950" :title="formatMoney(card.value)">{{ formatMoney(card.value) }}</p>
+                        <p class="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950" :title="valuesVisible ? formatMoney(card.value) : 'Valor oculto'">{{ displayMoney(card.value) }}</p>
                         <p v-if="card.change !== undefined" class="mt-1 text-[10px] font-medium text-slate-500">{{ formatChange(card.change) }}</p>
                     </template>
                 </article>
+                </div>
             </div>
         </section>
 
@@ -249,7 +284,7 @@ const secondaryCards = computed(() => [
                     <span class="flex h-7 w-7 items-center justify-center rounded-lg" :class="card.tone"><component :is="card.icon" :size="15" /></span>
                     <p class="text-xs text-slate-500">{{ card.label }}</p>
                 </div>
-                <p class="mt-2 font-semibold text-slate-900">{{ formatMoney(card.value) }}</p>
+                <p class="mt-2 font-semibold text-slate-900">{{ displayMoney(card.value) }}</p>
             </article>
         </section>
 
@@ -264,22 +299,22 @@ const secondaryCards = computed(() => [
             <dl class="mt-4 grid gap-3 sm:grid-cols-3">
                 <div class="rounded-xl bg-white/80 p-3">
                     <dt class="text-xs text-slate-500">Fatura a vencer</dt>
-                    <dd class="mt-1 font-semibold text-violet-800">{{ formatMoney(cardInvoice.next_due_pending) }}</dd>
+                    <dd class="mt-1 font-semibold text-violet-800">{{ displayMoney(cardInvoice.next_due_pending) }}</dd>
                 </div>
                 <div class="rounded-xl bg-white/80 p-3">
                     <dt class="text-xs text-slate-500">Receitas previstas até lá</dt>
-                    <dd class="mt-1 font-semibold text-sky-900">{{ formatMoney(cardInvoice.forecast_before_next_due) }}</dd>
+                    <dd class="mt-1 font-semibold text-sky-900">{{ displayMoney(cardInvoice.forecast_before_next_due) }}</dd>
                 </div>
                 <div class="rounded-xl bg-white/80 p-3">
                     <dt class="text-xs text-slate-500">Diferença prevista</dt>
-                    <dd class="mt-1 font-semibold" :class="Number(cardInvoice.forecast_difference) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatMoney(cardInvoice.forecast_difference) }}</dd>
+                    <dd class="mt-1 font-semibold" :class="Number(cardInvoice.forecast_difference) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ displayMoney(cardInvoice.forecast_difference) }}</dd>
                 </div>
             </dl>
         </section>
 
         <section class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
             <Link v-if="patrimony.available" :href="route('patrimony.index')" class="group flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 hover:bg-emerald-50">
-                <div><p class="text-xs text-emerald-800">Patrimônio estimado</p><p class="mt-1 text-lg font-semibold text-slate-950">{{ formatMoney(patrimony.estimated_net_worth) }}</p><p class="mt-0.5 text-[11px] text-slate-500">Liquidez financeira + valor líquido dos bens cadastrados</p></div>
+                <div><p class="text-xs text-emerald-800">Patrimônio estimado</p><p class="mt-1 text-lg font-semibold text-slate-950">{{ displayMoney(patrimony.estimated_net_worth) }}</p><p class="mt-0.5 text-[11px] text-slate-500">Liquidez financeira + valor líquido dos bens cadastrados</p></div>
                 <ArrowRight :size="18" class="shrink-0 text-emerald-600 transition group-hover:translate-x-0.5" />
             </Link>
             <div v-else class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"><p class="text-xs font-semibold text-amber-900">Patrimônio em atualização</p><p class="mt-1 text-[11px] leading-5 text-amber-800">O saldo financeiro continua funcionando; o indicador patrimonial será liberado após a atualização do banco.</p></div>
@@ -287,10 +322,10 @@ const secondaryCards = computed(() => [
         </section>
 
         <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-6">
-            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Parcelas do próximo mês</p><p class="mt-1 font-semibold text-violet-700">{{ formatMoney(cardInvoice.pending) }}</p><p class="mt-0.5 text-[10px] text-slate-400">Parcelas e encargos com vencimento no próximo mês-calendário.</p></article>
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Parcelas do próximo mês</p><p class="mt-1 font-semibold text-violet-700">{{ displayMoney(cardInvoice.pending) }}</p><p class="mt-0.5 text-[10px] text-slate-400">Parcelas e encargos com vencimento no próximo mês-calendário.</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Taxa de economia</p><p class="mt-1 font-semibold" :class="overview.period_summary.savings_rate === null ? 'text-slate-500' : Number(overview.period_summary.savings_rate) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatPercent(overview.period_summary.savings_rate) }}</p><p v-if="overview.period_summary.savings_rate === null" class="mt-0.5 text-[10px] text-slate-400">Sem receita no período para calcular a taxa.</p><p v-else class="mt-0.5 text-[10px] font-medium text-slate-500">{{ formatChange(overview.period_summary.comparison?.savings_rate_change_points, ' p.p.') }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Movimentações</p><p class="mt-1 font-semibold text-slate-900">{{ overview.period_summary.transaction_count }}</p></article>
-            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Maior despesa</p><p class="mt-1 truncate font-semibold text-rose-700" :title="formatMoney(overview.period_summary.largest_expense)">{{ formatMoney(overview.period_summary.largest_expense) }}</p></article>
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Maior despesa</p><p class="mt-1 truncate font-semibold text-rose-700" :title="formatMoney(overview.period_summary.largest_expense)">{{ displayMoney(overview.period_summary.largest_expense) }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Categoria ativa</p><p class="mt-1 truncate font-semibold text-slate-900" :title="selectedCategoryName">{{ selectedCategoryName }}</p></article>
         </section>
 
@@ -301,16 +336,16 @@ const secondaryCards = computed(() => [
             </div>
 
             <dl v-if="planning.indicators" class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div class="rounded-xl bg-slate-50 p-3.5"><dt class="text-xs text-slate-500">Já gastei neste mês</dt><dd class="mt-1 text-lg font-semibold text-slate-950">{{ formatMoney(planning.indicators.realized) }}</dd><p class="mt-1 text-[11px] leading-4 text-slate-400">Inclui despesas e compras no cartão no dia em que a compra foi feita.</p></div>
-                <div class="rounded-xl bg-violet-50/70 p-3.5"><dt class="text-xs text-violet-700">Ainda preciso pagar</dt><dd class="mt-1 text-lg font-semibold text-violet-800">{{ formatMoney(planning.indicators.committed) }}</dd><p class="mt-1 text-[11px] leading-4 text-violet-600">Contas, parcelas e encargos que já existem, mas ainda não foram pagos.</p></div>
-                <div class="rounded-xl bg-slate-50 p-3.5"><dt class="text-xs text-slate-500">Total já assumido</dt><dd class="mt-1 text-lg font-semibold text-slate-950">{{ formatMoney(planning.indicators.consolidated) }}</dd><p class="mt-1 text-[11px] leading-4 text-slate-400">Soma o que já foi gasto com o que ainda falta pagar, sem contar a mesma despesa duas vezes.</p></div>
-                <div class="rounded-xl bg-emerald-50/70 p-3.5"><dt class="text-xs text-emerald-800">Quanto sobra agora</dt><dd class="mt-1 text-lg font-semibold" :class="Number(planning.indicators.available_now) >= 0 ? 'text-emerald-900' : 'text-rose-700'">{{ formatMoney(planning.indicators.available_now) }}</dd><p class="mt-1 text-[11px] leading-4 text-emerald-700">Seu saldo atual menos tudo o que já está previsto para pagar. Dinheiro que ainda não entrou não conta.</p></div>
+                <div class="rounded-xl bg-slate-50 p-3.5"><dt class="text-xs text-slate-500">Já gastei neste mês</dt><dd class="mt-1 text-lg font-semibold text-slate-950">{{ displayMoney(planning.indicators.realized) }}</dd><p class="mt-1 text-[11px] leading-4 text-slate-400">Inclui despesas e compras no cartão no dia em que a compra foi feita.</p></div>
+                <div class="rounded-xl bg-violet-50/70 p-3.5"><dt class="text-xs text-violet-700">Ainda preciso pagar</dt><dd class="mt-1 text-lg font-semibold text-violet-800">{{ displayMoney(planning.indicators.committed) }}</dd><p class="mt-1 text-[11px] leading-4 text-violet-600">Contas, parcelas e encargos que já existem, mas ainda não foram pagos.</p></div>
+                <div class="rounded-xl bg-slate-50 p-3.5"><dt class="text-xs text-slate-500">Total já assumido</dt><dd class="mt-1 text-lg font-semibold text-slate-950">{{ displayMoney(planning.indicators.consolidated) }}</dd><p class="mt-1 text-[11px] leading-4 text-slate-400">Soma o que já foi gasto com o que ainda falta pagar, sem contar a mesma despesa duas vezes.</p></div>
+                <div class="rounded-xl bg-emerald-50/70 p-3.5"><dt class="text-xs text-emerald-800">Quanto sobra agora</dt><dd class="mt-1 text-lg font-semibold" :class="Number(planning.indicators.available_now) >= 0 ? 'text-emerald-900' : 'text-rose-700'">{{ displayMoney(planning.indicators.available_now) }}</dd><p class="mt-1 text-[11px] leading-4 text-emerald-700">Seu saldo atual menos tudo o que já está previsto para pagar. Dinheiro que ainda não entrou não conta.</p></div>
             </dl>
             <div v-if="!planning.configured" class="mt-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">Os valores acima continuam válidos. Configure proteção e gastos essenciais para ver quanto pode gastar por dia e como o mês pode terminar. 🧮</div>
             <div v-else class="mt-4 grid min-w-0 gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-center">
                 <article class="min-w-0 rounded-xl bg-slate-50 p-3.5"><div class="flex items-center justify-between gap-3"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Uso da verba até hoje</p><p class="text-sm font-semibold" :class="planningCurrent.tone">{{ planningCurrent.label }}</p></div><div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><div class="h-full rounded-full transition-[width]" :class="planningCurrent.bar" :style="{ width: progressWidth(planningCurrentPercentage) }" /></div><div class="mt-2 flex items-end justify-between gap-3"><p class="text-xs text-slate-500">{{ planningCurrent.message }}</p><p class="shrink-0 text-lg font-semibold text-slate-950">{{ planningCurrentPercentage === null ? '—' : formatPercent(planningCurrentPercentage) }}</p></div></article>
                 <article class="min-w-0 rounded-xl bg-slate-50 p-3.5"><div class="flex items-center justify-between gap-3"><p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Estimativa de uso até o fim do mês</p><p class="text-sm font-semibold" :class="planningProjected.tone">{{ planningProjected.label }}</p></div><div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><div class="h-full rounded-full transition-[width]" :class="planningProjected.bar" :style="{ width: progressWidth(planningProjectedPercentage) }" /></div><div class="mt-2 flex items-end justify-between gap-3"><p class="text-xs text-slate-500">{{ planningProjected.message }}</p><p class="shrink-0 text-lg font-semibold text-slate-950">{{ planningProjectedPercentage === null ? '—' : formatPercent(planningProjectedPercentage) }}</p></div></article>
-                <dl class="grid grid-cols-2 gap-x-5 gap-y-2 text-xs lg:min-w-56 lg:grid-cols-1"><div><dt class="text-slate-500">Sobra do planejamento</dt><dd class="mt-0.5 truncate font-semibold text-slate-900">{{ formatMoney(planning.free_margin) }}</dd><p class="mt-0.5 text-[11px] text-slate-400">É o que sobra no planejamento do mês. O valor diário também considera as contas que ainda precisam ser pagas.</p></div><div><dt class="text-slate-500">Gasto por dia / quanto pode gastar por dia</dt><dd class="mt-0.5 font-semibold text-slate-900">{{ formatMoney(planning.indicators.realized_daily_pace) }} / {{ formatMoney(planning.indicators.sustainable_daily_pace) }}</dd><p v-if="planning.indicators.pace_difference === null" class="mt-0.5 text-[11px] text-slate-400">Ainda não há dias completos suficientes para comparar seu gasto diário com o valor sustentável.</p><p v-else class="mt-0.5 text-[11px]" :class="Number(planning.indicators.pace_difference) > 0 ? 'text-rose-600' : 'text-emerald-700'">{{ Number(planning.indicators.pace_difference) > 0 ? `Ritmo ${formatMoney(planning.indicators.pace_difference)}/dia acima do sustentável.` : 'Seu gasto diário está dentro do valor sustentável calculado.' }}</p></div></dl>
+                <dl class="grid grid-cols-2 gap-x-5 gap-y-2 text-xs lg:min-w-56 lg:grid-cols-1"><div><dt class="text-slate-500">Sobra do planejamento</dt><dd class="mt-0.5 truncate font-semibold text-slate-900">{{ displayMoney(planning.free_margin) }}</dd><p class="mt-0.5 text-[11px] text-slate-400">É o que sobra no planejamento do mês. O valor diário também considera as contas que ainda precisam ser pagas.</p></div><div><dt class="text-slate-500">Gasto por dia / quanto pode gastar por dia</dt><dd class="mt-0.5 font-semibold text-slate-900">{{ displayMoney(planning.indicators.realized_daily_pace) }} / {{ displayMoney(planning.indicators.sustainable_daily_pace) }}</dd><p v-if="planning.indicators.pace_difference === null" class="mt-0.5 text-[11px] text-slate-400">Ainda não há dias completos suficientes para comparar seu gasto diário com o valor sustentável.</p><p v-else class="mt-0.5 text-[11px]" :class="Number(planning.indicators.pace_difference) > 0 ? 'text-rose-600' : 'text-emerald-700'">{{ Number(planning.indicators.pace_difference) > 0 ? `Ritmo ${formatMoney(planning.indicators.pace_difference)}/dia acima do sustentável.` : 'Seu gasto diário está dentro do valor sustentável calculado.' }}</p></div></dl>
                 <p v-if="planning.reasons.length" class="text-xs leading-5 text-amber-700 lg:col-span-3">⚠️ {{ planning.reasons.join(' ') }}</p>
             </div>
         </section>
@@ -327,10 +362,10 @@ const secondaryCards = computed(() => [
 
         <AdvancedDailyPlanningPanel
             v-show="activeView === 'advanced'"
+            :values-visible="valuesVisible"
             :daily-planning="dailyPlanning"
             :planning="planning"
             :card-invoice="cardInvoice"
-            @open-check-ins="openPendingCheckIns"
         />
         <FinancialGoalsPanel v-show="activeView === 'goals'" />
     </AuthenticatedLayout>
