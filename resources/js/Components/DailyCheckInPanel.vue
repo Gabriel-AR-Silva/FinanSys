@@ -14,6 +14,10 @@ const confirmedDays = computed(() => props.days.filter((day) => day.status === '
 const confirmedCount = computed(() => confirmedDays.value.length);
 const showModal = ref(pendingDays.value.length > 0);
 const showCorrectionModal = ref(false);
+const open = () => {
+    if (pendingDays.value.length > 0) showModal.value = true;
+};
+defineExpose({ open });
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const formatMoney = (value) => value === null || value === undefined ? '—' : currency.format(Number(value));
 const formatDate = (value) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`));
