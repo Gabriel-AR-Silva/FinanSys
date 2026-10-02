@@ -11,8 +11,6 @@ const props = defineProps({
     cardInvoice: { type: Object, required: true },
 });
 
-const emit = defineEmits(['open-check-ins']);
-
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const formatMoney = (value) => value === null || value === undefined ? '—' : money.format(Number(value));
 const formatDate = (value) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' })
@@ -43,39 +41,7 @@ const statusText = computed(() => {
 
 <template>
     <div class="mt-5 space-y-5">
-        <section
-            v-if="dailyPlanning.confirmed_days === 0"
-            class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 shadow-sm sm:p-5"
-            aria-live="polite"
-        >
-            <h2 class="font-semibold">Ainda não há dias confirmados para analisar</h2>
-            <p class="mt-1 text-sm leading-6 text-amber-900">
-                A Análise avançada usa os dias que você confirma no check-in. Enquanto nenhum dia estiver confirmado,
-                os totais e gráficos históricos ficam sem dados para não inventar um resultado.
-            </p>
-            <p v-if="dailyPlanning.pending_days > 0" class="mt-2 text-sm font-medium">
-                Você tem {{ dailyPlanning.pending_days }} dia(s) aguardando conferência.
-            </p>
-            <p v-else-if="dailyPlanning.tracked_completed_days === 0" class="mt-2 text-sm font-medium">
-                Seu orçamento diário está configurado, mas ainda não existe um dia anterior coberto por ele para gerar um check-in.
-            </p>
-            <div class="mt-4 flex flex-wrap gap-2">
-                <button
-                    v-if="dailyPlanning.pending_days > 0"
-                    type="button"
-                    class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-                    @click="emit('open-check-ins')"
-                >
-                    Conferir dias pendentes
-                </button>
-                <Link
-                    :href="route('daily-budgets.edit')"
-                    class="rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100"
-                >
-                    Configurar orçamento diário
-                </Link>
-            </div>
-        </section>
+
         <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Indicadores do planejamento diário">
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div class="flex items-start justify-between gap-2">
@@ -206,7 +172,7 @@ const statusText = computed(() => {
                         <span class="text-right text-xs font-semibold" :class="Number(day.cumulative_margin) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatMoney(day.cumulative_margin) }}</span>
                     </div>
                 </div>
-                <p v-else class="mt-5 text-sm text-slate-500">A série começa após o primeiro check-in confirmado.</p>
+                <p v-else class="mt-5 text-sm text-slate-500">A série começa quando houver dados diários confirmados.</p>
             </article>
 
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -215,7 +181,7 @@ const statusText = computed(() => {
                         <h2 class="font-semibold text-slate-950">Planejamento do restante do mês</h2>
                         <p class="mt-1 text-sm text-slate-500">Esta parte mostra uma estimativa do planejamento mensal. Ela não é saldo disponível e não substitui os dias confirmados acima.</p>
                     </div>
-                    <HelpHint label="Ajuda">Os valores projetados deste bloco ainda vêm do planejamento mensal vigente da V1. Eles ficam separados dos check-ins confirmados da V2 para evitar dupla contagem.</HelpHint>
+                    <HelpHint label="Ajuda">Os valores projetados deste bloco ainda vêm do planejamento mensal vigente da V1. Eles ficam separados dos dados diários confirmados para evitar dupla contagem.</HelpHint>
                 </div>
 
                 <div v-if="planning.configured" class="mt-4 space-y-3">
@@ -244,7 +210,7 @@ const statusText = computed(() => {
                         É o menor valor entre o que o planejamento permite e o que seu caixa atual comporta depois das contas conhecidas. Não altera seu orçamento diário.
                     </div>
                 </div>
-                <p v-else class="mt-4 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900">Configure proteção e essenciais do mês para liberar os cenários projetados. Os indicadores confirmados da V2 continuam válidos separadamente.</p>
+                <p v-else class="mt-4 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900">Configure proteção e essenciais do mês para liberar os cenários projetados. Os indicadores diários confirmados continuam válidos separadamente.</p>
             </article>
         </section>
     </div>
