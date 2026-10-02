@@ -209,8 +209,8 @@ const secondaryCards = computed(() => [
 
         <section class="mt-4 grid min-w-0 gap-3 xl:grid-cols-[0.85fr_2.15fr]">
             <article class="relative flex min-h-28 overflow-hidden rounded-2xl bg-slate-950 p-4 text-white shadow-lg shadow-slate-200 xl:min-h-36 xl:p-5">
-                <div class="pointer-events-none absolute -bottom-12 -right-10 hidden h-32 w-32 rounded-full border border-white/10 xl:block" />
-                <div class="pointer-events-none absolute -bottom-5 -right-2 hidden h-20 w-20 rounded-full bg-white/[0.04] xl:block" />
+                <div class="pointer-events-none absolute -bottom-12 -right-10 h-32 w-32 rounded-full border border-white/10" />
+                <div class="pointer-events-none absolute -bottom-5 -right-2 h-20 w-20 rounded-full bg-white/[0.04]" />
                 <div class="relative flex w-full flex-col justify-between">
                     <div class="flex items-start justify-between gap-3 text-sm text-slate-400">
                         <span class="flex items-center gap-2"><Landmark :size="17" /> Saldo geral</span>
