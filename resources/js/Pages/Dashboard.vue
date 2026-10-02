@@ -14,6 +14,7 @@ import { computed, onMounted, ref } from 'vue';
 
 const props = defineProps({
     overview: { type: Object, required: true },
+    futureCommitment: { type: Object, required: true },
     planning: { type: Object, required: true },
     cardInvoice: { type: Object, required: true },
     categories: { type: Array, required: true },
@@ -90,11 +91,18 @@ const applyFilters = () => {
 
 const priorityCards = computed(() => [
     {
-        label: 'Média de gastos por dia',
+        label: `Média diária · ${props.filters.period}d`,
         value: props.overview.period_summary.average_daily_expense,
-        note: `Todos os gastos reconhecidos ÷ ${props.filters.period} dias selecionados.`,
+        note: `Média dos gastos reconhecidos nos últimos ${props.filters.period} dias, incluindo compras no cartão na data da compra. O pagamento da fatura não é contado novamente.`,
         icon: CalendarDays,
         tone: 'text-amber-700 bg-amber-50',
+    },
+    {
+        label: 'Média comprometida · 90d',
+        value: props.futureCommitment.daily,
+        note: `Média diária das obrigações que já existem e vencem nos próximos ${props.futureCommitment.days} dias, incluindo parcelas do cartão, encargos e contas programadas ainda pendentes.`,
+        icon: CalendarDays,
+        tone: 'text-violet-700 bg-violet-50',
     },
     {
         label: 'Quanto posso gastar por dia',
@@ -184,9 +192,9 @@ const secondaryCards = computed(() => [
             <p class="hidden px-2 text-xs text-slate-500 2xl:block">O saldo geral permanece atual; os demais dados respeitam os filtros.</p>
         </section>
 
-        <section class="mt-4 grid min-w-0 gap-3 xl:grid-cols-[1.05fr_2fr]">
-            <article class="flex min-h-36 flex-col justify-between rounded-2xl bg-slate-950 p-5 text-white shadow-lg shadow-slate-200"><div class="flex items-center justify-between gap-3 text-sm text-slate-400"><span class="flex items-center gap-2"><Landmark :size="17" /> Saldo geral</span><span class="text-xs">Contas + caixinhas</span></div><div><p class="mt-5 text-3xl font-semibold tracking-tight">{{ formatMoney(overview.general_balance) }}</p><p class="mt-2 text-xs leading-5 text-slate-400">Dinheiro que existe agora. Parcelas futuras aparecem separadas nas obrigações.</p></div></article>
-            <div class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <section class="mt-4 grid min-w-0 gap-3 xl:grid-cols-[0.85fr_2.15fr]">
+            <article class="flex min-h-28 flex-col justify-between rounded-2xl bg-slate-950 p-4 text-white shadow-lg shadow-slate-200"><div class="flex items-start justify-between gap-3 text-sm text-slate-400"><span class="flex items-center gap-2"><Landmark :size="17" /> Saldo geral</span><InfoTooltip text="Dinheiro que existe agora em contas e caixinhas. Parcelas e outras obrigações futuras aparecem separadamente e não reduzem este saldo até serem pagas." label="Explicação: Saldo geral" /></div><p class="mt-4 text-2xl font-semibold tracking-tight">{{ formatMoney(overview.general_balance) }}</p></article>
+            <div class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 <article v-for="card in priorityCards" :key="card.label" class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div class="flex items-start justify-between gap-2">
                         <span class="flex h-8 w-8 items-center justify-center rounded-lg" :class="card.tone"><component :is="card.icon" :size="16" /></span>
