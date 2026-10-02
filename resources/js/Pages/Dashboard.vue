@@ -10,7 +10,7 @@ import InfoTooltip from '@/Components/InfoTooltip.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, CalendarDays, CircleGauge, Filter, Landmark, ReceiptText, Settings2, Tags, WalletCards } from '@lucide/vue';
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 
 const props = defineProps({
     overview: { type: Object, required: true },
@@ -25,6 +25,7 @@ const props = defineProps({
 });
 
 const activeView = ref('overview');
+const dailyCheckInPanel = ref(null);
 const setActiveView = (view) => {
     activeView.value = view;
 
@@ -35,6 +36,11 @@ const setActiveView = (view) => {
         url.searchParams.set('view', view);
     }
     window.history.replaceState(window.history.state, '', url);
+};
+const openPendingCheckIns = async () => {
+    setActiveView('overview');
+    await nextTick();
+    dailyCheckInPanel.value?.open();
 };
 
 onMounted(() => {
@@ -51,6 +57,12 @@ const formatDate = (value) => {
     return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(normalized));
 };
 const formatPercent = (value) => value === null || value === undefined ? '—' : `${Number(value).toFixed(1)}%`;
+const formatChange = (value, suffix = '%') => {
+    if (value === null || value === undefined) return 'Sem base anterior';
+    const number = Number(value);
+    const prefix = number > 0 ? '↑ ' : number < 0 ? '↓ ' : '→ ';
+    return `${prefix}${Math.abs(number).toFixed(1)}${suffix} vs. período anterior`;
+};
 const situationDetails = {
     no_basis: { label: 'Sem base para comparar', message: 'Ainda falta chão pra fazer essa conta, Chefe 🤝', tone: 'text-slate-700', bar: 'bg-slate-400' },
     insufficient: { label: 'Verba insuficiente', message: 'A conta apertou. Bora ajustar sem drama 😅', tone: 'text-rose-700', bar: 'bg-rose-500' },
@@ -96,6 +108,7 @@ const priorityCards = computed(() => [
         note: `Média dos gastos reconhecidos nos últimos ${props.filters.period} dias, incluindo compras no cartão na data da compra. O pagamento da fatura não é contado novamente.`,
         icon: CalendarDays,
         tone: 'text-amber-700 bg-amber-50',
+        change: props.overview.period_summary.comparison?.average_daily_expense_change_percent,
     },
     {
         label: 'Média comprometida · 90d',
@@ -117,6 +130,7 @@ const priorityCards = computed(() => [
         note: `Gastos reconhecidos nos últimos ${props.filters.period} dias.`,
         icon: ArrowUpRight,
         tone: 'text-rose-700 bg-rose-50',
+        change: props.overview.period_summary.comparison?.expense_change_percent,
     },
     {
         label: 'Fatura atual do cartão',
@@ -182,7 +196,7 @@ const secondaryCards = computed(() => [
         </div>
 
         <div v-show="activeView === 'overview'">
-        <DailyCheckInPanel :days="dailyCheckIns" />
+        <DailyCheckInPanel ref="dailyCheckInPanel" :days="dailyCheckIns" />
         <section class="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-row lg:items-center">
             <div class="flex items-center gap-2 px-2 text-sm font-semibold text-slate-700"><Filter :size="16" class="text-emerald-600" />Analisar período</div>
             <div class="grid flex-1 gap-2 sm:grid-cols-[10rem_minmax(13rem,1fr)]">
@@ -201,7 +215,14 @@ const secondaryCards = computed(() => [
                         <InfoTooltip :text="card.note" :label="`Explicação: ${card.label}`" />
                     </div>
                     <p class="mt-3 text-xs leading-4 text-slate-500">{{ card.label }}</p>
-                    <p class="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950" :title="formatMoney(card.value)">{{ formatMoney(card.value) }}</p>
+                    <template v-if="card.label === 'Quanto posso gastar por dia' && !planning.configured">
+                        <p class="mt-1 text-sm font-semibold text-amber-800">Planejamento não configurado</p>
+                        <Link :href="route('financial-settings.edit', { month: planning.month })" class="mt-1 inline-block text-[10px] font-semibold text-emerald-700 underline">Configurar planejamento</Link>
+                    </template>
+                    <template v-else>
+                        <p class="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950" :title="formatMoney(card.value)">{{ formatMoney(card.value) }}</p>
+                        <p v-if="card.change !== undefined" class="mt-1 text-[10px] font-medium text-slate-500">{{ formatChange(card.change) }}</p>
+                    </template>
                 </article>
             </div>
         </section>
@@ -251,7 +272,7 @@ const secondaryCards = computed(() => [
 
         <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-6">
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Parcelas do próximo mês</p><p class="mt-1 font-semibold text-violet-700">{{ formatMoney(cardInvoice.pending) }}</p><p class="mt-0.5 text-[10px] text-slate-400">Parcelas e encargos com vencimento no próximo mês-calendário.</p></article>
-            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Taxa de economia</p><p class="mt-1 font-semibold" :class="overview.period_summary.savings_rate === null ? 'text-slate-500' : Number(overview.period_summary.savings_rate) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatPercent(overview.period_summary.savings_rate) }}</p><p v-if="overview.period_summary.savings_rate === null" class="mt-0.5 text-[10px] text-slate-400">Sem receita no período para calcular a taxa.</p></article>
+            <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Taxa de economia</p><p class="mt-1 font-semibold" :class="overview.period_summary.savings_rate === null ? 'text-slate-500' : Number(overview.period_summary.savings_rate) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatPercent(overview.period_summary.savings_rate) }}</p><p v-if="overview.period_summary.savings_rate === null" class="mt-0.5 text-[10px] text-slate-400">Sem receita no período para calcular a taxa.</p><p v-else class="mt-0.5 text-[10px] font-medium text-slate-500">{{ formatChange(overview.period_summary.comparison?.savings_rate_change_points, ' p.p.') }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Movimentações</p><p class="mt-1 font-semibold text-slate-900">{{ overview.period_summary.transaction_count }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Maior despesa</p><p class="mt-1 truncate font-semibold text-rose-700" :title="formatMoney(overview.period_summary.largest_expense)">{{ formatMoney(overview.period_summary.largest_expense) }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Categoria ativa</p><p class="mt-1 truncate font-semibold text-slate-900" :title="selectedCategoryName">{{ selectedCategoryName }}</p></article>
@@ -293,7 +314,7 @@ const secondaryCards = computed(() => [
             :daily-planning="dailyPlanning"
             :planning="planning"
             :card-invoice="cardInvoice"
-            @open-check-ins="setActiveView('overview')"
+            @open-check-ins="openPendingCheckIns"
         />
         <FinancialGoalsPanel v-show="activeView === 'goals'" />
     </AuthenticatedLayout>
