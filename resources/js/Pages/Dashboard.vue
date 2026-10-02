@@ -212,7 +212,12 @@ const secondaryCards = computed(() => [
                 <article v-for="card in priorityCards" :key="card.label" class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div class="flex items-start justify-between gap-2">
                         <span class="flex h-8 w-8 items-center justify-center rounded-lg" :class="card.tone"><component :is="card.icon" :size="16" /></span>
-                        <InfoTooltip :text="card.note" :label="`Explicação: ${card.label}`" />
+                        <InfoTooltip
+                            :text="card.label === 'Quanto posso gastar por dia' && !planning.configured ? 'Configure o planejamento do mês para calcular este valor.' : card.note"
+                            :label="`Explicação: ${card.label}`"
+                            :link-href="card.label === 'Quanto posso gastar por dia' && !planning.configured ? route('financial-settings.edit', { month: planning.month }) : null"
+                            link-label="Configurar planejamento"
+                        />
                     </div>
                     <p class="mt-3 text-xs leading-4 text-slate-500">{{ card.label }}</p>
                     <template v-if="card.label === 'Quanto posso gastar por dia' && !planning.configured">
