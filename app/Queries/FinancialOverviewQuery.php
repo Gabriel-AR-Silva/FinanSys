@@ -49,6 +49,34 @@ class FinancialOverviewQuery
             ? null
             : (string) $net->multipliedBy(100)->dividedBy($income, 2, RoundingMode::HalfUp);
 
+        $previousEnd = $start->subDay()->endOfDay();
+        $previousStart = $previousEnd->startOfDay()->subDays($period - 1);
+        $previousIncomeEntries = LedgerEntry::query()->whereBelongsTo($user)
+            ->where('type', LedgerEntryType::Income)
+            ->whereNull('reversal_of_operation_id')
+            ->whereBetween('occurred_at', [$previousStart, $previousEnd])
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('ledger_entries as reversals')
+                ->whereColumn('reversals.reversal_of_operation_id', 'ledger_entries.operation_id')
+                ->where('reversals.user_id', $user->id)
+                ->whereNull('reversals.deleted_at'))
+            ->when($categoryId !== null, fn (Builder $query) => $query->where('category_id', $categoryId))
+            ->get(['id', 'amount']);
+        $previousIncome = $this->sumAmounts($previousIncomeEntries->pluck('amount'));
+        $previousLedgerExpense = $this->sumAmounts($this->ledgerExpenseConsumption($user, $previousStart, $previousEnd, $categoryId)->pluck('amount'));
+        $previousCardConsumption = $this->cardConsumption($user, $previousStart, $previousEnd, $categoryId);
+        $previousExpense = $previousLedgerExpense->plus($previousCardConsumption['total']);
+        $previousNet = $previousIncome->minus($previousExpense);
+        $previousSavingsRate = $previousIncome->isZero()
+            ? null
+            : $previousNet->multipliedBy(100)->dividedBy($previousIncome, 2, RoundingMode::HalfUp);
+
+        $expenseChangePercent = $previousExpense->isZero()
+            ? null
+            : (string) $expense->minus($previousExpense)->multipliedBy(100)->dividedBy($previousExpense, 2, RoundingMode::HalfUp);
+        $savingsRateChangePoints = $savingsRate === null || $previousSavingsRate === null
+            ? null
+            : (string) BigDecimal::of($savingsRate)->minus($previousSavingsRate);
+
         return [
             'general_balance' => $this->balance(clone $entries),
             'accounts_balance' => $this->balance((clone $entries)->where('reference_type', LedgerEntryReferenceType::Account->value)),
@@ -65,6 +93,13 @@ class FinancialOverviewQuery
                 'largest_expense' => $this->moneyString($largestLedgerExpense->compareTo($cardConsumption['largest']) >= 0
                     ? $largestLedgerExpense
                     : $cardConsumption['largest']),
+                'comparison' => [
+                    'previous_expense' => $this->moneyString($previousExpense),
+                    'expense_change_percent' => $expenseChangePercent,
+                    'average_daily_expense_change_percent' => $expenseChangePercent,
+                    'previous_savings_rate' => $previousSavingsRate === null ? null : (string) $previousSavingsRate,
+                    'savings_rate_change_points' => $savingsRateChangePoints,
+                ],
             ],
             'recent_entries' => $this->recentActivity($user, $start, $end, $categoryId),
             'chart' => $this->chart($user, $period),
