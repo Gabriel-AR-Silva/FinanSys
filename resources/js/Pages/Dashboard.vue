@@ -40,6 +40,7 @@ const setActiveView = (view) => {
 const openPendingCheckIns = async () => {
     setActiveView('overview');
     await nextTick();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
     dailyCheckInPanel.value?.open();
 };
 
@@ -207,7 +208,17 @@ const secondaryCards = computed(() => [
         </section>
 
         <section class="mt-4 grid min-w-0 gap-3 xl:grid-cols-[0.85fr_2.15fr]">
-            <article class="flex min-h-28 flex-col justify-between rounded-2xl bg-slate-950 p-4 text-white shadow-lg shadow-slate-200"><div class="flex items-start justify-between gap-3 text-sm text-slate-400"><span class="flex items-center gap-2"><Landmark :size="17" /> Saldo geral</span><InfoTooltip text="Dinheiro que existe agora em contas e caixinhas. Parcelas e outras obrigações futuras aparecem separadamente e não reduzem este saldo até serem pagas." label="Explicação: Saldo geral" /></div><p class="mt-4 text-2xl font-semibold tracking-tight">{{ formatMoney(overview.general_balance) }}</p></article>
+            <article class="relative flex min-h-28 overflow-hidden rounded-2xl bg-slate-950 p-4 text-white shadow-lg shadow-slate-200 xl:min-h-36 xl:p-5">
+                <div class="pointer-events-none absolute -bottom-12 -right-10 hidden h-32 w-32 rounded-full border border-white/10 xl:block" />
+                <div class="pointer-events-none absolute -bottom-5 -right-2 hidden h-20 w-20 rounded-full bg-white/[0.04] xl:block" />
+                <div class="relative flex w-full flex-col justify-between">
+                    <div class="flex items-start justify-between gap-3 text-sm text-slate-400">
+                        <span class="flex items-center gap-2"><Landmark :size="17" /> Saldo geral</span>
+                        <InfoTooltip text="Dinheiro que existe agora em contas e caixinhas. Parcelas e outras obrigações futuras aparecem separadamente e não reduzem este saldo até serem pagas." label="Explicação: Saldo geral" />
+                    </div>
+                    <p class="mt-4 text-2xl font-semibold tracking-tight xl:text-3xl">{{ formatMoney(overview.general_balance) }}</p>
+                </div>
+            </article>
             <div class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 <article v-for="card in priorityCards" :key="card.label" class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div class="flex items-start justify-between gap-2">
