@@ -65,6 +65,7 @@ watch(
             }, 200);
         }
     },
+    { immediate: true, flush: 'post' },
 );
 
 const close = () => {
