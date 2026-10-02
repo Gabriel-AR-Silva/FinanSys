@@ -11,6 +11,7 @@ use App\Models\CardCharge;
 use App\Models\CardInstallment;
 use App\Models\Category;
 use App\Models\CreditCard;
+use App\Models\ExpenseCommitment;
 use App\Models\ReceiptForecast;
 use App\Queries\FinancialOverviewQuery;
 use App\Queries\FinancialPlanningOverviewQuery;
@@ -140,6 +141,28 @@ class DashboardController extends Controller
             ? null
             : (string) $forecastBeforeNextInvoice->minus($nextOpenInvoicePending);
 
+        $futureHorizonDays = 90;
+        $futureHorizonEnd = $today->addDays($futureHorizonDays - 1)->endOfDay();
+        $futureCommitted = CardInstallment::query()
+            ->whereBelongsTo($request->user())
+            ->where('status', CardInstallmentStatus::Pending)
+            ->whereBetween('due_on', [$today->toDateString(), $futureHorizonEnd->toDateString()])
+            ->get()
+            ->reduce(fn (BigDecimal $total, CardInstallment $installment): BigDecimal => $total->plus(BigDecimal::of($installment->gross_amount)->minus($installment->paid_amount)), BigDecimal::zero())
+            ->plus(CardCharge::query()
+                ->whereBelongsTo($request->user())
+                ->where('status', CardInstallmentStatus::Pending)
+                ->whereBetween('due_on', [$today->toDateString(), $futureHorizonEnd->toDateString()])
+                ->get()
+                ->reduce(fn (BigDecimal $total, CardCharge $charge): BigDecimal => $total->plus(BigDecimal::of($charge->amount)->minus($charge->paid_amount)), BigDecimal::zero()))
+            ->plus(ExpenseCommitment::query()
+                ->whereBelongsTo($request->user())
+                ->where('status', 'pending')
+                ->whereBetween('due_on', [$today->toDateString(), $futureHorizonEnd->toDateString()])
+                ->get()
+                ->reduce(fn (BigDecimal $total, ExpenseCommitment $commitment): BigDecimal => $total->plus(BigDecimal::of($commitment->amount)->minus($commitment->paid_amount)), BigDecimal::zero()));
+        $futureCommittedDaily = $futureCommitted->dividedBy($futureHorizonDays, 2, RoundingMode::HalfUp);
+
         $planningView = $planning->forUser($request->user());
         if (isset($planningView['indicators'])) {
             $availableNow = BigDecimal::of($overviewView['general_balance'])
@@ -164,6 +187,11 @@ class DashboardController extends Controller
 
         return Inertia::render('Dashboard', [
             'overview' => $overviewView,
+            'futureCommitment' => [
+                'days' => $futureHorizonDays,
+                'total' => (string) $futureCommitted,
+                'daily' => (string) $futureCommittedDaily,
+            ],
             'patrimony' => $patrimony->forUser($request->user(), $overviewView['general_balance'])['summary'],
             'planning' => $planningView,
             'cardInvoice' => [
