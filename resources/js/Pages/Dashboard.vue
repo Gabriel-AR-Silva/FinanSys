@@ -346,16 +346,9 @@ const secondaryCards = computed(() => [
             </dl>
         </section>
 
-        <section class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <Link v-if="patrimony.available" :href="route('patrimony.index')" class="group flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 hover:bg-emerald-50">
-                <div><p class="text-xs text-emerald-800">Patrimônio estimado</p><p class="mt-1 text-lg font-semibold text-slate-950">{{ displayMoney(patrimony.estimated_net_worth) }}</p><p class="mt-0.5 text-[11px] text-slate-500">Liquidez financeira + valor líquido dos bens cadastrados</p></div>
-                <ArrowRight :size="18" class="shrink-0 text-emerald-600 transition group-hover:translate-x-0.5" />
-            </Link>
-            <div v-else class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"><p class="text-xs font-semibold text-amber-900">Patrimônio em atualização</p><p class="mt-1 text-[11px] leading-5 text-amber-800">O saldo financeiro continua funcionando; o indicador patrimonial será liberado após a atualização do banco.</p></div>
-            <div class="hidden items-center rounded-xl border border-slate-200 bg-white px-4 text-xs text-slate-500 sm:flex">Bens não contam como dinheiro disponível.</div>
-        </section>
+        <!-- Patrimônio estimado e bens ficam temporariamente fora do dashboard enquanto o módulo é reorganizado. -->
 
-        <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-6">
+        <section class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Parcelas do próximo mês</p><p class="mt-1 font-semibold text-violet-700">{{ displayMoney(cardInvoice.pending) }}</p><p class="mt-0.5 text-[10px] text-slate-400">Parcelas e encargos com vencimento no próximo mês-calendário.</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Taxa de economia</p><p class="mt-1 font-semibold" :class="overview.period_summary.savings_rate === null ? 'text-slate-500' : Number(overview.period_summary.savings_rate) >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ formatPercent(overview.period_summary.savings_rate) }}</p><p v-if="overview.period_summary.savings_rate === null" class="mt-0.5 text-[10px] text-slate-400">Sem receita no período para calcular a taxa.</p><p v-else class="mt-0.5 text-[10px] font-medium text-slate-500">{{ formatChange(overview.period_summary.comparison?.savings_rate_change_points, ' p.p.') }}</p></article>
             <article class="rounded-xl border border-slate-200 bg-white px-4 py-3"><p class="text-xs text-slate-500">Movimentações</p><p class="mt-1 font-semibold text-slate-900">{{ overview.period_summary.transaction_count }}</p></article>
