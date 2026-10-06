@@ -4,11 +4,10 @@ import ConsumptionFlowChart from '@/Components/ConsumptionFlowChart.vue';
 import CategoryBreakdownChart from '@/Components/CategoryBreakdownChart.vue';
 import GeneralBalanceChart from '@/Components/GeneralBalanceChart.vue';
 import AdvancedDailyPlanningPanel from '@/Components/AdvancedDailyPlanningPanel.vue';
-import FinancialGoalsPanel from '@/Components/FinancialGoalsPanel.vue';
 import InfoTooltip from '@/Components/InfoTooltip.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays, CircleGauge, Eye, EyeOff, Filter, Landmark, ReceiptText, Settings2, Tags, WalletCards } from '@lucide/vue';
+import { ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays, CircleGauge, Eye, EyeOff, Filter, Landmark, LockKeyhole, ReceiptText, Settings2, Tags, WalletCards } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
 
 const props = defineProps({
@@ -36,10 +35,15 @@ const setActiveView = (view) => {
     window.history.replaceState(window.history.state, '', url);
 };
 
-
 onMounted(() => {
     const requestedView = new URLSearchParams(window.location.search).get('view');
-    if (['overview', 'advanced', 'goals'].includes(requestedView)) activeView.value = requestedView;
+    if (['overview', 'advanced'].includes(requestedView)) {
+        activeView.value = requestedView;
+    } else if (requestedView) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('view');
+        window.history.replaceState(window.history.state, '', url);
+    }
     try {
         const savedVisibility = window.localStorage.getItem('finansys.dashboard-values-visible');
         if (savedVisibility !== null) valuesVisible.value = savedVisibility !== 'false';
@@ -75,6 +79,34 @@ const scrollPriorityCards = (direction) => {
     if (!carousel) return;
     const card = carousel.querySelector('[data-priority-card]');
     const distance = card ? card.getBoundingClientRect().width + 12 : carousel.clientWidth;
+    carousel.scrollBy({ left: direction * distance, behavior: 'smooth' });
+};
+
+const evolutionCarousel = ref(null);
+const evolutionDragging = ref(false);
+let evolutionStartX = 0;
+let evolutionStartScrollLeft = 0;
+const startEvolutionDrag = (event) => {
+    if (event.pointerType === 'touch' || event.button === 0) {
+        evolutionDragging.value = true;
+        evolutionStartX = event.clientX;
+        evolutionStartScrollLeft = evolutionCarousel.value?.scrollLeft ?? 0;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+    }
+};
+const moveEvolutionDrag = (event) => {
+    if (!evolutionDragging.value || !evolutionCarousel.value) return;
+    evolutionCarousel.value.scrollLeft = evolutionStartScrollLeft - (event.clientX - evolutionStartX);
+};
+const stopEvolutionDrag = (event) => {
+    evolutionDragging.value = false;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+};
+const scrollEvolutionCharts = (direction) => {
+    const carousel = evolutionCarousel.value;
+    if (!carousel) return;
+    const chart = carousel.querySelector('[data-evolution-chart]');
+    const distance = chart ? chart.getBoundingClientRect().width + 16 : carousel.clientWidth;
     carousel.scrollBy({ left: direction * distance, behavior: 'smooth' });
 };
 
@@ -218,12 +250,14 @@ const secondaryCards = computed(() => [
             <button
                 type="button"
                 role="tab"
-                :aria-selected="activeView === 'goals'"
-                class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none"
-                :class="activeView === 'goals' ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'"
-                @click="setActiveView('goals')"
+                disabled
+                aria-disabled="true"
+                aria-selected="false"
+                class="flex flex-1 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-slate-400 opacity-75 sm:flex-none"
+                title="Metas temporariamente pausadas"
             >
-                Metas <span class="ml-1 text-[9px] uppercase opacity-70">Beta</span>
+                <LockKeyhole :size="14" aria-hidden="true" />
+                Metas <span class="text-[9px] uppercase opacity-70">Pausado</span>
             </button>
         </div>
 
@@ -350,7 +384,23 @@ const secondaryCards = computed(() => [
             </div>
         </section>
 
-        <section class="mt-6 min-w-0"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Evolução financeira</h2><p class="text-sm text-slate-500">Mostra como seu saldo mudou e quando o dinheiro realmente entrou ou saiu. Compras no cartão contam como gasto na data da compra, mas só saem da conta quando a fatura é paga.</p></div><div class="grid min-w-0 gap-4 xl:grid-cols-3"><GeneralBalanceChart :chart="overview.chart" /><CashFlowChart :cash-flow="overview.cash_flow" /><ConsumptionFlowChart :consumption-flow="overview.consumption_flow" /></div></section>
+        <section class="mt-6 min-w-0">
+            <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-950">Evolução financeira</h2>
+                    <p class="text-sm text-slate-500">Mostra como seu saldo mudou e quando o dinheiro realmente entrou ou saiu. Compras no cartão contam como gasto na data da compra, mas só saem da conta quando a fatura é paga.</p>
+                </div>
+                <div class="flex shrink-0 justify-end gap-2">
+                    <button type="button" class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50" aria-label="Gráfico anterior" @click="scrollEvolutionCharts(-1)"><ArrowLeft :size="16" /></button>
+                    <button type="button" class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50" aria-label="Próximo gráfico" @click="scrollEvolutionCharts(1)"><ArrowRight :size="16" /></button>
+                </div>
+            </div>
+            <div ref="evolutionCarousel" class="flex min-w-0 snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" :class="evolutionDragging ? 'cursor-grabbing select-none snap-none' : 'cursor-grab'" @pointerdown="startEvolutionDrag" @pointermove="moveEvolutionDrag" @pointerup="stopEvolutionDrag" @pointercancel="stopEvolutionDrag" @pointerleave="stopEvolutionDrag">
+                <div data-evolution-chart class="min-w-0 shrink-0 basis-full snap-start"><GeneralBalanceChart :chart="overview.chart" /></div>
+                <div data-evolution-chart class="min-w-0 shrink-0 basis-full snap-start"><CashFlowChart :cash-flow="overview.cash_flow" /></div>
+                <div data-evolution-chart class="min-w-0 shrink-0 basis-full snap-start"><ConsumptionFlowChart :consumption-flow="overview.consumption_flow" /></div>
+            </div>
+        </section>
 
         <section class="mt-6"><div class="mb-3"><h2 class="text-base font-semibold text-slate-950">Visualização por categoria</h2><p class="text-sm text-slate-500">Mostra quanto entrou e quanto foi gasto em cada categoria. Compras no cartão ficam na categoria da compra e pagar a fatura não conta a despesa de novo.</p></div><div class="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
             <CategoryBreakdownChart :categories="overview.category_breakdown" />
@@ -367,6 +417,5 @@ const secondaryCards = computed(() => [
             :planning="planning"
             :card-invoice="cardInvoice"
         />
-        <FinancialGoalsPanel v-show="activeView === 'goals'" />
     </AuthenticatedLayout>
 </template>
