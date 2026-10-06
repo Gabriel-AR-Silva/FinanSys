@@ -1,11 +1,15 @@
 <script setup>
+import CashFlowChart from '@/Components/CashFlowChart.vue';
+import ConsumptionFlowChart from '@/Components/ConsumptionFlowChart.vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { TrendingDown, TrendingUp } from '@lucide/vue';
-import { computed } from 'vue';
+import { ArrowLeft, ArrowRight, TrendingDown, TrendingUp } from '@lucide/vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({ chart: { type: Object, required: true } });
 const page = usePage();
 const receivables = computed(() => page.props.receivables ?? null);
+const cashFlow = computed(() => page.props.overview?.cash_flow ?? { points: [] });
+const consumptionFlow = computed(() => page.props.overview?.consumption_flow ?? { points: [] });
 const width = 900;
 const lineTop = 24;
 const lineBottom = 140;
@@ -14,6 +18,37 @@ const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: '
 const percent = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatMoney = (value) => currency.format(Number(value));
 const formatDate = (value) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(`${value}T12:00:00`));
+
+const carousel = ref(null);
+const dragging = ref(false);
+let dragStartX = 0;
+let dragStartScrollLeft = 0;
+
+const startDrag = (event) => {
+    if (event.pointerType !== 'touch' && event.button !== 0) return;
+    dragging.value = true;
+    dragStartX = event.clientX;
+    dragStartScrollLeft = carousel.value?.scrollLeft ?? 0;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+};
+
+const moveDrag = (event) => {
+    if (!dragging.value || !carousel.value) return;
+    carousel.value.scrollLeft = dragStartScrollLeft - (event.clientX - dragStartX);
+};
+
+const stopDrag = (event) => {
+    dragging.value = false;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+};
+
+const scrollCharts = (direction) => {
+    const container = carousel.value;
+    if (!container) return;
+    const card = container.querySelector('[data-evolution-card]');
+    const distance = card ? card.getBoundingClientRect().width + 16 : container.clientWidth;
+    container.scrollBy({ left: direction * distance, behavior: 'smooth' });
+};
 
 const coordinates = computed(() => {
     const points = props.chart.points;
@@ -40,29 +75,50 @@ const positive = computed(() => Number(props.chart.change) >= 0);
 </script>
 
 <template>
-    <article class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-            <div><p class="text-sm font-semibold text-slate-950">Como seu saldo mudou</p><p class="mt-1 text-sm text-slate-500">Mostra a mudança do saldo conforme o dinheiro entra e sai. Uma compra no cartão só reduz este saldo quando a fatura é paga.</p></div>
-            <div class="flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-semibold" :class="positive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'"><TrendingUp v-if="positive" :size="15" /><TrendingDown v-else :size="15" /><span v-if="chart.change_percentage !== null">{{ positive ? '+' : '' }}{{ percent.format(Number(chart.change_percentage)) }}%</span><span v-else>Sem comparação</span></div>
+    <section class="min-w-0 xl:col-span-3">
+        <div class="mb-3 flex items-center justify-end gap-2">
+            <button type="button" class="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700" aria-label="Gráficos anteriores" @click="scrollCharts(-1)"><ArrowLeft :size="17" /></button>
+            <button type="button" class="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700" aria-label="Próximos gráficos" @click="scrollCharts(1)"><ArrowRight :size="17" /></button>
         </div>
 
-        <div class="mt-3 flex flex-wrap items-end justify-between gap-3">
-            <div><p class="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Mudança do saldo no período</p><p class="mt-1 text-2xl font-semibold tracking-tight" :class="positive ? 'text-emerald-700' : 'text-rose-700'">{{ positive ? '+' : '' }}{{ formatMoney(chart.change) }}</p></div>
-        </div>
+        <div
+            ref="carousel"
+            class="flex min-w-0 snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            :class="dragging ? 'cursor-grabbing select-none snap-none' : 'cursor-grab'"
+            @pointerdown="startDrag"
+            @pointermove="moveDrag"
+            @pointerup="stopDrag"
+            @pointercancel="stopDrag"
+            @pointerleave="stopDrag"
+        >
+            <article data-evolution-card class="min-w-0 shrink-0 basis-full snap-start overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/30 to-sky-50/50 p-4 shadow-sm sm:p-5 lg:basis-[calc((100%-1rem)/2)]">
+                <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                    <div><p class="text-sm font-semibold text-slate-950">Como seu saldo mudou</p><p class="mt-1 text-sm text-slate-500">Mostra a mudança do saldo conforme o dinheiro entra e sai. Uma compra no cartão só reduz este saldo quando a fatura é paga.</p></div>
+                    <div class="flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-semibold" :class="positive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'"><TrendingUp v-if="positive" :size="15" /><TrendingDown v-else :size="15" /><span v-if="chart.change_percentage !== null">{{ positive ? '+' : '' }}{{ percent.format(Number(chart.change_percentage)) }}%</span><span v-else>Sem comparação</span></div>
+                </div>
 
-        <div class="mt-3 w-full max-w-full overflow-x-auto">
-            <svg class="h-44 w-full min-w-[34rem]" :viewBox="`0 0 ${width} 176`" role="img" aria-label="Gráfico de como o saldo mudou">
-                <defs><linearGradient id="balance-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0f172a" stop-opacity="0.16" /><stop offset="100%" stop-color="#0f172a" stop-opacity="0" /></linearGradient></defs>
-                <path v-if="coordinates.length" :d="`${path} L ${coordinates[coordinates.length - 1].x} ${lineBottom} L ${coordinates[0].x} ${lineBottom} Z`" fill="url(#balance-area)" />
-                <path v-if="coordinates.length" :d="path" fill="none" stroke="#0f172a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-                <circle v-for="point in coordinates" :key="point.date" :cx="point.x" :cy="point.y" r="2" fill="#0f172a"><title>{{ formatDate(point.date) }} — {{ formatMoney(point.balance) }}</title></circle>
-                <g v-for="label in labels" :key="label.date"><text :x="label.x" y="169" text-anchor="middle" fill="#64748b" font-size="11">{{ formatDate(label.date) }}</text></g>
-            </svg>
-        </div>
+                <div class="mt-3 flex flex-wrap items-end justify-between gap-3">
+                    <div><p class="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Mudança do saldo no período</p><p class="mt-1 text-2xl font-semibold tracking-tight" :class="positive ? 'text-emerald-700' : 'text-rose-700'">{{ positive ? '+' : '' }}{{ formatMoney(chart.change) }}</p></div>
+                </div>
 
-        <div v-if="receivables" class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 p-3" aria-label="Recebimentos previstos do mês">
-            <div><p class="text-xs font-semibold uppercase tracking-wide text-sky-800">A receber neste mês</p><p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(receivables.pending) }}</p><p class="mt-1 text-xs text-slate-600">{{ receivables.next_due_on ? `Próxima data prevista: ${formatDate(receivables.next_due_on)}` : 'Sem recebimentos pendentes neste mês.' }} Esse dinheiro ainda não entrou e por isso não faz parte do saldo.</p></div>
-            <Link :href="route('financial-settings.edit', { month: receivables.month, tab: 'receipts' })" class="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-sky-800 ring-1 ring-sky-200 hover:bg-sky-100">Ver recebimentos previstos</Link>
+                <div class="mt-3 w-full max-w-full overflow-x-auto">
+                    <svg class="h-44 w-full min-w-[34rem]" :viewBox="`0 0 ${width} 176`" role="img" aria-label="Gráfico de como o saldo mudou">
+                        <defs><linearGradient id="balance-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#10b981" stop-opacity="0.26" /><stop offset="65%" stop-color="#38bdf8" stop-opacity="0.08" /><stop offset="100%" stop-color="#ffffff" stop-opacity="0" /></linearGradient></defs>
+                        <path v-if="coordinates.length" :d="`${path} L ${coordinates[coordinates.length - 1].x} ${lineBottom} L ${coordinates[0].x} ${lineBottom} Z`" fill="url(#balance-area)" />
+                        <path v-if="coordinates.length" :d="path" fill="none" stroke="#059669" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+                        <circle v-for="point in coordinates" :key="point.date" :cx="point.x" :cy="point.y" r="3" fill="#0ea5e9" stroke="#ffffff" stroke-width="1.5"><title>{{ formatDate(point.date) }} — {{ formatMoney(point.balance) }}</title></circle>
+                        <g v-for="label in labels" :key="label.date"><text :x="label.x" y="169" text-anchor="middle" fill="#64748b" font-size="11">{{ formatDate(label.date) }}</text></g>
+                    </svg>
+                </div>
+
+                <div v-if="receivables" class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 p-3" aria-label="Recebimentos previstos do mês">
+                    <div><p class="text-xs font-semibold uppercase tracking-wide text-sky-800">A receber neste mês</p><p class="mt-1 text-xl font-semibold text-slate-950">{{ formatMoney(receivables.pending) }}</p><p class="mt-1 text-xs text-slate-600">{{ receivables.next_due_on ? `Próxima data prevista: ${formatDate(receivables.next_due_on)}` : 'Sem recebimentos pendentes neste mês.' }} Esse dinheiro ainda não entrou e por isso não faz parte do saldo.</p></div>
+                    <Link :href="route('financial-settings.edit', { month: receivables.month, tab: 'receipts' })" class="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-sky-800 ring-1 ring-sky-200 hover:bg-sky-100">Ver recebimentos previstos</Link>
+                </div>
+            </article>
+
+            <CashFlowChart data-evolution-card :cash-flow="cashFlow" embedded />
+            <ConsumptionFlowChart data-evolution-card :consumption-flow="consumptionFlow" embedded />
         </div>
-    </article>
+    </section>
 </template>
