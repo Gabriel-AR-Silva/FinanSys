@@ -3,7 +3,34 @@ import QuickActionModal from '@/Components/QuickActionModal.vue';
 import ToastHost from '@/Components/ToastHost.vue';
 import TsukiOnboarding from '@/Components/TsukiOnboarding.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, BellRing, ChevronDown, CircleHelp, CreditCard, FileUp, Landmark, LayoutDashboard, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, PiggyBank, Plus, ReceiptText, RotateCcw, Settings, Sun, Tags, WalletCards, Wrench, X } from '@lucide/vue';
+import {
+    ArrowDownCircle,
+    ArrowRightLeft,
+    ArrowUpCircle,
+    BellRing,
+    ChevronDown,
+    CircleHelp,
+    CreditCard,
+    FileUp,
+    Landmark,
+    LayoutDashboard,
+    LockKeyhole,
+    LogOut,
+    Menu,
+    Moon,
+    PanelLeftClose,
+    PanelLeftOpen,
+    PiggyBank,
+    Plus,
+    ReceiptText,
+    RotateCcw,
+    Settings,
+    Sun,
+    Tags,
+    WalletCards,
+    Wrench,
+    X,
+} from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { getPreferredTheme, setTheme } from '@/Support/theme';
 
@@ -29,10 +56,11 @@ const sections = [
         { label: 'Caixinhas', route: 'pockets.index', icon: PiggyBank },
         { label: 'Lançamentos', route: 'ledger-entries.index', icon: ReceiptText },
         { label: 'Cartões', route: 'credit-cards.index', icon: CreditCard },
-        { label: 'Patrimônio', route: 'patrimony.index', icon: Landmark },
+        { label: 'Patrimônio', route: 'patrimony.index', icon: Landmark, disabled: true, badge: 'Pausado' },
     ] },
     { label: 'Organização', items: [{ label: 'Categorias', route: 'categories.index', icon: Tags }] },
 ];
+
 const tools = computed(() => [
     ...(features.value.ofx ? [{ label: 'Importar extrato OFX', route: 'ofx-imports.index', icon: FileUp }] : []),
     { label: 'Correções de cartão', route: 'card-corrections.index', icon: RotateCcw },
@@ -40,6 +68,7 @@ const tools = computed(() => [
     { label: 'Avisos financeiros', route: 'internal-alerts.index', icon: BellRing },
     { label: 'Central de ajuda', route: 'help.index', icon: CircleHelp },
 ]);
+
 const isActive = routeName => route().current(routeName);
 const closeTools = () => { toolsOpen.value = false; };
 const toggleTheme = () => { theme.value = setTheme(theme.value === 'dark' ? 'light' : 'dark'); };
@@ -57,17 +86,20 @@ const handleKeydown = event => {
 const handlePointerDown = event => {
     if (toolsOpen.value && !toolsContainer.value?.contains(event.target)) closeTools();
 };
+
 onMounted(() => {
     try { sidebarCollapsed.value = window.localStorage.getItem('finansys.sidebar-collapsed') === 'true'; } catch (_) { /* storage may be blocked */ }
     theme.value = getPreferredTheme();
     document.addEventListener('keydown', handleKeydown);
     document.addEventListener('pointerdown', handlePointerDown);
 });
+
 onUnmounted(() => {
     document.removeEventListener('keydown', handleKeydown);
     document.removeEventListener('pointerdown', handlePointerDown);
     if (mobileNavigationOpen.value) document.body.style.overflow = previousBodyOverflow;
 });
+
 watch(avatar, () => { avatarFailed.value = false; });
 watch(sidebarCollapsed, collapsed => {
     try { window.localStorage.setItem('finansys.sidebar-collapsed', String(collapsed)); } catch (_) { /* storage may be blocked */ }
@@ -83,13 +115,42 @@ watch(mobileNavigationOpen, open => {
         <aside class="fixed inset-y-0 left-0 z-30 hidden h-dvh flex-col overflow-hidden border-r border-slate-800 bg-slate-950 py-5 text-white transition-[width,padding] duration-300 lg:flex" :class="sidebarCollapsed ? 'w-20 px-3' : 'w-72 px-5'">
             <button type="button" class="absolute right-2 top-6 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400" :aria-label="sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'" @click="sidebarCollapsed = !sidebarCollapsed"><PanelLeftOpen v-if="sidebarCollapsed" :size="18" /><PanelLeftClose v-else :size="18" /></button>
             <Link :href="route('dashboard')" class="flex h-12 shrink-0 items-center text-lg font-bold tracking-tight" :class="sidebarCollapsed ? 'justify-start pl-1 text-sm' : 'pl-2'" aria-label="FinanSys — visão geral"><span>Finan<span class="text-emerald-400">Sys</span></span></Link>
+
             <nav class="mt-6 min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain pb-4 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Navegação principal">
                 <section v-for="section in sections" :key="section.label" :aria-label="section.label">
                     <h2 v-if="!sidebarCollapsed" class="mb-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">{{ section.label }}</h2>
                     <div v-else class="mb-2 border-t border-white/10" aria-hidden="true" />
-                    <Link v-for="item in section.items" :key="item.route" :href="route(item.route)" class="group relative mb-1 flex min-h-11 items-center rounded-xl py-2.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400" :class="[isActive(item.route) ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-white/10 hover:text-white', sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3']" :aria-label="item.label" :title="sidebarCollapsed ? item.label : undefined"><component :is="item.icon" :size="20" class="shrink-0" aria-hidden="true" /><span v-if="!sidebarCollapsed">{{ item.label }}</span></Link>
+
+                    <template v-for="item in section.items" :key="item.route">
+                        <button
+                            v-if="item.disabled"
+                            type="button"
+                            disabled
+                            class="group relative mb-1 flex min-h-11 w-full cursor-not-allowed items-center rounded-xl py-2.5 text-sm font-medium text-slate-500 opacity-75"
+                            :class="sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'"
+                            :aria-label="`${item.label} — temporariamente pausado`"
+                            :title="sidebarCollapsed ? `${item.label} — pausado` : undefined"
+                        >
+                            <component :is="item.icon" :size="20" class="shrink-0" aria-hidden="true" />
+                            <span v-if="!sidebarCollapsed" class="min-w-0 flex-1 text-left">{{ item.label }}</span>
+                            <span v-if="!sidebarCollapsed" class="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-400"><LockKeyhole :size="10" />{{ item.badge }}</span>
+                            <LockKeyhole v-else :size="10" class="absolute right-1 top-1 text-slate-500" aria-hidden="true" />
+                        </button>
+                        <Link
+                            v-else
+                            :href="route(item.route)"
+                            class="group relative mb-1 flex min-h-11 items-center rounded-xl py-2.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                            :class="[isActive(item.route) ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-white/10 hover:text-white', sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3']"
+                            :aria-label="item.label"
+                            :title="sidebarCollapsed ? item.label : undefined"
+                        >
+                            <component :is="item.icon" :size="20" class="shrink-0" aria-hidden="true" />
+                            <span v-if="!sidebarCollapsed">{{ item.label }}</span>
+                        </Link>
+                    </template>
                 </section>
             </nav>
+
             <div class="shrink-0 space-y-3 border-t border-white/10 pt-4">
                 <button type="button" class="flex min-h-11 w-full items-center justify-center rounded-xl bg-emerald-400 px-2.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300" aria-label="Nova movimentação" @click="quickActionOpen = true"><Plus :size="19" /><span v-if="!sidebarCollapsed" class="ml-2">Nova movimentação</span></button>
                 <button type="button" class="flex min-h-10 w-full items-center rounded-xl px-3 text-sm font-medium text-rose-300 hover:bg-rose-400/10" :class="sidebarCollapsed ? 'justify-center' : 'gap-3'" aria-label="Sair do FinanSys" @click="logout"><LogOut :size="19" /><span v-if="!sidebarCollapsed">Sair</span></button>
@@ -97,38 +158,53 @@ watch(mobileNavigationOpen, open => {
         </aside>
 
         <div class="min-w-0 transition-[padding] duration-300" :class="sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-72'">
-            <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur"><div class="flex h-16 items-center gap-2 px-3 sm:px-6 lg:px-8">
-                <button ref="mobileNavigationTrigger" type="button" class="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Abrir navegação" @click="openMobileNavigation"><Menu :size="23" /></button>
-                <Link :href="route('dashboard')" class="text-sm font-bold tracking-tight lg:hidden" aria-label="FinanSys — visão geral">Finan<span class="text-emerald-600">Sys</span></Link>
-                <div class="hidden items-center gap-2 lg:flex"><Link :href="route('ledger-entries.index', { create: 'income' })" class="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"><ArrowUpCircle :size="17" />Receita</Link><Link :href="route('ledger-entries.index', { create: 'expense' })" class="flex items-center gap-2 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"><ArrowDownCircle :size="17" />Despesa</Link><Link :href="route('ledger-entries.index', { transfer: 1 })" class="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100"><ArrowRightLeft :size="17" />Transferir</Link></div>
-                <button type="button" class="ml-auto flex min-h-10 items-center gap-1 rounded-xl bg-slate-950 px-2.5 text-sm font-semibold text-white hover:bg-slate-800 lg:hidden" aria-label="Nova movimentação" @click="quickActionOpen = true"><Plus :size="18" /><span class="hidden min-[390px]:inline">Adicionar</span></button>
-                <div ref="toolsContainer" class="relative lg:ml-auto">
-                    <button type="button" class="flex min-h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label="Ferramentas e ajustes" :aria-expanded="toolsOpen" aria-controls="finansys-tools-menu" @click="toolsOpen = !toolsOpen"><Wrench :size="18" /><span class="hidden sm:inline">Ferramentas</span><ChevronDown :size="15" aria-hidden="true" /></button>
-                    <div v-if="toolsOpen" id="finansys-tools-menu" class="absolute right-0 top-full z-40 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl" role="menu" aria-label="Ferramentas e ajustes">
-                        <nav aria-label="Atalhos de ferramentas">
-                            <Link v-for="item in tools" :key="item.route" :href="route(item.route)" class="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" :aria-current="isActive(item.route) ? 'page' : undefined" @click="closeTools"><component :is="item.icon" :size="18" class="shrink-0" aria-hidden="true" />{{ item.label }}</Link>
-                        </nav>
-                        <div class="mt-2 border-t border-slate-200 pt-2">
-                            <button type="button" role="switch" :aria-checked="theme === 'dark'" class="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" @click="toggleTheme">
-                                <component :is="theme === 'dark' ? Moon : Sun" :size="18" class="shrink-0" aria-hidden="true" />
-                                <span class="min-w-0 flex-1"><span class="block font-medium">Modo noturno</span><span class="block text-xs text-slate-500">{{ theme === 'dark' ? 'Ativado' : 'Desativado' }}</span></span>
-                                <span class="relative h-6 w-11 shrink-0 rounded-full border border-slate-300 transition" :class="theme === 'dark' ? 'bg-emerald-500' : 'bg-slate-200'" aria-hidden="true">
-                                    <span class="theme-switch-thumb absolute top-0.5 h-4 w-4 rounded-full shadow-sm transition-transform" :class="theme === 'dark' ? 'translate-x-5' : 'translate-x-0.5'" />
-                                </span>
-                            </button>
+            <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+                <div class="flex h-16 items-center gap-2 px-3 sm:px-6 lg:px-8">
+                    <button ref="mobileNavigationTrigger" type="button" class="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Abrir navegação" @click="openMobileNavigation"><Menu :size="23" /></button>
+                    <Link :href="route('dashboard')" class="text-sm font-bold tracking-tight lg:hidden" aria-label="FinanSys — visão geral">Finan<span class="text-emerald-600">Sys</span></Link>
+                    <div class="hidden items-center gap-2 lg:flex"><Link :href="route('ledger-entries.index', { create: 'income' })" class="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"><ArrowUpCircle :size="17" />Receita</Link><Link :href="route('ledger-entries.index', { create: 'expense' })" class="flex items-center gap-2 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"><ArrowDownCircle :size="17" />Despesa</Link><Link :href="route('ledger-entries.index', { transfer: 1 })" class="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100"><ArrowRightLeft :size="17" />Transferir</Link></div>
+                    <button type="button" class="ml-auto flex min-h-10 items-center gap-1 rounded-xl bg-slate-950 px-2.5 text-sm font-semibold text-white hover:bg-slate-800 lg:hidden" aria-label="Nova movimentação" @click="quickActionOpen = true"><Plus :size="18" /><span class="hidden min-[390px]:inline">Adicionar</span></button>
+
+                    <div ref="toolsContainer" class="relative lg:ml-auto">
+                        <button type="button" class="flex min-h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label="Ferramentas e ajustes" :aria-expanded="toolsOpen" aria-controls="finansys-tools-menu" @click="toolsOpen = !toolsOpen"><Wrench :size="18" /><span class="hidden sm:inline">Ferramentas</span><ChevronDown :size="15" aria-hidden="true" /></button>
+                        <div v-if="toolsOpen" id="finansys-tools-menu" class="absolute right-0 top-full z-40 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl" role="menu" aria-label="Ferramentas e ajustes">
+                            <nav aria-label="Atalhos de ferramentas">
+                                <Link v-for="item in tools" :key="item.route" :href="route(item.route)" class="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" :aria-current="isActive(item.route) ? 'page' : undefined" @click="closeTools"><component :is="item.icon" :size="18" class="shrink-0" aria-hidden="true" />{{ item.label }}</Link>
+                            </nav>
+                            <div class="mt-2 border-t border-slate-200 pt-2">
+                                <button type="button" role="switch" :aria-checked="theme === 'dark'" class="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" @click="toggleTheme">
+                                    <component :is="theme === 'dark' ? Moon : Sun" :size="18" class="shrink-0" aria-hidden="true" />
+                                    <span class="min-w-0 flex-1"><span class="block font-medium">Modo noturno</span><span class="block text-xs text-slate-500">{{ theme === 'dark' ? 'Ativado' : 'Desativado' }}</span></span>
+                                    <span class="relative h-6 w-11 shrink-0 rounded-full border border-slate-300 transition" :class="theme === 'dark' ? 'bg-emerald-500' : 'bg-slate-200'" aria-hidden="true"><span class="theme-switch-thumb absolute top-0.5 h-4 w-4 rounded-full shadow-sm transition-transform" :class="theme === 'dark' ? 'translate-x-5' : 'translate-x-0.5'" /></span>
+                                </button>
+                            </div>
                         </div>
                     </div>
+
+                    <Link :href="route('profile.edit')" class="hidden items-center gap-2 rounded-xl px-2 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 sm:flex" aria-label="Meu perfil"><span class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-950 text-xs font-semibold text-emerald-300"><img v-if="avatar && !avatarFailed" :src="avatar" alt="" class="h-full w-full object-cover" @error="avatarFailed = true" /><span v-else>{{ initials }}</span></span><span class="hidden max-w-32 truncate xl:inline">{{ user.name }}</span></Link>
                 </div>
-                <Link :href="route('profile.edit')" class="hidden items-center gap-2 rounded-xl px-2 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 sm:flex" aria-label="Meu perfil"><span class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-950 text-xs font-semibold text-emerald-300"><img v-if="avatar && !avatarFailed" :src="avatar" alt="" class="h-full w-full object-cover" @error="avatarFailed = true" /><span v-else>{{ initials }}</span></span><span class="hidden max-w-32 truncate xl:inline">{{ user.name }}</span></Link>
-            </div></header>
+            </header>
+
             <main class="min-w-0 px-4 py-7 sm:px-6 sm:py-9 lg:px-10 lg:py-10"><div class="mx-auto min-w-0 max-w-7xl"><slot /></div></main>
         </div>
 
-        <div v-if="mobileNavigationOpen" class="fixed inset-0 z-40 lg:hidden"><button type="button" class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" aria-label="Fechar navegação" @click="closeMobileNavigation" /><aside class="relative flex h-dvh max-h-dvh w-[min(86vw,22rem)] flex-col overflow-hidden bg-slate-950 px-5 py-5 text-white shadow-2xl" role="dialog" aria-modal="true" aria-label="Menu principal">
-            <div class="flex shrink-0 items-center justify-between"><Link :href="route('dashboard')" class="text-lg font-bold" @click="closeMobileNavigation(false)">Finan<span class="text-emerald-400">Sys</span></Link><button type="button" class="rounded-lg p-2 text-slate-300 hover:bg-white/10" aria-label="Fechar navegação" @click="closeMobileNavigation"><X :size="22" /></button></div>
-            <nav class="mt-6 min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Navegação móvel"><section v-for="section in sections" :key="section.label"><h2 class="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{{ section.label }}</h2><Link v-for="item in section.items" :key="item.route" :href="route(item.route)" class="mb-1 flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium" :class="isActive(item.route) ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-white/10'" @click="closeMobileNavigation(false)"><component :is="item.icon" :size="20" aria-hidden="true" />{{ item.label }}</Link></section></nav>
-            <div class="shrink-0 space-y-2 border-t border-white/10 pt-4"><Link :href="route('profile.edit')" class="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm text-slate-300 hover:bg-white/10" @click="closeMobileNavigation(false)"><span class="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-slate-800 text-emerald-300"><img v-if="avatar && !avatarFailed" :src="avatar" alt="" class="h-full w-full object-cover" @error="avatarFailed = true" /><span v-else>{{ initials }}</span></span>Meu perfil</Link><button type="button" class="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm text-rose-300 hover:bg-rose-400/10" @click="logout"><LogOut :size="19" />Sair</button></div>
-        </aside></div>
+        <div v-if="mobileNavigationOpen" class="fixed inset-0 z-40 lg:hidden">
+            <button type="button" class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" aria-label="Fechar navegação" @click="closeMobileNavigation" />
+            <aside class="relative flex h-dvh max-h-dvh w-[min(86vw,22rem)] flex-col overflow-hidden bg-slate-950 px-5 py-5 text-white shadow-2xl" role="dialog" aria-modal="true" aria-label="Menu principal">
+                <div class="flex shrink-0 items-center justify-between"><Link :href="route('dashboard')" class="text-lg font-bold" @click="closeMobileNavigation(false)">Finan<span class="text-emerald-400">Sys</span></Link><button type="button" class="rounded-lg p-2 text-slate-300 hover:bg-white/10" aria-label="Fechar navegação" @click="closeMobileNavigation"><X :size="22" /></button></div>
+                <nav class="mt-6 min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Navegação móvel">
+                    <section v-for="section in sections" :key="section.label">
+                        <h2 class="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{{ section.label }}</h2>
+                        <template v-for="item in section.items" :key="item.route">
+                            <button v-if="item.disabled" type="button" disabled class="mb-1 flex min-h-11 w-full cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-500 opacity-75" :aria-label="`${item.label} — temporariamente pausado`"><component :is="item.icon" :size="20" aria-hidden="true" /><span class="flex-1 text-left">{{ item.label }}</span><LockKeyhole :size="14" /></button>
+                            <Link v-else :href="route(item.route)" class="mb-1 flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium" :class="isActive(item.route) ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-white/10'" @click="closeMobileNavigation(false)"><component :is="item.icon" :size="20" aria-hidden="true" />{{ item.label }}</Link>
+                        </template>
+                    </section>
+                </nav>
+                <div class="shrink-0 space-y-2 border-t border-white/10 pt-4"><Link :href="route('profile.edit')" class="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm text-slate-300 hover:bg-white/10" @click="closeMobileNavigation(false)"><span class="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-slate-800 text-emerald-300"><img v-if="avatar && !avatarFailed" :src="avatar" alt="" class="h-full w-full object-cover" @error="avatarFailed = true" /><span v-else>{{ initials }}</span></span>Meu perfil</Link><button type="button" class="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm text-rose-300 hover:bg-rose-400/10" @click="logout"><LogOut :size="19" />Sair</button></div>
+            </aside>
+        </div>
+
         <QuickActionModal :show="quickActionOpen" @close="quickActionOpen = false" />
         <TsukiOnboarding v-if="$page.props.onboarding" :essential-steps="$page.props.onboarding.essentialSteps" :recommended-steps="$page.props.onboarding.recommendedSteps" :progress="$page.props.onboarding.progress" :initially-open="$page.props.onboarding.initiallyOpen" />
         <ToastHost />
