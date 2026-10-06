@@ -3,7 +3,6 @@ import { computed } from 'vue';
 
 const props = defineProps({
     cashFlow: { type: Object, required: true },
-    embedded: { type: Boolean, default: false },
 });
 const width = 720;
 const height = 176;
@@ -24,22 +23,25 @@ const labels = computed(() => {
 </script>
 
 <template>
-    <article :class="embedded ? 'min-w-0 shrink-0 basis-full snap-start overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/40 to-rose-50/30 p-4 shadow-sm sm:p-5 lg:basis-[calc((100%-1rem)/2)]' : 'hidden'">
+    <article class="min-w-0 overflow-hidden rounded-2xl border p-4 shadow-sm sm:p-5" style="border-color: var(--fs-border-soft); background: linear-gradient(135deg, var(--fs-surface), var(--fs-surface-subtle)); color: var(--fs-text);">
         <div>
-            <h2 class="text-sm font-semibold text-slate-950">Dinheiro que entrou e saiu</h2>
-            <p class="mt-0.5 text-xs text-slate-500">Mostra quando o dinheiro realmente entrou ou saiu da conta. Pagar a fatura do cartão reduz o saldo, mas não conta a compra de novo.</p>
+            <h2 class="text-sm font-semibold" style="color: var(--fs-text);">Dinheiro que entrou e saiu</h2>
+            <p class="mt-0.5 text-xs" style="color: var(--fs-text-muted);">Mostra quando o dinheiro realmente entrou ou saiu da conta. Pagar a fatura do cartão reduz o saldo, mas não conta a compra de novo.</p>
         </div>
-        <div class="mt-4 w-full max-w-full overflow-x-auto rounded-xl bg-white/70 px-2 pt-2">
+        <div class="mt-4 w-full max-w-full overflow-x-auto rounded-xl px-2 pt-2" style="background: var(--fs-surface-elevated);">
             <svg class="h-44 w-full min-w-[34rem]" :viewBox="`0 0 ${width} ${height}`" role="img" aria-label="Gráfico diário do dinheiro que entrou e saiu">
-                <line v-for="y in [34, 70, 106, 142]" :key="y" x1="0" :y1="y" :x2="width" :y2="y" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 5" />
-                <line x1="0" :y1="baseline" :x2="width" :y2="baseline" stroke="#94a3b8" stroke-width="1" />
+                <line v-for="y in [34, 70, 106, 142]" :key="y" x1="0" :y1="y" :x2="width" :y2="y" stroke="var(--fs-border-soft)" stroke-width="1" stroke-dasharray="4 5" />
+                <line x1="0" :y1="baseline" :x2="width" :y2="baseline" stroke="var(--fs-border)" stroke-width="1" />
                 <g v-for="(point, index) in cashFlow.points" :key="point.date">
-                    <rect :x="index * slotWidth + slotWidth / 2 - barWidth - 1" :y="baseline - barHeight(point.income)" :width="barWidth" :height="barHeight(point.income)" fill="#10b981" rx="3"><title>{{ formatDate(point.date) }} — entradas de caixa {{ formatMoney(point.income) }}</title></rect>
-                    <rect :x="index * slotWidth + slotWidth / 2 + 1" :y="baseline - barHeight(point.expense)" :width="barWidth" :height="barHeight(point.expense)" fill="#f43f5e" rx="3"><title>{{ formatDate(point.date) }} — saídas de caixa {{ formatMoney(point.expense) }}</title></rect>
+                    <rect :x="index * slotWidth + slotWidth / 2 - barWidth - 1" :y="baseline - barHeight(point.income)" :width="barWidth" :height="barHeight(point.income)" fill="var(--fs-success)" rx="3"><title>{{ formatDate(point.date) }} — entradas de caixa {{ formatMoney(point.income) }}</title></rect>
+                    <rect :x="index * slotWidth + slotWidth / 2 + 1" :y="baseline - barHeight(point.expense)" :width="barWidth" :height="barHeight(point.expense)" fill="var(--fs-danger)" rx="3"><title>{{ formatDate(point.date) }} — saídas de caixa {{ formatMoney(point.expense) }}</title></rect>
                 </g>
-                <text v-for="label in labels" :key="label.index" :x="label.index * slotWidth + slotWidth / 2" y="169" text-anchor="middle" fill="#64748b" font-size="11">{{ formatDate(label.date) }}</text>
+                <text v-for="label in labels" :key="label.index" :x="label.index * slotWidth + slotWidth / 2" y="169" text-anchor="middle" fill="var(--fs-text-muted)" font-size="11">{{ formatDate(label.date) }}</text>
             </svg>
         </div>
-        <div class="mt-2 flex gap-4 text-xs text-slate-500"><span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-emerald-500" />Entradas</span><span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-rose-500" />Saídas</span></div>
+        <div class="mt-2 flex gap-4 text-xs" style="color: var(--fs-text-muted);">
+            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm" style="background: var(--fs-success);" />Entradas</span>
+            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm" style="background: var(--fs-danger);" />Saídas</span>
+        </div>
     </article>
 </template>
