@@ -1,4 +1,5 @@
 import '../css/app.css';
+import '../css/dark-contrast.css';
 import './bootstrap';
 
 import { createInertiaApp } from '@inertiajs/vue3';
