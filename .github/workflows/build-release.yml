@@ -33,14 +33,20 @@ jobs:
           node-version: '22'
           cache: npm
 
+      - name: Enable pnpm through Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@9 --activate
+          pnpm --version
+
       - name: Install PHP dependencies required by frontend imports
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Install frontend dependencies
+      - name: Install frontend dependencies from package-lock
         run: npm ci
 
       - name: Build production frontend
-        run: npm run build
+        run: pnpm run build
 
       - name: Verify Vite manifest assets
         run: |

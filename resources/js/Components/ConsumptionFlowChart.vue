@@ -1,7 +1,10 @@
 <script setup>
 import { computed } from 'vue';
 
-const props = defineProps({ consumptionFlow: { type: Object, required: true } });
+const props = defineProps({
+    consumptionFlow: { type: Object, required: true },
+    embedded: { type: Boolean, default: false },
+});
 const width = 720;
 const height = 176;
 const baseline = 142;
@@ -16,6 +19,9 @@ const pointY = value => baseline - Number(value) / maxValue.value * (baseline - 
 const linePoints = computed(() => props.consumptionFlow.points
     .map((point, index) => `${pointX(index)},${pointY(point.realized)}`)
     .join(' '));
+const areaPoints = computed(() => props.consumptionFlow.points.length
+    ? `${pointX(0)},${baseline} ${linePoints.value} ${pointX(props.consumptionFlow.points.length - 1)},${baseline}`
+    : '');
 const labels = computed(() => {
     const points = props.consumptionFlow.points;
     if (!points.length) return [];
@@ -24,15 +30,24 @@ const labels = computed(() => {
 </script>
 
 <template>
-    <article class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <article :class="embedded ? 'min-w-0 shrink-0 basis-full snap-start overflow-hidden rounded-2xl border border-rose-100 bg-gradient-to-br from-white via-rose-50/45 to-amber-50/40 p-4 shadow-sm sm:p-5 lg:basis-[calc((100%-1rem)/2)]' : 'hidden'">
         <h2 class="text-sm font-semibold text-slate-950">Quanto gastei por dia</h2>
         <p class="mt-0.5 text-xs text-slate-500">Conta cada despesa no dia em que ela aconteceu, inclusive compras no cartão. Pagar a fatura depois não conta a mesma despesa de novo.</p>
-        <div class="mt-4 w-full max-w-full overflow-x-auto">
+        <div class="mt-4 w-full max-w-full overflow-x-auto rounded-xl bg-white/70 px-2 pt-2">
             <svg class="h-44 w-full min-w-[34rem]" :viewBox="`0 0 ${width} ${height}`" role="img" aria-label="Gráfico diário de quanto foi gasto">
-                <line x1="0" :y1="baseline" :x2="width" :y2="baseline" stroke="#cbd5e1" stroke-width="1" />
-                <polyline v-if="consumptionFlow.points.length" :points="linePoints" fill="none" stroke="#334155" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                <defs>
+                    <linearGradient id="consumption-area" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.28" />
+                        <stop offset="68%" stop-color="#f59e0b" stop-opacity="0.10" />
+                        <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+                    </linearGradient>
+                </defs>
+                <line v-for="y in [34, 70, 106, 142]" :key="y" x1="0" :y1="y" :x2="width" :y2="y" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 5" />
+                <line x1="0" :y1="baseline" :x2="width" :y2="baseline" stroke="#94a3b8" stroke-width="1" />
+                <polygon v-if="consumptionFlow.points.length" :points="areaPoints" fill="url(#consumption-area)" />
+                <polyline v-if="consumptionFlow.points.length" :points="linePoints" fill="none" stroke="#e11d48" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
                 <g v-for="(point, index) in consumptionFlow.points" :key="point.date">
-                    <circle :cx="pointX(index)" :cy="pointY(point.realized)" r="3.5" fill="#334155"><title>{{ formatDate(point.date) }} — gasto {{ formatMoney(point.realized) }}</title></circle>
+                    <circle :cx="pointX(index)" :cy="pointY(point.realized)" r="4" fill="#f59e0b" stroke="#ffffff" stroke-width="1.5"><title>{{ formatDate(point.date) }} — gasto {{ formatMoney(point.realized) }}</title></circle>
                 </g>
                 <text v-for="label in labels" :key="label.index" :x="label.index * slotWidth + slotWidth / 2" y="169" text-anchor="middle" fill="#64748b" font-size="11">{{ formatDate(label.date) }}</text>
             </svg>
