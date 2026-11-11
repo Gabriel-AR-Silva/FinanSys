@@ -309,6 +309,20 @@ class ManageNfcRecords
         });
     }
 
+    public function deletePayment(User $user, int $company, string $sale, string $payment): void
+    {
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($sale, $payment): array {
+            $saleIndex = $this->indexOrFail($payload['sales'], $sale);
+            $this->indexOrFail($payload['sales'][$saleIndex]['payments'], $payment);
+            $payload['sales'][$saleIndex]['payments'] = array_values(array_filter(
+                $payload['sales'][$saleIndex]['payments'],
+                fn (array $item): bool => $item['id'] !== strtolower($payment),
+            ));
+
+            return $payload;
+        });
+    }
+
     public function deletePlate(User $user, int $company, string $sale, string $plate): void
     {
         $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($sale, $plate): array {

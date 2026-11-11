@@ -271,6 +271,28 @@ class NfcWorkspaceTest extends TestCase
             ->where('companies.0.sales.0.plates.0.defective', true));
     }
 
+    public function test_payment_deletion_restores_outstanding_balance_and_audits(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-11T15:00:00Z'));
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $sale = $this->createSale($company, [
+            'sold_on' => '2026-11-10',
+            'payments' => [['method' => 'pix', 'amount_cents' => 3000]],
+        ]);
+        $payment = $company->fresh()->payload['sales'][0]['payments'][0];
+
+        $this->delete(route('nfc.payments.destroy', [
+            'company' => $company->id, 'sale' => $sale['id'], 'payment' => $payment['id'],
+        ]))->assertRedirect(route('nfc.index'));
+
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('summary.received_cents', 0)
+            ->where('summary.outstanding_cents', 10000)
+            ->has('companies.0.sales.0.payments', 0)
+            ->where('history.0.event', 'updated'));
+    }
+
     public function test_deletion_is_audited_and_does_not_expose_removed_data(): void
     {
         $owner = User::factory()->create();

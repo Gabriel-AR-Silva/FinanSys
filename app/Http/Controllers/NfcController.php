@@ -203,6 +203,13 @@ class NfcController extends Controller
         return $this->redirectToDashboard($request);
     }
 
+    public function deletePayment(Request $request, ManageNfcRecords $records, int $company, string $sale, string $payment): RedirectResponse
+    {
+        $records->deletePayment($this->owner($request), $company, $sale, $payment);
+
+        return $this->redirectToDashboard($request);
+    }
+
     public function deletePlate(Request $request, ManageNfcRecords $records, int $company, string $sale, string $plate): RedirectResponse
     {
         $records->deletePlate($this->owner($request), $company, $sale, $plate);

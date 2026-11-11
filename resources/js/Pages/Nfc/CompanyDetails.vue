@@ -77,7 +77,10 @@ function destroy(kind, context = {}) {
                             {{ sale.warranty_status === 'active' ? 'Em garantia até' : 'Garantia encerrada em' }} {{ date(sale.warranty_until) }}
                         </p>
                         <ul v-if="sale.payments.length" class="flex flex-wrap gap-2" aria-label="Pagamentos">
-                            <li v-for="payment in sale.payments" :key="payment.id" class="nfc-badge nfc-info">{{ paymentMethods[payment.method] }} · {{ money(payment.amount_cents) }}</li>
+                            <li v-for="payment in sale.payments" :key="payment.id" class="nfc-badge nfc-info flex items-center gap-2">
+                                {{ paymentMethods[payment.method] }} · {{ money(payment.amount_cents) }}
+                                <button type="button" class="font-semibold underline" :aria-label="'Excluir pagamento de ' + money(payment.amount_cents)" @click="destroy('payment', { saleId: sale.id, paymentId: payment.id })">Excluir</button>
+                            </li>
                         </ul>
                         <div class="flex flex-wrap gap-2">
                             <button type="button" class="nfc-button" @click="edit('sale', { saleId: sale.id, unitId: unit.id })">Editar venda</button>

@@ -161,6 +161,7 @@ function destroy(kind, context = {}) {
         unit: ['nfc.units.destroy', { company: context.companyId, unit: context.unitId }],
         sale: ['nfc.sales.destroy', { company: context.companyId, sale: context.saleId }],
         plate: ['nfc.plates.destroy', { company: context.companyId, sale: context.saleId, plate: context.plateId }],
+        payment: ['nfc.payments.destroy', { company: context.companyId, sale: context.saleId, payment: context.paymentId }],
         batch: ['nfc.production.destroy', { production: context.batchId }],
     };
     const target = routeNames[kind];
