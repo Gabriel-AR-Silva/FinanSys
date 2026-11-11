@@ -30,7 +30,7 @@ class NfcController extends Controller
         return Inertia::render('Nfc/Index', [
             ...$query->forUser($this->owner($request)),
             'shared' => $shared,
-            'share_token' => $shared ? (string) $request->route('token') : null,
+            'share_token' => $shared ? (string) $request->attributes->get('nfc_share_token') : null,
             'created_share_url' => $shared ? null : $request->session()->get('nfc_share_url'),
             'share_links_enabled' => ! $shared && $linksAvailable,
             'share_links' => $shared || ! $linksAvailable ? [] : NfcAccessLink::query()
@@ -239,7 +239,7 @@ class NfcController extends Controller
     private function redirectToDashboard(Request $request): RedirectResponse
     {
         return $request->attributes->has('nfc_share_owner')
-            ? to_route('nfc.share.index', ['token' => $request->route('token')])
+            ? to_route('nfc.share.index', ['token' => $request->attributes->get('nfc_share_token')])
             : to_route('nfc.index');
     }
 
