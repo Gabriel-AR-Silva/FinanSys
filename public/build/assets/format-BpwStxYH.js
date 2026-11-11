@@ -1,0 +1,1 @@
+var e=new Intl.NumberFormat(`pt-BR`,{style:`currency`,currency:`BRL`}),t=new Intl.DateTimeFormat(`pt-BR`,{timeZone:`UTC`}),n={cash:`Dinheiro`,pix:`Pix`,debit:`Débito`,credit:`Crédito`},r={standard:`Normal`,custom:`Personalizada`};function i(t){return e.format(Number(t)/100)}function a(e){return e?t.format(new Date(`${e}T12:00:00Z`)):`—`}export{r as i,i as n,n as r,a as t};

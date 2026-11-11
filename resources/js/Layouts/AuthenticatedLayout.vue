@@ -18,6 +18,7 @@ import {
     LogOut,
     Menu,
     Moon,
+    Nfc,
     PanelLeftClose,
     PanelLeftOpen,
     PiggyBank,
@@ -59,6 +60,7 @@ const sections = [
         { label: 'Patrimônio', route: 'patrimony.index', icon: Landmark, disabled: true, badge: 'Pausado' },
     ] },
     { label: 'Organização', items: [{ label: 'Categorias', route: 'categories.index', icon: Tags }] },
+    { label: 'Plugins', items: [{ label: 'Plaquinhas NFC', route: 'nfc.index', icon: Nfc }] },
 ];
 
 const tools = computed(() => [
