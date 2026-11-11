@@ -24,6 +24,7 @@ use App\Http\Controllers\LedgerEntryController;
 use App\Http\Controllers\LedgerEntryCorrectionController;
 use App\Http\Controllers\LedgerEntryReversalController;
 use App\Http\Controllers\NfcController;
+use App\Http\Controllers\NfcShareLinkController;
 use App\Http\Controllers\OfxCardCreditPixConfirmationController;
 use App\Http\Controllers\OfxImportConfirmationController;
 use App\Http\Controllers\OfxImportController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\RestoredLedgerEntryController;
 use App\Http\Controllers\RestoredPocketController;
 use App\Http\Controllers\TransferController;
 use App\Http\Middleware\EnsureNfcRecordsAvailable;
+use App\Http\Middleware\ResolveNfcShareToken;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -52,7 +54,34 @@ Route::get('/dashboard', DashboardController::class)
     ->middleware('auth')
     ->name('dashboard');
 
+Route::prefix('plaquinhas-nfc/compartilhado/{token}')->name('nfc.share.')->middleware([ResolveNfcShareToken::class, EnsureNfcRecordsAvailable::class, 'throttle:60,1'])->controller(NfcController::class)->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::post('/empresas', 'storeCompany')->name('companies.store');
+    Route::patch('/empresas/{company}', 'updateCompany')->whereNumber('company')->name('companies.update');
+    Route::post('/empresas/{company}/unidades', 'storeUnit')->whereNumber('company')->name('units.store');
+    Route::patch('/empresas/{company}/unidades/{unit}', 'updateUnit')->whereNumber('company')->whereUuid('unit')->name('units.update');
+    Route::post('/empresas/{company}/vendas', 'storeSale')->whereNumber('company')->name('sales.store');
+    Route::patch('/empresas/{company}/vendas/{sale}', 'updateSale')->whereNumber('company')->whereUuid('sale')->name('sales.update');
+    Route::post('/empresas/{company}/vendas/{sale}/pagamentos', 'storePayment')->whereNumber('company')->whereUuid('sale')->name('payments.store');
+    Route::patch('/empresas/{company}/vendas/{sale}/plaquinhas/{plate}', 'updatePlate')->whereNumber('company')->whereUuid(['sale', 'plate'])->name('plates.update');
+    Route::post('/producao', 'storeProduction')->name('production.store');
+    Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
+    Route::post('/avisos', 'storeNotice')->name('notices.store');
+    Route::patch('/avisos/{notice}/resolver', 'resolveNotice')->whereNumber('notice')->name('notices.resolve');
+    Route::delete('/empresas/{company}', 'deleteCompany')->whereNumber('company')->name('companies.destroy');
+    Route::delete('/empresas/{company}/unidades/{unit}', 'deleteUnit')->whereNumber('company')->whereUuid('unit')->name('units.destroy');
+    Route::delete('/empresas/{company}/vendas/{sale}', 'deleteSale')->whereNumber('company')->whereUuid('sale')->name('sales.destroy');
+    Route::delete('/empresas/{company}/vendas/{sale}/pagamentos/{payment}', 'deletePayment')->whereNumber('company')->whereUuid(['sale', 'payment'])->name('payments.destroy');
+    Route::delete('/empresas/{company}/vendas/{sale}/plaquinhas/{plate}', 'deletePlate')->whereNumber('company')->whereUuid(['sale', 'plate'])->name('plates.destroy');
+    Route::delete('/producao/{production}', 'deleteProduction')->whereNumber('production')->name('production.destroy');
+    Route::delete('/avisos/{notice}', 'deleteNotice')->whereNumber('notice')->name('notices.destroy');
+});
+
 Route::middleware('auth')->group(function () {
+    Route::post('/plaquinhas-nfc/links', [NfcShareLinkController::class, 'store'])
+        ->middleware([EnsureNfcRecordsAvailable::class, 'throttle:5,1'])->name('nfc.share-links.store');
+    Route::delete('/plaquinhas-nfc/links/{link}', [NfcShareLinkController::class, 'destroy'])
+        ->whereNumber('link')->middleware(EnsureNfcRecordsAvailable::class)->name('nfc.share-links.destroy');
     Route::prefix('plaquinhas-nfc')->name('nfc.')->middleware(EnsureNfcRecordsAvailable::class)->controller(NfcController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::post('/empresas', 'storeCompany')->name('companies.store');
@@ -67,6 +96,13 @@ Route::middleware('auth')->group(function () {
         Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
         Route::post('/avisos', 'storeNotice')->name('notices.store');
         Route::patch('/avisos/{notice}/resolver', 'resolveNotice')->whereNumber('notice')->name('notices.resolve');
+        Route::delete('/empresas/{company}', 'deleteCompany')->whereNumber('company')->name('companies.destroy');
+        Route::delete('/empresas/{company}/unidades/{unit}', 'deleteUnit')->whereNumber('company')->whereUuid('unit')->name('units.destroy');
+        Route::delete('/empresas/{company}/vendas/{sale}', 'deleteSale')->whereNumber('company')->whereUuid('sale')->name('sales.destroy');
+        Route::delete('/empresas/{company}/vendas/{sale}/pagamentos/{payment}', 'deletePayment')->whereNumber('company')->whereUuid(['sale', 'payment'])->name('payments.destroy');
+        Route::delete('/empresas/{company}/vendas/{sale}/plaquinhas/{plate}', 'deletePlate')->whereNumber('company')->whereUuid(['sale', 'plate'])->name('plates.destroy');
+        Route::delete('/producao/{production}', 'deleteProduction')->whereNumber('production')->name('production.destroy');
+        Route::delete('/avisos/{notice}', 'deleteNotice')->whereNumber('notice')->name('notices.destroy');
     });
 
     Route::get('/orcamento-diario', [DailyBudgetController::class, 'edit'])->name('daily-budgets.edit');
