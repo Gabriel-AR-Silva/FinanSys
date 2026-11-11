@@ -40,6 +40,59 @@ class NfcDashboardQuery
             ];
         });
 
+        $manufacturers = $records->where('kind', NfcRecord::MANUFACTURER)
+            ->map(function (NfcRecord $record) use ($production, $companies): array {
+                $manufacturerBatches = $production->filter(fn (array $batch): bool => (int) ($batch['manufacturer_id'] ?? 0) === $record->id);
+                $batchIds = $manufacturerBatches->pluck('id')->all();
+                $linkedUnits = $companies->flatMap(fn (array $company): array => array_map(
+                    fn (array $unit): array => [
+                        'company_id' => $company['id'],
+                        'company_name' => $company['name'],
+                        'unit_id' => $unit['id'],
+                        'unit_name' => $unit['name'],
+                        'batch_id' => $unit['production_id'],
+                    ],
+                    array_values(array_filter($company['units'], fn (array $unit): bool => in_array($unit['production_id'] ?? null, $batchIds, true))),
+                ))->values();
+                $unitKeys = $linkedUnits->map(fn (array $unit): string => $unit['company_id'].':'.$unit['unit_id'])->all();
+                $sales = $companies->flatMap(fn (array $company): array => array_values(array_filter(
+                    $company['sales'],
+                    fn (array $sale): bool => in_array($company['id'].':'.$sale['unit_id'], $unitKeys, true),
+                )));
+                $plates = $sales->flatMap(fn (array $sale): array => $sale['plates']);
+                $images = array_map(fn (array $image): array => [
+                    'id' => $image['id'],
+                    'name' => $image['name'],
+                    'mime' => $image['mime'],
+                    'size' => $image['size'],
+                ], $record->payload['images'] ?? []);
+
+                return [
+                    'id' => $record->id,
+                    'name' => $record->payload['name'],
+                    'phone' => $record->payload['phone'] ?? null,
+                    'notes' => $record->payload['notes'] ?? null,
+                    'images' => $images,
+                    'batches' => $manufacturerBatches->values()->all(),
+                    'linked_units' => $linkedUnits->all(),
+                    'statistics' => [
+                        'batches' => $manufacturerBatches->count(),
+                        'manufactured' => $manufacturerBatches->where('status', 'completed')->sum('quantity'),
+                        'in_production' => $manufacturerBatches->where('status', 'in_progress')->sum('quantity'),
+                        'production_cost_cents' => $manufacturerBatches->sum('cost_cents'),
+                        'unknown_cost_batches' => $manufacturerBatches->whereNull('cost_cents')->count(),
+                        'units' => $linkedUnits->count(),
+                        'sold' => $plates->count(),
+                        'defective' => $plates->where('defective', true)->count(),
+                        'estimated_loss_cents' => $plates->where('defective', true)->sum('estimated_loss_cents'),
+                        'sales_total_cents' => $sales->sum('total_cents'),
+                        'received_cents' => $sales->sum('paid_cents'),
+                        'outstanding_cents' => $sales->sum('balance_cents'),
+                        'pending_sales' => $sales->filter(fn (array $sale): bool => $sale['balance_cents'] > 0)->count(),
+                    ],
+                ];
+            })->values();
+
         $sales = $companies->flatMap(fn (array $company): array => $company['sales']);
         $plates = $sales->flatMap(fn (array $sale): array => $sale['plates']);
 
@@ -64,6 +117,7 @@ class NfcDashboardQuery
             ],
             'companies' => $companies->all(),
             'production' => $production->all(),
+            'manufacturers' => $manufacturers->all(),
             'notices' => $this->notices($records->where('kind', NfcRecord::NOTICE), $companies->keyBy('id')),
             'warranty_notices' => $this->warrantyNotices($companies, $today),
             'history' => $records->where('kind', NfcRecord::HISTORY)->take(150)->map(function (NfcRecord $record): array {
