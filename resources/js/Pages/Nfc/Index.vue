@@ -2,7 +2,7 @@
 import Modal from '@/Components/Modal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import NfcSharedLayout from '@/Layouts/NfcSharedLayout.vue';
-import { Head, router } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, X } from '@lucide/vue';
 import { computed, nextTick, ref, watch } from 'vue';
 import CompanyDetails from './CompanyDetails.vue';
@@ -34,6 +34,10 @@ const filters = [
 ];
 const filter = ref('all');
 const search = ref('');
+const productionSearch = ref('');
+const activeRegistryTab = ref('companies');
+const page = usePage();
+const authenticatedUser = computed(() => page.props.auth?.user ?? null);
 const dialog = ref(null);
 const dialogHeading = ref(null);
 const busy = ref(false);
@@ -44,7 +48,7 @@ const nfcRoute = (name, params = {}) => props.shared
     : route(name, params);
 
 function createShare() {
-    if (shareBusy.value) return;
+    if (shareBusy.value || props.shared || !props.share_links_enabled || !authenticatedUser.value) return;
     router.post(route('nfc.share-links.store'), {}, {
         preserveScroll: true,
         onStart: () => { shareBusy.value = true; },
@@ -53,7 +57,7 @@ function createShare() {
 }
 
 function revokeShare(link) {
-    if (shareBusy.value || !window.confirm('Revogar este link? Quem o recebeu perderá o acesso imediatamente.')) return;
+    if (shareBusy.value || props.shared || !authenticatedUser.value || !window.confirm('Revogar este link? Quem o recebeu perderá o acesso imediatamente.')) return;
     router.delete(route('nfc.share-links.destroy', { link: link.id }), {
         preserveScroll: true,
         onStart: () => { shareBusy.value = true; },
@@ -103,6 +107,24 @@ const unitRows = computed(() => companiesShown.value.flatMap(company => company.
         outstanding: sales.reduce((sum, sale) => sum + sale.balance_cents, 0),
     };
 })));
+const productionShown = computed(() => {
+    const text = productionSearch.value.trim().toLocaleLowerCase('pt-BR');
+    return props.production.map(batch => ({
+        ...batch,
+        linkedUnits: props.companies.flatMap(company =>
+            company.units.filter(unit => unit.production_id === batch.id)
+                .map(unit => `${company.name} · ${unit.name}`)),
+    })).filter(batch => !text || [
+        batch.id,
+        batch.initial ? 'Lote inicial' : 'Lote',
+        batch.produced_on,
+        batch.quantity,
+        batch.customized_quantity,
+        batch.cost_cents,
+        batch.status === 'in_progress' ? 'Em fabricação' : 'Fabricado',
+        ...batch.linkedUnits,
+    ].some(value => String(value ?? '').toLocaleLowerCase('pt-BR').includes(text)));
+});
 const noticeCount = computed(() => props.notices.filter(notice => !notice.resolved_at).length + props.warranty_notices.length);
 const hasInitialBatch = computed(() => props.production.some(batch => batch.initial));
 
@@ -124,6 +146,14 @@ const metrics = computed(() => {
         { label: 'Arrecadado', value: money(totals.received_cents), tone: 'nfc-success' },
         { label: 'A receber', value: money(totals.outstanding_cents), tone: 'nfc-warning' },
     ];
+});
+
+const metricPages = computed(() => {
+    const pages = [];
+    for (let index = 0; index < metrics.value.length; index += 3) {
+        pages.push(metrics.value.slice(index, index + 3));
+    }
+    return pages;
 });
 
 const company = computed(() => props.companies.find(item => item.id === dialog.value?.companyId));
@@ -198,7 +228,7 @@ function closeDialog() {
 }
 
 watch(() => props.created_share_url, value => {
-    if (value && !props.shared) dialog.value = { kind: 'share' };
+    if (value && !props.shared && props.share_links_enabled && authenticatedUser.value) dialog.value = { kind: 'share' };
 }, { immediate: true });
 
 watch(dialog, async (current, previous) => {
@@ -216,7 +246,7 @@ watch(dialog, async (current, previous) => {
             <header class="flex flex-wrap items-center justify-between gap-3">
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC</h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
-                    <button v-if="!shared && share_links_enabled" type="button" class="nfc-button" @click="dialog = { kind: 'share' }">Compartilhar</button>
+                    <button v-if="!shared && share_links_enabled && authenticatedUser" type="button" class="nfc-button" @click="dialog = { kind: 'share' }">Compartilhar</button>
                     <button type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
                         <Bell :size="18" aria-hidden="true" />
@@ -230,15 +260,49 @@ watch(dialog, async (current, previous) => {
 
             <p v-if="schema_pending" class="nfc-panel nfc-warning p-4 text-sm" role="status">Aplique a migration de Plaquinhas NFC para liberar os cadastros.</p>
 
-            <dl v-else aria-label="Indicadores das plaquinhas NFC" class="flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain pb-3 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 md:grid-cols-4 md:gap-3">
-                <div v-for="metric in metrics" :key="metric.label" class="nfc-panel flex w-[min(78vw,19rem)] shrink-0 snap-start flex-col gap-1.5 p-3 sm:w-auto sm:shrink sm:p-4">
-                    <dt class="nfc-muted text-xs font-medium sm:text-sm">{{ metric.label }}</dt>
-                    <dd class="self-start text-lg font-semibold tabular-nums [overflow-wrap:anywhere] sm:text-2xl" :class="metric.tone && `${metric.tone} rounded-lg px-1.5`">{{ metric.value }}</dd>
-                    <dd v-if="metric.detail" class="nfc-muted text-xs leading-relaxed">{{ metric.detail }}</dd>
-                </div>
-            </dl>
+            <div v-else class="flex min-w-0 flex-col gap-1.5">
+                <dl class="nfc-scrollbar flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-2 sm:hidden"
+                    aria-label="Indicadores das plaquinhas NFC, em grupos de até três" tabindex="0">
+                    <div v-for="(pageMetrics, index) in metricPages" :key="index"
+                        class="grid w-full min-w-full shrink-0 snap-start grid-cols-3 items-stretch gap-1.5"
+                        role="group" :aria-label="`Indicadores ${index * 3 + 1} a ${index * 3 + pageMetrics.length}`">
+                        <div v-for="metric in pageMetrics" :key="metric.label" class="nfc-panel flex min-w-0 flex-col gap-1 px-2 py-2.5">
+                            <dt class="nfc-muted text-[10px] font-medium leading-tight">{{ metric.label }}</dt>
+                            <dd class="min-w-0 self-start text-sm font-semibold leading-snug tabular-nums [overflow-wrap:anywhere]"
+                                :class="metric.tone && `${metric.tone} rounded-md px-1`">{{ metric.value }}</dd>
+                            <dd v-if="metric.detail" class="nfc-muted text-[10px] leading-tight [overflow-wrap:anywhere]">{{ metric.detail }}</dd>
+                        </div>
+                    </div>
+                </dl>
+                <p v-if="metricPages.length > 1" class="nfc-muted text-[11px] sm:hidden">Deslize os indicadores para os lados.</p>
+                <dl aria-label="Indicadores das plaquinhas NFC"
+                    class="hidden min-w-0 grid-cols-2 gap-2 sm:grid md:grid-cols-4 md:gap-3">
+                    <div v-for="metric in metrics" :key="metric.label" class="nfc-panel flex min-w-0 flex-col gap-1 p-3">
+                        <dt class="nfc-muted text-xs font-medium leading-tight">{{ metric.label }}</dt>
+                        <dd class="min-w-0 self-start text-lg font-semibold leading-snug tabular-nums [overflow-wrap:anywhere]"
+                            :class="metric.tone && `${metric.tone} rounded-md px-1.5`">{{ metric.value }}</dd>
+                        <dd v-if="metric.detail" class="nfc-muted text-[11px] leading-snug">{{ metric.detail }}</dd>
+                    </div>
+                </dl>
+            </div>
 
-            <section v-if="!schema_pending" aria-labelledby="nfc-companies" class="flex min-w-0 flex-col gap-3">
+            <div v-if="!schema_pending" role="tablist" aria-label="Empresas e fabricação NFC"
+                class="nfc-panel flex w-full min-w-0 gap-1 p-1 sm:w-fit">
+                <button id="nfc-tab-companies" type="button" role="tab" aria-controls="nfc-panel-companies"
+                    :aria-selected="activeRegistryTab === 'companies'" :aria-pressed="activeRegistryTab === 'companies'"
+                    class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'companies'">
+                    <Building2 :size="16" aria-hidden="true" /> Empresas
+                    <span class="nfc-badge nfc-neutral tabular-nums">{{ companies.length }}</span>
+                </button>
+                <button id="nfc-tab-production" type="button" role="tab" aria-controls="nfc-panel-production"
+                    :aria-selected="activeRegistryTab === 'production'" :aria-pressed="activeRegistryTab === 'production'"
+                    class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'production'">
+                    <Factory :size="16" aria-hidden="true" /> Fabricação
+                    <span class="nfc-badge nfc-neutral tabular-nums">{{ production.length }}</span>
+                </button>
+            </div>
+
+            <section v-if="!schema_pending" v-show="activeRegistryTab === 'companies'" id="nfc-panel-companies" role="tabpanel" aria-labelledby="nfc-tab-companies" class="flex min-w-0 flex-col gap-3">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 id="nfc-companies" class="flex items-center gap-2 text-lg font-semibold"><Building2 :size="19" aria-hidden="true" /> Empresas</h2>
                     <div class="flex flex-wrap gap-1.5" aria-label="Filtrar empresas" role="group">
@@ -249,7 +313,7 @@ watch(dialog, async (current, previous) => {
                     <input v-model.trim="search" type="search" class="nfc-control" placeholder="Digite para filtrar..." aria-label="Buscar no módulo NFC" />
                 </label>
                 <div v-if="unitRows.length" class="flex flex-col gap-3">
-                    <ul class="flex flex-col gap-2 md:hidden" aria-label="Empresas e unidades NFC">
+                    <ul class="nfc-scrollbar flex max-h-[min(58dvh,34rem)] flex-col gap-2 overflow-y-auto overscroll-contain pr-1 md:hidden" aria-label="Empresas e unidades NFC">
                         <li v-for="row in unitRows" :key="row.companyId + '-' + row.id" class="nfc-panel min-w-0">
                             <button type="button" class="nfc-row flex w-full min-w-0 flex-col items-start gap-2 rounded-xl p-4 text-left" @click="showCompany(row.companyId)">
                                 <span class="flex w-full items-center justify-between gap-2 font-semibold">{{ row.companyName }} <ChevronRight :size="16" aria-hidden="true" /></span>
@@ -259,9 +323,9 @@ watch(dialog, async (current, previous) => {
                             </button>
                         </li>
                     </ul>
-                    <div class="nfc-panel hidden min-w-0 overflow-x-auto md:block">
+                    <div class="nfc-panel nfc-scrollbar hidden max-h-[min(58dvh,34rem)] min-w-0 overflow-auto overscroll-contain md:block">
                         <table class="w-full min-w-[780px] text-left text-sm">
-                            <thead class="nfc-muted nfc-rule border-b text-xs">
+                            <thead class="nfc-muted nfc-rule sticky top-0 z-10 border-b bg-[var(--fs-surface)] text-xs">
                                 <tr><th class="px-4 py-3">Empresa / CPF-CNPJ</th><th class="px-3 py-3">Unidade</th><th class="px-3 py-3">Lote / Status</th><th class="px-3 py-3 text-right">Vendidas</th><th class="px-3 py-3 text-right">Valor</th><th class="px-3 py-3 text-right">Pago</th><th class="px-4 py-3 text-right">A receber</th></tr>
                             </thead>
                             <tbody>
@@ -281,7 +345,7 @@ watch(dialog, async (current, previous) => {
                 <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ companies.length ? 'Nenhuma empresa neste filtro.' : 'Nenhuma empresa cadastrada.' }}</p>
             </section>
 
-            <section v-if="!schema_pending" aria-labelledby="nfc-production" class="flex min-w-0 flex-col gap-3">
+            <section v-if="!schema_pending" v-show="activeRegistryTab === 'production'" id="nfc-panel-production" role="tabpanel" aria-labelledby="nfc-tab-production" class="flex min-w-0 flex-col gap-3">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 id="nfc-production" class="flex items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricação</h2>
                     <div class="flex flex-wrap gap-2">
@@ -289,12 +353,16 @@ watch(dialog, async (current, previous) => {
                         <button type="button" class="nfc-button" @click="edit('batch')"><Plus :size="17" aria-hidden="true" /> Novo lote</button>
                     </div>
                 </div>
-                <ul v-if="production.length" class="nfc-panel min-w-0">
-                    <li v-for="item in production" :key="item.id" class="nfc-rule flex min-w-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0">
+                <label class="nfc-field max-w-xl">Buscar lote, data, status, empresa ou unidade
+                    <input v-model.trim="productionSearch" type="search" class="nfc-control" placeholder="Digite para filtrar a fabricação..." aria-label="Buscar lotes de fabricação" />
+                </label>
+                <ul v-if="productionShown.length" class="nfc-panel nfc-scrollbar max-h-[min(58dvh,34rem)] min-w-0 overflow-y-auto overscroll-contain">
+                    <li v-for="item in productionShown" :key="item.id" class="nfc-rule flex min-w-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0">
                         <div class="min-w-0">
                             <p class="text-sm font-semibold">{{ item.initial ? 'Lote inicial' : item.produced_on ? date(item.produced_on) : 'Lote sem data' }} · {{ item.quantity }} plaquinhas</p>
                             <span class="nfc-badge" :class="item.status === 'in_progress' ? 'nfc-warning' : 'nfc-success'">{{ item.status === 'in_progress' ? 'Em fabricação' : 'Fabricado' }}</span>
                             <p class="nfc-muted text-sm">{{ item.customized_quantity === null ? 'Tipos a informar' : `${item.quantity - item.customized_quantity} normais · ${item.customized_quantity} personalizadas` }}</p>
+                            <p v-if="item.linkedUnits.length" class="nfc-muted mt-1 break-words text-xs">Vinculado a: {{ item.linkedUnits.join('; ') }}</p>
                         </div>
                         <span class="nfc-muted text-sm tabular-nums">{{ item.cost_cents === null ? 'Custo a informar' : money(item.cost_cents) }}</span>
                         <div class="flex flex-wrap gap-2">
@@ -303,7 +371,7 @@ watch(dialog, async (current, previous) => {
                         </div>
                     </li>
                 </ul>
-                <p v-else class="nfc-panel nfc-muted p-4 text-sm">Nenhuma fabricação registrada.</p>
+                <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ production.length ? 'Nenhum lote encontrado nesta busca.' : 'Nenhuma fabricação registrada.' }}</p>
             </section>
         </div>
 
@@ -316,7 +384,7 @@ watch(dialog, async (current, previous) => {
                 </header>
 
                 <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
-                <div v-else-if="dialog.kind === 'share' && !shared" class="flex min-w-0 flex-col gap-4">
+                <div v-else-if="dialog.kind === 'share' && !shared && share_links_enabled && authenticatedUser" class="flex min-w-0 flex-col gap-4">
                     <p class="nfc-muted text-sm">Links individuais válidos por sete dias. Quem possuir um link poderá consultar e alterar somente os dados do módulo NFC, incluindo exclusões. Revogue assim que não precisar mais.</p>
                     <button type="button" class="nfc-button nfc-primary self-start" :disabled="shareBusy" @click="createShare">Gerar novo link</button>
                     <div v-if="created_share_url" class="nfc-panel flex min-w-0 flex-col gap-2 p-3">
