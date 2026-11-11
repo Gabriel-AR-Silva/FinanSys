@@ -13,6 +13,8 @@ class NfcRecord extends Model
 
     public const PRODUCTION = 'production';
 
+    public const MANUFACTURER = 'manufacturer';
+
     public const INITIAL_PRODUCTION = 'initial_production';
 
     public const NOTICE = 'notice';

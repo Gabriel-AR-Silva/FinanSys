@@ -6,6 +6,7 @@ import { Head, router, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, X } from '@lucide/vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import CompanyDetails from './CompanyDetails.vue';
+import ManufacturerDetails from './ManufacturerDetails.vue';
 import Editor from './Editor.vue';
 import Notices from './Notices.vue';
 import { date, money } from './format';
@@ -22,6 +23,7 @@ const props = defineProps({
     summary: { type: Object, default: () => ({}) },
     companies: { type: Array, default: () => [] },
     production: { type: Array, default: () => [] },
+    manufacturers: { type: Array, default: () => [] },
     notices: { type: Array, default: () => [] },
     warranty_notices: { type: Array, default: () => [] },
     history: { type: Array, default: () => [] },
@@ -35,6 +37,7 @@ const filters = [
 const filter = ref('all');
 const search = ref('');
 const productionSearch = ref('');
+const manufacturerSearch = ref('');
 const activeRegistryTab = ref('companies');
 const page = usePage();
 const authenticatedUser = computed(() => page.props.auth?.user ?? null);
@@ -148,6 +151,13 @@ const productionShown = computed(() => {
         ...batch.linkedUnits,
     ].some(value => String(value ?? '').toLocaleLowerCase('pt-BR').includes(text)));
 });
+const manufacturersShown = computed(() => {
+    const text = manufacturerSearch.value.trim().toLocaleLowerCase('pt-BR');
+    return props.manufacturers.filter(item => !text || [
+        item.name, item.phone, item.notes,
+        ...item.linked_units.map(unit => unit.company_name + ' ' + unit.unit_name),
+    ].some(value => String(value ?? '').toLocaleLowerCase('pt-BR').includes(text)));
+});
 const noticeCount = computed(() => props.notices.filter(notice => !notice.resolved_at).length + props.warranty_notices.length);
 const hasInitialBatch = computed(() => props.production.some(batch => batch.initial));
 
@@ -184,6 +194,7 @@ const sale = computed(() => company.value?.sales.find(item => item.id === dialog
 const unit = computed(() => company.value?.units.find(item => item.id === dialog.value?.unitId));
 const plate = computed(() => sale.value?.plates.find(item => item.id === dialog.value?.plateId));
 const batch = computed(() => props.production.find(item => item.id === dialog.value?.batchId));
+const manufacturer = computed(() => props.manufacturers.find(item => item.id === dialog.value?.manufacturerId));
 
 const titles = {
     notices: 'Avisos',
@@ -196,6 +207,8 @@ const titles = {
 const title = computed(() => {
     switch (dialog.value?.kind) {
         case 'company': return company.value?.name;
+        case 'manufacturer': return manufacturer.value?.name;
+        case 'manufacturer-form': return manufacturer.value ? 'Editar fabricante' : 'Novo fabricante';
         case 'company-form': return company.value ? 'Editar empresa' : 'Nova empresa';
         case 'unit': return unit.value ? 'Editar unidade' : 'Nova unidade';
         case 'sale': return sale.value ? 'Editar venda' : 'Nova venda';
@@ -205,7 +218,7 @@ const title = computed(() => {
 });
 
 const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído', revoked: 'Revogado' };
-const historyKind = { company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial', share_link: 'Link compartilhado' };
+const historyKind = { manufacturer: 'Fabricante', company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial', share_link: 'Link compartilhado' };
 const datetime = text => new Date(text).toLocaleString('pt-BR');
 function destroy(kind, context = {}) {
     if (busy.value) return;
@@ -216,6 +229,7 @@ function destroy(kind, context = {}) {
         plate: ['nfc.plates.destroy', { company: context.companyId, sale: context.saleId, plate: context.plateId }],
         payment: ['nfc.payments.destroy', { company: context.companyId, sale: context.saleId, payment: context.paymentId }],
         batch: ['nfc.production.destroy', { production: context.batchId }],
+        manufacturer: ['nfc.manufacturers.destroy', { manufacturer: context.manufacturerId }],
     };
     const target = routeNames[kind];
     if (!target || !window.confirm('Excluir este registro? A alteração ficará no histórico e poderá afetar os indicadores.')) return;
@@ -224,7 +238,7 @@ function destroy(kind, context = {}) {
         onStart: () => { busy.value = true; },
         onFinish: () => { busy.value = false; },
         onSuccess: () => {
-            if (kind === 'company') dialog.value = null;
+            if (kind === 'company' || kind === 'manufacturer') dialog.value = null;
             notify({ message: 'Registro excluído. Listas e indicadores atualizados.' });
         },
         onError: errors => reportError(errors, 'Não foi possível excluir este registro. Confira os vínculos e tente novamente.'),
@@ -249,6 +263,10 @@ function saved(message = 'Registro salvo.') {
         filter.value = 'all';
         search.value = '';
         activeRegistryTab.value = 'companies';
+    }
+    if (dialog.value?.kind === 'manufacturer-form') {
+        manufacturerSearch.value = '';
+        activeRegistryTab.value = 'manufacturers';
     }
     if (dialog.value?.kind === 'batch') {
         productionSearch.value = '';
@@ -329,8 +347,8 @@ watch(dialog, async (current, previous) => {
                 </dl>
             </div>
 
-            <div v-if="!schema_pending" role="tablist" aria-label="Empresas e fabricação NFC"
-                class="nfc-panel flex w-full min-w-0 gap-1 p-1 sm:w-fit">
+            <div v-if="!schema_pending" role="tablist" aria-label="Empresas, fabricação e fabricantes NFC"
+                class="nfc-panel flex w-full min-w-0 flex-wrap gap-1 p-1 sm:w-fit">
                 <button id="nfc-tab-companies" type="button" role="tab" aria-controls="nfc-panel-companies"
                     :aria-selected="activeRegistryTab === 'companies'" :aria-pressed="activeRegistryTab === 'companies'"
                     class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'companies'">
@@ -342,6 +360,12 @@ watch(dialog, async (current, previous) => {
                     class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'production'">
                     <Factory :size="16" aria-hidden="true" /> Fabricação
                     <span class="nfc-badge nfc-neutral tabular-nums">{{ production.length }}</span>
+                </button>
+                <button id="nfc-tab-manufacturers" type="button" role="tab" aria-controls="nfc-panel-manufacturers"
+                    :aria-selected="activeRegistryTab === 'manufacturers'" :aria-pressed="activeRegistryTab === 'manufacturers'"
+                    class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'manufacturers'">
+                    <Factory :size="16" aria-hidden="true" /> Fabricantes
+                    <span class="nfc-badge nfc-neutral tabular-nums">{{ manufacturers.length }}</span>
                 </button>
             </div>
 
@@ -419,6 +443,29 @@ watch(dialog, async (current, previous) => {
                 </ul>
                 <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ production.length ? 'Nenhum lote encontrado nesta busca.' : 'Nenhuma fabricação registrada.' }}</p>
             </section>
+            <section v-if="!schema_pending" v-show="activeRegistryTab === 'manufacturers'" id="nfc-panel-manufacturers" role="tabpanel" aria-labelledby="nfc-tab-manufacturers" class="flex min-w-0 flex-col gap-3">
+                <div class="flex min-w-0 items-center justify-between gap-2">
+                    <h2 class="flex min-w-0 items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricantes</h2>
+                    <button type="button" class="nfc-button nfc-primary shrink-0" @click="edit('manufacturer-form')"><Plus :size="16" aria-hidden="true" /> Novo fabricante</button>
+                </div>
+                <label class="nfc-field max-w-xl">Buscar fabricante, contato ou unidade
+                    <input v-model.trim="manufacturerSearch" type="search" class="nfc-control" placeholder="Digite para filtrar os fabricantes..." aria-label="Buscar fabricantes" />
+                </label>
+                <ul v-if="manufacturersShown.length" class="nfc-panel nfc-scrollbar max-h-[min(58dvh,34rem)] min-w-0 overflow-y-auto overscroll-contain">
+                    <li v-for="item in manufacturersShown" :key="item.id" class="nfc-rule border-b last:border-b-0">
+                        <button type="button" class="nfc-row flex w-full min-w-0 items-center justify-between gap-3 p-4 text-left" @click="dialog = { kind: 'manufacturer', manufacturerId: item.id }">
+                            <span class="flex min-w-0 flex-col gap-1">
+                                <span class="break-words font-semibold">{{ item.name }}</span>
+                                <span class="nfc-muted text-xs">{{ item.phone || 'Sem contato' }} · {{ item.images.length }}/10 imagens</span>
+                                <span class="nfc-muted text-sm">{{ item.statistics.batches }} lotes · {{ item.statistics.manufactured }} fabricadas · {{ item.statistics.units }} unidades</span>
+                                <span v-if="item.statistics.outstanding_cents" class="nfc-badge nfc-warning">A receber nas unidades: {{ money(item.statistics.outstanding_cents) }}</span>
+                            </span>
+                            <ChevronRight :size="18" class="shrink-0" aria-hidden="true" />
+                        </button>
+                    </li>
+                </ul>
+                <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ manufacturers.length ? 'Nenhum fabricante neste filtro.' : 'Nenhum fabricante cadastrado. Cadastre um para anexar imagens e vincular lotes.' }}</p>
+            </section>
         </div>
 
         <Modal class="nfc-dialog" :show="dialog !== null" labelled-by="nfc-dialog-heading" :closeable="!busy" @close="closeDialog">
@@ -430,6 +477,7 @@ watch(dialog, async (current, previous) => {
                 </header>
 
                 <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
+                <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @busy="busy = $event" @feedback="notify" />
                 <div v-else-if="dialog.kind === 'share' && !shared && share_links_enabled && authenticatedUser" class="flex min-w-0 flex-col gap-4">
                     <p class="nfc-muted text-sm">Links individuais válidos por sete dias. Quem possuir um link poderá consultar e alterar somente os dados do módulo NFC, incluindo exclusões. Revogue assim que não precisar mais.</p>
                     <button type="button" class="nfc-button nfc-primary self-start" :disabled="shareBusy" @click="createShare">Gerar novo link</button>
@@ -481,6 +529,8 @@ watch(dialog, async (current, previous) => {
                     :sale="sale"
                     :plate="plate"
                     :batch="batch"
+                    :manufacturer="manufacturer"
+                    :manufacturers="manufacturers"
                     :production="production"
                     :nfc-route="nfcRoute"
                     @cancel="goBack"

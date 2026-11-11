@@ -19,6 +19,76 @@ class ManageNfcRecords
 
     public const PLATE_TYPES = ['standard', 'custom'];
 
+    public function storeManufacturer(User $user, array $data): void
+    {
+        $this->createRecord($user, NfcRecord::MANUFACTURER, $data['operation_id'], [
+            'name' => $data['name'],
+            'phone' => $data['phone'] ?? null,
+            'notes' => $data['notes'] ?? null,
+            'images' => [],
+        ]);
+    }
+
+    public function updateManufacturer(User $user, int $manufacturer, array $data): void
+    {
+        $this->changeRecord($user, $manufacturer, NfcRecord::MANUFACTURER, fn (array $payload): array => [
+            ...$payload,
+            'name' => $data['name'],
+            'phone' => $data['phone'] ?? null,
+            'notes' => $data['notes'] ?? null,
+        ]);
+    }
+
+    public function deleteManufacturer(User $user, int $manufacturer): array
+    {
+        $record = NfcRecord::query()->whereBelongsTo($user)
+            ->where('kind', NfcRecord::MANUFACTURER)->findOrFail($manufacturer);
+        abort_if(! empty($record->payload['deleted_at']), 404);
+
+        $linked = NfcRecord::query()->whereBelongsTo($user)
+            ->whereIn('kind', [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION])
+            ->get()->contains(fn (NfcRecord $batch): bool => empty($batch->payload['deleted_at'])
+                && (int) ($batch->payload['manufacturer_id'] ?? 0) === $manufacturer);
+
+        if ($linked) {
+            throw ValidationException::withMessages(['manufacturer' => 'Desvincule os lotes antes de excluir este fabricante.']);
+        }
+
+        $paths = array_column($record->payload['images'] ?? [], 'path');
+        $this->deleteRecord($user, $manufacturer, NfcRecord::MANUFACTURER);
+
+        return $paths;
+    }
+
+    public function attachManufacturerImages(User $user, int $manufacturer, array $images): void
+    {
+        $this->changeRecord($user, $manufacturer, NfcRecord::MANUFACTURER, function (array $payload) use ($images): array {
+            $existing = $payload['images'] ?? [];
+
+            if (count($existing) + count($images) > 10) {
+                throw ValidationException::withMessages(['images' => 'Cada fabricante aceita no máximo 10 imagens.']);
+            }
+
+            $payload['images'] = [...$existing, ...$images];
+
+            return $payload;
+        });
+    }
+
+    public function removeManufacturerImage(User $user, int $manufacturer, string $image): string
+    {
+        $removedPath = null;
+        $this->changeRecord($user, $manufacturer, NfcRecord::MANUFACTURER, function (array $payload) use ($image, &$removedPath): array {
+            $index = $this->indexOrFail($payload['images'] ?? [], $image);
+            $removedPath = $payload['images'][$index]['path'];
+            array_splice($payload['images'], $index, 1);
+
+            return $payload;
+        });
+
+        return $removedPath;
+    }
+
     public function storeCompany(User $user, array $data): void
     {
         $this->createRecord($user, NfcRecord::COMPANY, $data['operation_id'], [
@@ -181,6 +251,7 @@ class ManageNfcRecords
     {
         $initial = (bool) $data['initial'];
         $payload = $this->productionFields($data);
+        $payload['manufacturer_id'] = $this->validatedManufacturerId($user, $data['manufacturer_id'] ?? null);
         $record = $this->createRecord(
             $user,
             $initial ? NfcRecord::INITIAL_PRODUCTION : NfcRecord::PRODUCTION,
@@ -201,7 +272,10 @@ class ManageNfcRecords
             $user,
             $production,
             [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION],
-            fn (array $payload): array => $this->productionFields([...$payload, ...$data]),
+            fn (array $payload): array => [
+                ...$this->productionFields([...$payload, ...$data]),
+                'manufacturer_id' => $this->validatedManufacturerId($user, $data['manufacturer_id'] ?? $payload['manufacturer_id'] ?? null),
+            ],
         );
     }
 
@@ -440,6 +514,22 @@ class ManageNfcRecords
             'customized_quantity' => $customizedQuantity,
             'cost_cents' => isset($data['cost_cents']) ? (int) $data['cost_cents'] : null,
         ];
+    }
+
+    private function validatedManufacturerId(User $user, ?int $manufacturerId): ?int
+    {
+        if ($manufacturerId === null) {
+            return null;
+        }
+
+        $record = NfcRecord::query()->whereBelongsTo($user)
+            ->where('kind', NfcRecord::MANUFACTURER)->find($manufacturerId);
+
+        if (! $record || ! empty($record->payload['deleted_at'])) {
+            throw ValidationException::withMessages(['manufacturer_id' => 'Selecione um fabricante válido.']);
+        }
+
+        return $manufacturerId;
     }
 
     private function validatedProductionId(User $user, ?int $productionId): ?int
