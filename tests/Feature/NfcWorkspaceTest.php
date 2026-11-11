@@ -314,12 +314,10 @@ class NfcWorkspaceTest extends TestCase
 
     public function test_scoped_shared_link_allows_nfc_only_and_can_be_revoked(): void
     {
-        error_log('NFC QA checkpoint: start');
         $other = User::factory()->create();
         $otherCompany = $this->createCompany($other, 'Outra empresa');
         $owner = User::factory()->create();
         $company = $this->createCompany($owner);
-        error_log('NFC QA checkpoint: before-store-link');
         $this->post(route('nfc.share-links.store'))->assertRedirect(route('nfc.index'));
         $url = session('nfc_share_url');
         $this->assertNotNull($url);
@@ -329,9 +327,7 @@ class NfcWorkspaceTest extends TestCase
         $this->assertSame(hash('sha256', $token), $link->token_hash);
         $this->assertNotSame($token, $link->token_hash);
 
-        error_log('NFC QA checkpoint: before-guest');
         Auth::logout();
-        error_log('NFC QA checkpoint: before-guest-get');
         $this->get($url)->assertInertia(fn (Assert $page) => $page
             ->component('Nfc/Index')
             ->where('shared', true)
@@ -339,7 +335,6 @@ class NfcWorkspaceTest extends TestCase
             ->has('companies', 1)
             ->where('companies.0.id', $company->id));
 
-        error_log('NFC QA checkpoint: before-auth-guard');
         $this->get(route('dashboard'))->assertRedirect(route('login'));
         $this->post(route('nfc.companies.store'), [])->assertRedirect(route('login'));
         $this->patch(route('nfc.share.companies.update', [
@@ -348,7 +343,6 @@ class NfcWorkspaceTest extends TestCase
             'name' => 'Invasão', 'interested' => false,
         ])->assertNotFound();
 
-        error_log('NFC QA checkpoint: before-guest-post');
         $this->post(route('nfc.share.companies.store', ['token' => $token]), [
             'operation_id' => (string) Str::uuid(),
             'name' => 'Nova pelo link',
@@ -360,11 +354,9 @@ class NfcWorkspaceTest extends TestCase
             NfcRecord::query()->where('user_id', $owner->id)->where('kind', NfcRecord::HISTORY)
                 ->latest('id')->firstOrFail()->payload['actor']);
 
-        error_log('NFC QA checkpoint: before-revoke');
         $this->actingAs($owner)->delete(route('nfc.share-links.destroy', ['link' => $link->id]))
             ->assertRedirect(route('nfc.index'));
         Auth::logout();
-        error_log('NFC QA checkpoint: before-revoked-check');
         $this->get($url)->assertNotFound();
         $this->get(route('nfc.share.index', ['token' => str_repeat('a', 64)]))->assertNotFound();
     }
