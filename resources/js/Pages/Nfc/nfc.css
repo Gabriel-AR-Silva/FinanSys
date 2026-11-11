@@ -22,6 +22,18 @@
     background-color: var(--fs-text-muted);
 }
 
+.nfc-feedback-success {
+    border-color: var(--fs-success);
+    background-color: var(--fs-success-soft);
+    color: var(--fs-text);
+}
+
+.nfc-feedback-error {
+    border-color: var(--fs-danger);
+    background-color: var(--fs-danger-soft);
+    color: var(--fs-text);
+}
+
 .nfc-panel {
     border: 1px solid var(--fs-border-soft);
     border-radius: 1rem;
