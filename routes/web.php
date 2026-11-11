@@ -78,9 +78,9 @@ Route::prefix('plaquinhas-nfc/compartilhado/{token}')->name('nfc.share.')->middl
 
 Route::middleware('auth')->group(function () {
     Route::post('/plaquinhas-nfc/links', [NfcShareLinkController::class, 'store'])
-        ->middleware('throttle:5,1')->name('nfc.share-links.store');
+        ->middleware([EnsureNfcRecordsAvailable::class, 'throttle:5,1'])->name('nfc.share-links.store');
     Route::delete('/plaquinhas-nfc/links/{link}', [NfcShareLinkController::class, 'destroy'])
-        ->whereNumber('link')->name('nfc.share-links.destroy');
+        ->whereNumber('link')->middleware(EnsureNfcRecordsAvailable::class)->name('nfc.share-links.destroy');
     Route::prefix('plaquinhas-nfc')->name('nfc.')->middleware(EnsureNfcRecordsAvailable::class)->controller(NfcController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::post('/empresas', 'storeCompany')->name('companies.store');
