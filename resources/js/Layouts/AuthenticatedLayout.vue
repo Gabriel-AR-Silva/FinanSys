@@ -71,6 +71,10 @@ const tools = computed(() => [
     { label: 'Central de ajuda', route: 'help.index', icon: CircleHelp },
 ]);
 
+// Keep NFC navigation usable when a cached Ziggy route list predates the plugin.
+const routeHref = routeName => routeName === 'nfc.index' && !route().has(routeName)
+    ? '/plaquinhas-nfc'
+    : route(routeName);
 const isActive = routeName => route().current(routeName);
 const closeTools = () => { toolsOpen.value = false; };
 const toggleTheme = () => { theme.value = setTheme(theme.value === 'dark' ? 'light' : 'dark'); };
@@ -140,7 +144,7 @@ watch(mobileNavigationOpen, open => {
                         </button>
                         <Link
                             v-else
-                            :href="route(item.route)"
+                            :href="routeHref(item.route)"
                             class="group relative mb-1 flex min-h-11 items-center rounded-xl py-2.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                             :class="[isActive(item.route) ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-white/10 hover:text-white', sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3']"
                             :aria-label="item.label"
@@ -171,7 +175,7 @@ watch(mobileNavigationOpen, open => {
                         <button type="button" class="flex min-h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label="Ferramentas e ajustes" :aria-expanded="toolsOpen" aria-controls="finansys-tools-menu" @click="toolsOpen = !toolsOpen"><Wrench :size="18" /><span class="hidden sm:inline">Ferramentas</span><ChevronDown :size="15" aria-hidden="true" /></button>
                         <div v-if="toolsOpen" id="finansys-tools-menu" class="absolute right-0 top-full z-40 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl" role="menu" aria-label="Ferramentas e ajustes">
                             <nav aria-label="Atalhos de ferramentas">
-                                <Link v-for="item in tools" :key="item.route" :href="route(item.route)" class="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" :aria-current="isActive(item.route) ? 'page' : undefined" @click="closeTools"><component :is="item.icon" :size="18" class="shrink-0" aria-hidden="true" />{{ item.label }}</Link>
+                                <Link v-for="item in tools" :key="item.route" :href="routeHref(item.route)" class="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" :aria-current="isActive(item.route) ? 'page' : undefined" @click="closeTools"><component :is="item.icon" :size="18" class="shrink-0" aria-hidden="true" />{{ item.label }}</Link>
                             </nav>
                             <div class="mt-2 border-t border-slate-200 pt-2">
                                 <button type="button" role="switch" :aria-checked="theme === 'dark'" class="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" @click="toggleTheme">
@@ -199,7 +203,7 @@ watch(mobileNavigationOpen, open => {
                         <h2 class="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{{ section.label }}</h2>
                         <template v-for="item in section.items" :key="item.route">
                             <button v-if="item.disabled" type="button" disabled class="mb-1 flex min-h-11 w-full cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-500 opacity-75" :aria-label="`${item.label} — temporariamente pausado`"><component :is="item.icon" :size="20" aria-hidden="true" /><span class="flex-1 text-left">{{ item.label }}</span><LockKeyhole :size="14" /></button>
-                            <Link v-else :href="route(item.route)" class="mb-1 flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium" :class="isActive(item.route) ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-white/10'" @click="closeMobileNavigation(false)"><component :is="item.icon" :size="20" aria-hidden="true" />{{ item.label }}</Link>
+                            <Link v-else :href="routeHref(item.route)" class="mb-1 flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium" :class="isActive(item.route) ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-white/10'" @click="closeMobileNavigation(false)"><component :is="item.icon" :size="20" aria-hidden="true" />{{ item.label }}</Link>
                         </template>
                     </section>
                 </nav>
