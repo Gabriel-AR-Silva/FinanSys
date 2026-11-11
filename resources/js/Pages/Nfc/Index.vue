@@ -1,8 +1,8 @@
 <script setup>
 import Modal from '@/Components/Modal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head } from '@inertiajs/vue3';
-import { ArrowLeft, Bell, Building2, ChevronRight, Factory, Plus, X } from '@lucide/vue';
+import { Head, router } from '@inertiajs/vue3';
+import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, X } from '@lucide/vue';
 import { computed, nextTick, ref, watch } from 'vue';
 import CompanyDetails from './CompanyDetails.vue';
 import Editor from './Editor.vue';
@@ -18,6 +18,7 @@ const props = defineProps({
     production: { type: Array, default: () => [] },
     notices: { type: Array, default: () => [] },
     warranty_notices: { type: Array, default: () => [] },
+    history: { type: Array, default: () => [] },
 });
 
 const filters = [
@@ -94,6 +95,7 @@ const batch = computed(() => props.production.find(item => item.id === dialog.va
 
 const titles = {
     notices: 'Avisos',
+    history: 'Histórico de alterações',
     notice: 'Novo aviso',
     payment: 'Registrar pagamento',
     plate: 'Editar plaquinha',
@@ -108,6 +110,28 @@ const title = computed(() => {
         default: return titles[dialog.value?.kind];
     }
 });
+
+const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído' };
+const historyKind = { company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial' };
+const datetime = text => new Date(text).toLocaleString('pt-BR');
+function destroy(kind, context = {}) {
+    if (busy.value) return;
+    const routeNames = {
+        company: ['nfc.companies.destroy', { company: context.companyId }],
+        unit: ['nfc.units.destroy', { company: context.companyId, unit: context.unitId }],
+        sale: ['nfc.sales.destroy', { company: context.companyId, sale: context.saleId }],
+        plate: ['nfc.plates.destroy', { company: context.companyId, sale: context.saleId, plate: context.plateId }],
+        batch: ['nfc.production.destroy', { production: context.batchId }],
+    };
+    const target = routeNames[kind];
+    if (!target || !window.confirm('Excluir este registro? A alteração ficará no histórico e poderá afetar os indicadores.')) return;
+    router.delete(route(target[0], target[1]), {
+        preserveScroll: true,
+        onStart: () => { busy.value = true; },
+        onFinish: () => { busy.value = false; },
+        onSuccess: () => { if (kind === 'company') dialog.value = null; },
+    });
+}
 
 function showCompany(companyId, saleId = null) {
     dialog.value = { kind: 'company', companyId, saleId, previous: dialog.value?.kind === 'notices' ? dialog.value : null };
@@ -147,6 +171,7 @@ watch(dialog, async (current, previous) => {
             <header class="flex flex-wrap items-center justify-between gap-3">
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC</h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
+                    <button type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
                         <Bell :size="18" aria-hidden="true" />
                         <span v-if="noticeCount" class="nfc-badge nfc-warning tabular-nums" aria-hidden="true">{{ noticeCount }}</span>
@@ -226,7 +251,10 @@ watch(dialog, async (current, previous) => {
                             <p class="nfc-muted text-sm">{{ item.customized_quantity === null ? 'Tipos a informar' : `${item.quantity - item.customized_quantity} normais · ${item.customized_quantity} personalizadas` }}</p>
                         </div>
                         <span class="nfc-muted text-sm tabular-nums">{{ item.cost_cents === null ? 'Custo a informar' : money(item.cost_cents) }}</span>
-                        <button type="button" class="nfc-button" :aria-label="`Editar ${item.initial ? 'lote inicial' : `lote de ${date(item.produced_on)}`}`" @click="edit('batch', { batchId: item.id })">Editar</button>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" class="nfc-button" :aria-label="`Editar lote #${item.id}`" @click="edit('batch', { batchId: item.id })">Editar</button>
+                            <button type="button" class="nfc-button nfc-danger" @click="destroy('batch', { batchId: item.id })">Excluir</button>
+                        </div>
                     </li>
                 </ul>
                 <p v-else class="nfc-panel nfc-muted p-4 text-sm">Nenhuma fabricação registrada.</p>
@@ -241,7 +269,21 @@ watch(dialog, async (current, previous) => {
                     <button type="button" class="nfc-button nfc-icon-button shrink-0" aria-label="Fechar" :disabled="busy" @click="closeDialog"><X :size="18" aria-hidden="true" /></button>
                 </header>
 
-                <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :highlight-sale-id="dialog.saleId" @edit="edit" />
+                <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
+                <div v-else-if="dialog.kind === 'history'" class="flex max-h-[65dvh] min-w-0 flex-col gap-3 overflow-y-auto">
+                    <p class="nfc-muted text-sm">Últimos {{ history.length }} eventos. Criações, edições, resoluções e exclusões são registradas no módulo NFC.</p>
+                    <ul class="flex flex-col gap-2">
+                        <li v-for="entry in history" :key="entry.id" class="nfc-panel p-3 text-sm">
+                            <p class="font-semibold">{{ historyVerb[entry.event] || entry.event }} · {{ historyKind[entry.target_kind] || entry.target_kind }} #{{ entry.target_id }}</p>
+                            <p v-if="entry.label" class="min-w-0 break-words">{{ entry.label }}</p>
+                            <p class="nfc-muted text-xs">{{ entry.actor }} · {{ datetime(entry.occurred_at) }}</p>
+                            <details class="mt-2"><summary class="cursor-pointer text-xs underline">Ver dados registrados</summary>
+                                <pre class="nfc-muted mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-all text-xs">{{ JSON.stringify({ antes: entry.before, depois: entry.after }, null, 2) }}</pre>
+                            </details>
+                        </li>
+                    </ul>
+                    <p v-if="!history.length" class="nfc-muted text-sm">Nenhuma alteração registrada.</p>
+                </div>
                 <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :warranty-notices="warranty_notices" @create="edit('notice')" @open-company="showCompany" @busy="busy = $event" />
                 <Editor
                     v-else

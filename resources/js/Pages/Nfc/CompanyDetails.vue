@@ -6,7 +6,7 @@ const props = defineProps({
     company: { type: Object, required: true },
     highlightSaleId: { type: String, default: null },
 });
-const emit = defineEmits(['edit']);
+const emit = defineEmits(['edit', 'destroy']);
 
 const units = computed(() => props.company.units.map(unit => ({
     ...unit,
@@ -22,6 +22,10 @@ const paymentStatus = {
 function edit(kind, context = {}) {
     emit('edit', kind, { companyId: props.company.id, ...context });
 }
+
+function destroy(kind, context = {}) {
+    emit('destroy', kind, { companyId: props.company.id, ...context });
+}
 </script>
 
 <template>
@@ -35,6 +39,7 @@ function edit(kind, context = {}) {
             <button type="button" class="nfc-button" @click="edit('company-form')">Editar empresa</button>
             <button type="button" class="nfc-button" @click="edit('unit')">Nova unidade</button>
             <button type="button" class="nfc-button nfc-primary" @click="edit('sale')">Nova venda</button>
+            <button type="button" class="nfc-button nfc-danger" @click="destroy('company')">Excluir empresa</button>
         </div>
         <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
             <span><strong>{{ company.sold }}</strong> vendidas</span>
@@ -50,6 +55,7 @@ function edit(kind, context = {}) {
                 <div class="flex flex-wrap gap-2">
                     <button type="button" class="nfc-button" @click="edit('unit', { unitId: unit.id })">Editar unidade</button>
                     <button type="button" class="nfc-button" @click="edit('sale', { unitId: unit.id })">Nova venda nesta unidade</button>
+                    <button type="button" class="nfc-button nfc-danger" @click="destroy('unit', { unitId: unit.id })">Excluir unidade</button>
                 </div>
                 <p v-if="!unit.sales.length" class="nfc-muted text-sm">Nenhuma venda nesta unidade.</p>
                 <details v-for="sale in [...unit.sales].reverse()" :key="sale.id" class="nfc-panel min-w-0" :open="sale.id === highlightSaleId">
@@ -75,6 +81,7 @@ function edit(kind, context = {}) {
                         </ul>
                         <div class="flex flex-wrap gap-2">
                             <button type="button" class="nfc-button" @click="edit('sale', { saleId: sale.id, unitId: unit.id })">Editar venda</button>
+                            <button type="button" class="nfc-button nfc-danger" @click="destroy('sale', { saleId: sale.id })">Excluir venda</button>
                             <button v-if="sale.balance_cents > 0" type="button" class="nfc-button nfc-primary" @click="edit('payment', { saleId: sale.id })">Registrar pagamento</button>
                         </div>
                         <ul class="nfc-rule border-t" aria-label="Plaquinhas da venda">
@@ -85,7 +92,10 @@ function edit(kind, context = {}) {
                                     <p v-if="plate.defective" class="nfc-badge nfc-danger">Defeituosa · {{ plate.estimated_loss_cents == null ? 'prejuízo a estimar' : money(plate.estimated_loss_cents) }}</p>
                                     <p v-if="plate.notes" class="nfc-muted whitespace-pre-wrap break-words">{{ plate.notes }}</p>
                                 </div>
-                                <button type="button" class="nfc-button" :aria-label="'Editar ' + (plate.label || 'plaquinha')" @click="edit('plate', { saleId: sale.id, plateId: plate.id })">Editar</button>
+                                <div class="flex gap-2">
+                                    <button type="button" class="nfc-button" :aria-label="'Editar ' + (plate.label || 'plaquinha')" @click="edit('plate', { saleId: sale.id, plateId: plate.id })">Editar</button>
+                                    <button type="button" class="nfc-button nfc-danger" :aria-label="'Excluir ' + (plate.label || 'plaquinha')" @click="destroy('plate', { saleId: sale.id, plateId: plate.id })">Excluir</button>
+                                </div>
                             </li>
                         </ul>
                     </div>

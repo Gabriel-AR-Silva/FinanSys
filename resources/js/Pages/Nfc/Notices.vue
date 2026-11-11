@@ -28,6 +28,15 @@ function toggle(notice) {
     });
 }
 
+function destroyNotice(notice) {
+    if (form.processing || !window.confirm('Excluir este aviso? A operação ficará registrada no histórico.')) return;
+    form.delete(route('nfc.notices.destroy', { notice: notice.id }), {
+        preserveScroll: true,
+        onStart: () => emit('busy', true),
+        onFinish: () => emit('busy', false),
+    });
+}
+
 function context(notice) {
     return [notice.company_name, notice.unit_name, notice.plate_label].filter(Boolean).join(' · ');
 }
@@ -73,7 +82,10 @@ function context(notice) {
                                 <span v-if="notice.resolved_at" class="nfc-badge nfc-success">Resolvido</span>
                             </div>
                             <p class="whitespace-pre-wrap break-words text-sm" :class="notice.resolved_at ? 'nfc-muted' : ''">{{ notice.text }}</p>
-                            <button v-if="notice.company_id" type="button" class="nfc-button self-start text-left" @click="emit('open-company', notice.company_id)">{{ context(notice) }}</button>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button v-if="notice.company_id" type="button" class="nfc-button text-left" @click="emit('open-company', notice.company_id)">{{ context(notice) }}</button>
+                                <button type="button" class="nfc-button nfc-danger" :disabled="form.processing" @click="destroyNotice(notice)">Excluir</button>
+                            </div>
                         </div>
                     </li>
                 </ul>
