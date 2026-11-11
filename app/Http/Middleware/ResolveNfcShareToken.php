@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\NfcAccessLink;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 
 class ResolveNfcShareToken
@@ -13,6 +14,7 @@ class ResolveNfcShareToken
     {
         $token = (string) $request->route('token');
         abort_unless(preg_match('/^[A-Za-z0-9]{64}$/D', $token) === 1, 404);
+        abort_unless(Schema::hasTable('nfc_access_links'), 404);
 
         $link = NfcAccessLink::query()->with('user')
             ->where('token_hash', hash('sha256', $token))
