@@ -161,6 +161,8 @@ class ManageNfcRecords
             $index = $this->indexOrFail($stored['plates'], $plate);
             $changes = Arr::only($data, ['label', 'notes', 'type']);
             $changes['customizing'] = $data['type'] === 'custom' && (bool) $data['customizing'];
+            $changes['defective'] = (bool) $data['defective'];
+            $changes['estimated_loss_cents'] = $changes['defective'] ? ($data['estimated_loss_cents'] ?? null) : null;
 
             $stored['plates'][$index] = [...$stored['plates'][$index], ...$changes];
 
@@ -227,7 +229,7 @@ class ManageNfcRecords
     public function resolveNotice(User $user, int $notice): void
     {
         $this->changeRecord($user, $notice, NfcRecord::NOTICE, function (array $payload): array {
-            $payload['resolved_at'] ??= now()->toISOString();
+            $payload['resolved_at'] = $payload['resolved_at'] ? null : now()->toISOString();
 
             return $payload;
         });
@@ -310,6 +312,8 @@ class ManageNfcRecords
             'label' => $label,
             'notes' => null,
             'customizing' => $customizing,
+            'defective' => false,
+            'estimated_loss_cents' => null,
         ];
     }
 

@@ -28,7 +28,7 @@ function edit(kind, context = {}) {
     <div class="flex min-w-0 flex-col gap-4">
         <dl v-if="company.phone || company.cnpj || company.notes" class="nfc-panel grid gap-3 p-3 text-sm sm:grid-cols-2">
             <div v-if="company.phone"><dt class="nfc-muted">Telefone</dt><dd class="break-words font-medium">{{ company.phone }}</dd></div>
-            <div v-if="company.cnpj"><dt class="nfc-muted">CNPJ</dt><dd class="break-words font-medium">{{ company.cnpj }}</dd></div>
+            <div v-if="company.cnpj"><dt class="nfc-muted">CPF/CNPJ</dt><dd class="break-words font-medium">{{ company.cnpj }}</dd></div>
             <div v-if="company.notes" class="min-w-0 sm:col-span-2"><dt class="nfc-muted">Observações</dt><dd class="whitespace-pre-wrap break-words">{{ company.notes }}</dd></div>
         </dl>
         <div class="flex flex-wrap gap-2">
@@ -81,6 +81,7 @@ function edit(kind, context = {}) {
                                 <div class="min-w-0 flex-1 text-sm">
                                     <p class="break-words font-semibold">{{ plate.label || (plate.type === 'custom' ? 'Personalizada' : 'Normal') }}</p>
                                     <p v-if="plate.customizing" class="nfc-muted">Em customização</p>
+                                    <p v-if="plate.defective" class="nfc-badge nfc-danger">Defeituosa · {{ plate.estimated_loss_cents == null ? 'prejuízo a estimar' : money(plate.estimated_loss_cents) }}</p>
                                     <p v-if="plate.notes" class="nfc-muted whitespace-pre-wrap break-words">{{ plate.notes }}</p>
                                 </div>
                                 <button type="button" class="nfc-button" :aria-label="'Editar ' + (plate.label || 'plaquinha')" @click="edit('plate', { saleId: sale.id, plateId: plate.id })">Editar</button>

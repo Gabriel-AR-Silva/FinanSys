@@ -26,14 +26,26 @@ const filters = [
     { key: 'sold', label: 'Com vendas' },
 ];
 const filter = ref('all');
+const search = ref('');
 const dialog = ref(null);
 const dialogHeading = ref(null);
 const busy = ref(false);
 
 const companiesShown = computed(() => {
-    if (filter.value === 'interested') return props.companies.filter(company => company.interested);
-    if (filter.value === 'sold') return props.companies.filter(company => company.sold > 0);
-    return props.companies;
+    const text = search.value.trim().toLocaleLowerCase('pt-BR');
+    return props.companies.filter(company => {
+        if (filter.value === 'interested' && !company.interested) return false;
+        if (filter.value === 'sold' && !company.sold) return false;
+        if (!text) return true;
+        return [
+            company.name, company.cnpj, company.phone,
+            ...company.units.map(unit => unit.name),
+            ...company.sales.flatMap(sale => [
+                sale.id,
+                ...sale.plates.map(plate => plate.label ?? ''),
+            ]),
+        ].some(value => String(value ?? '').toLocaleLowerCase('pt-BR').includes(text));
+    });
 });
 const noticeCount = computed(() => props.notices.filter(notice => !notice.resolved_at).length + props.warranty_notices.length);
 const hasInitialBatch = computed(() => props.production.some(batch => batch.initial));
@@ -48,6 +60,9 @@ const metrics = computed(() => {
         { label: 'Em customização', value: totals.in_customization },
         { label: 'Vendidas', value: totals.sold, detail: `${totals.sold_standard} normais · ${totals.sold_custom} personalizadas` },
         { label: 'Plaquinhas pagas', value: totals.paid_plates },
+        { label: 'Com defeito', value: totals.defective ?? 0, tone: 'nfc-danger' },
+        { label: 'Possível prejuízo', value: money(totals.estimated_loss_cents ?? 0), tone: 'nfc-danger',
+            detail: totals.unestimated_defects ? (totals.unestimated_defects + ' defeito(s) sem valor estimado') : 'Estimativa, não baixa financeira' },
         { label: 'Custo de fabricação', value: costsPending && costsPending === props.production.length ? '—' : money(totals.production_cost_cents), detail: costsPending ? `${costsPending} ${costsPending === 1 ? 'lote sem custo informado' : 'lotes sem custo informado'}` : null },
         { label: 'Arrecadado', value: money(totals.received_cents), tone: 'nfc-success' },
         { label: 'A receber', value: money(totals.outstanding_cents), tone: 'nfc-warning' },
@@ -127,8 +142,8 @@ watch(dialog, async (current, previous) => {
 
             <p v-if="schema_pending" class="nfc-panel nfc-warning p-4 text-sm" role="status">Aplique a migration de Plaquinhas NFC para liberar os cadastros.</p>
 
-            <dl v-else aria-label="Indicadores das plaquinhas NFC" class="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3">
-                <div v-for="metric in metrics" :key="metric.label" class="nfc-panel flex min-w-0 flex-col gap-1.5 p-3 sm:p-4">
+            <dl v-else aria-label="Indicadores das plaquinhas NFC" class="flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain pb-3 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 md:grid-cols-4 md:gap-3">
+                <div v-for="metric in metrics" :key="metric.label" class="nfc-panel flex w-[min(78vw,19rem)] shrink-0 snap-start flex-col gap-1.5 p-3 sm:w-auto sm:shrink sm:p-4">
                     <dt class="nfc-muted text-xs font-medium sm:text-sm">{{ metric.label }}</dt>
                     <dd class="self-start text-lg font-semibold tabular-nums [overflow-wrap:anywhere] sm:text-2xl" :class="metric.tone && `${metric.tone} rounded-lg px-1.5`">{{ metric.value }}</dd>
                     <dd v-if="metric.detail" class="nfc-muted text-xs leading-relaxed">{{ metric.detail }}</dd>
@@ -142,6 +157,9 @@ watch(dialog, async (current, previous) => {
                         <button v-for="option in filters" :key="option.key" type="button" class="nfc-button" :aria-pressed="filter === option.key" @click="filter = option.key">{{ option.label }}</button>
                     </div>
                 </div>
+                <label class="nfc-field max-w-xl">Buscar empresa, CPF/CNPJ, unidade, venda ou plaquinha
+                    <input v-model.trim="search" type="search" class="nfc-control" placeholder="Digite para filtrar..." aria-label="Buscar no módulo NFC" />
+                </label>
                 <div v-if="companiesShown.length" class="nfc-panel min-w-0">
                     <div aria-hidden="true" class="nfc-muted hidden grid-cols-[minmax(0,1.6fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_minmax(0,1fr)_1rem] gap-3 border-b px-4 py-3 text-xs font-semibold nfc-rule md:grid">
                         <span>Empresa</span><span>Unidades</span><span>Vendidas</span><span>A receber</span>

@@ -195,6 +195,8 @@ class NfcWorkspaceTest extends TestCase
 
         $this->actingAs($owner)->patch($resolveRoute)->assertRedirect(route('nfc.index'));
         $this->assertNotNull($notice->fresh()->payload['resolved_at']);
+        $this->patch($resolveRoute)->assertRedirect(route('nfc.index'));
+        $this->assertNull($notice->fresh()->payload['resolved_at']);
         $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
             ->where('notices', fn ($notices) => collect($notices)->contains(
                 fn (array $row) => $row['text'] === 'Comprar embalagens' && $row['company_id'] === null,
@@ -203,6 +205,34 @@ class NfcWorkspaceTest extends TestCase
                 fn (array $row) => $row['id'] === $notice->id && $row['company_name'] === 'Pontasso'
                     && $row['unit_name'] === 'Unidade 1' && $row['plate_label'] === 'Normal 1',
             )));
+    }
+
+    public function test_defective_plates_are_counted_and_estimated_losses_do_not_change_revenue(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-11T15:00:00Z'));
+        $company = $this->createCompany(User::factory()->create());
+        $sale = $this->createSale($company, ['sold_on' => '2026-11-10']);
+        $plate = $sale['plates'][0];
+
+        $this->patch(route('nfc.plates.update', [
+            'company' => $company->id,
+            'sale' => $sale['id'],
+            'plate' => $plate['id'],
+        ]), [
+            'type' => 'standard',
+            'label' => 'Defeituosa',
+            'notes' => null,
+            'customizing' => false,
+            'defective' => true,
+            'estimated_loss_cents' => 2500,
+        ])->assertRedirect(route('nfc.index'));
+
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('summary.defective', 1)
+            ->where('summary.estimated_loss_cents', 2500)
+            ->where('summary.received_cents', 0)
+            ->where('summary.outstanding_cents', 10000)
+            ->where('companies.0.sales.0.plates.0.defective', true));
     }
 
     private function createCompany(User $user, string $name = 'Pontasso'): NfcRecord

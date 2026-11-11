@@ -52,7 +52,12 @@ function fields() {
         case 'payment':
             return { operation_id: crypto.randomUUID(), method: '', amount: inputMoney(sale.balance_cents) };
         case 'plate':
-            return { type: plate.type, label: plate.label ?? '', notes: plate.notes ?? '', customizing: plate.customizing };
+            return {
+                type: plate.type, label: plate.label ?? '', notes: plate.notes ?? '',
+                customizing: plate.customizing,
+                defective: plate.defective ?? false,
+                estimated_loss: inputMoney(plate.estimated_loss_cents),
+            };
         case 'batch':
             return {
                 ...(!batch && { operation_id: crypto.randomUUID(), initial: Boolean(context.initial) }),
@@ -120,6 +125,10 @@ function submit() {
             form.post(route('nfc.payments.store', { company: company.id, sale: sale.id }), options);
             break;
         case 'plate':
+            form.transform(({ estimated_loss, ...data }) => ({
+                ...data,
+                estimated_loss_cents: data.defective && estimated_loss !== '' ? asCents(estimated_loss) : null,
+            }));
             form.patch(route('nfc.plates.update', { company: company.id, sale: sale.id, plate: plate.id }), options);
             break;
         case 'batch':
@@ -154,8 +163,8 @@ function submit() {
                 <label class="nfc-field">Telefone ou WhatsApp
                     <input v-model.trim="form.phone" class="nfc-control" type="tel" autocomplete="tel" />
                 </label>
-                <label class="nfc-field">CNPJ
-                    <input v-model.trim="form.cnpj" class="nfc-control" inputmode="numeric" />
+                <label class="nfc-field">CPF/CNPJ
+                    <input v-model.trim="form.cnpj" class="nfc-control" type="text" autocomplete="off" />
                 </label>
             </div>
             <label class="nfc-field">Informações da empresa
@@ -247,6 +256,13 @@ function submit() {
             <label v-if="form.type === 'custom'" class="flex min-h-11 items-center gap-2 text-sm font-medium">
                 <input v-model="form.customizing" type="checkbox" class="nfc-check" /> Em customização
             </label>
+            <label class="flex min-h-11 items-center gap-2 text-sm font-medium">
+                <input v-model="form.defective" type="checkbox" class="nfc-check" /> Plaquinha com defeito
+            </label>
+            <label v-if="form.defective" class="nfc-field">Possível prejuízo (R$)
+                <input v-model.trim="form.estimated_loss" class="nfc-control" inputmode="decimal" :pattern="decimalPattern" placeholder="Ainda não estimado" />
+            </label>
+            <p v-if="form.defective" class="nfc-muted text-xs">Estimativa informativa: não altera o valor da venda nem os pagamentos recebidos.</p>
             <label class="nfc-field">Observação
                 <textarea v-model.trim="form.notes" class="nfc-control" rows="3" />
             </label>
