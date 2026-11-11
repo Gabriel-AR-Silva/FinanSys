@@ -7,12 +7,14 @@ use App\Models\NfcAccessLink;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class NfcShareLinkController extends Controller
 {
     public function store(Request $request, ManageNfcRecords $records): RedirectResponse
     {
+        abort_unless(Schema::hasTable('nfc_access_links'), 503);
         $token = Str::random(64);
         DB::transaction(function () use ($request, $records, $token): void {
             $link = NfcAccessLink::query()->create([
@@ -31,6 +33,7 @@ class NfcShareLinkController extends Controller
 
     public function destroy(Request $request, ManageNfcRecords $records, int $link): RedirectResponse
     {
+        abort_unless(Schema::hasTable('nfc_access_links'), 503);
         DB::transaction(function () use ($request, $records, $link): void {
             $record = NfcAccessLink::query()->whereBelongsTo($request->user())
                 ->lockForUpdate()->findOrFail($link);

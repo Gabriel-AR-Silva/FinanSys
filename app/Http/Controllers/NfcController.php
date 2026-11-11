@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Queries\NfcDashboardQuery;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -24,13 +25,15 @@ class NfcController extends Controller
     public function index(Request $request, NfcDashboardQuery $query): Response
     {
         $shared = $request->attributes->has('nfc_share_owner');
+        $linksAvailable = Schema::hasTable('nfc_access_links');
 
         return Inertia::render('Nfc/Index', [
             ...$query->forUser($this->owner($request)),
             'shared' => $shared,
             'share_token' => $shared ? (string) $request->route('token') : null,
             'created_share_url' => $shared ? null : $request->session()->get('nfc_share_url'),
-            'share_links' => $shared ? [] : NfcAccessLink::query()
+            'share_links_enabled' => ! $shared && $linksAvailable,
+            'share_links' => $shared || ! $linksAvailable ? [] : NfcAccessLink::query()
                 ->whereBelongsTo($request->user())
                 ->latest()->limit(20)
                 ->get(['id', 'expires_at', 'revoked_at', 'created_at'])

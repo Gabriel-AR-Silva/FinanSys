@@ -13,7 +13,7 @@ class NfcDashboardQuery
     {
         $today = CarbonImmutable::today('America/Sao_Paulo');
         $records = NfcRecord::query()->whereBelongsTo($user)->latest('id')->get()
-            ->reject(fn (NfcRecord $record): bool => ! ($record->payload['deleted_at'] ?? null));
+            ->filter(fn (NfcRecord $record): bool => empty($record->payload['deleted_at']));
         $companies = $records->where('kind', NfcRecord::COMPANY)
             ->map(fn (NfcRecord $record): array => $this->company($record, $today))
             ->values();

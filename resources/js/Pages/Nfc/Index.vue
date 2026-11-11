@@ -16,6 +16,7 @@ const props = defineProps({
     shared: { type: Boolean, default: false },
     share_token: { type: String, default: null },
     share_links: { type: Array, default: () => [] },
+    share_links_enabled: { type: Boolean, default: false },
     created_share_url: { type: String, default: null },
     today: { type: String, default: '' },
     summary: { type: Object, default: () => ({}) },
@@ -214,7 +215,7 @@ watch(dialog, async (current, previous) => {
             <header class="flex flex-wrap items-center justify-between gap-3">
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC</h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
-                    <button v-if="!shared" type="button" class="nfc-button" @click="dialog = { kind: 'share' }">Compartilhar</button>
+                    <button v-if="!shared && share_links_enabled" type="button" class="nfc-button" @click="dialog = { kind: 'share' }">Compartilhar</button>
                     <button type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
                         <Bell :size="18" aria-hidden="true" />

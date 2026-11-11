@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\NfcRecord;
 use App\Models\NfcAccessLink;
-use Illuminate\Support\Facades\Auth;
+use App\Models\NfcRecord;
 use App\Models\User;
 use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
