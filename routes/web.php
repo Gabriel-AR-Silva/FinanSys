@@ -70,7 +70,8 @@ Route::prefix('plaquinhas-nfc/compartilhado/{token}')->name('nfc.share.')->middl
     Route::delete('/fabricantes/{manufacturer}', [NfcManufacturerController::class, 'destroy'])->whereNumber('manufacturer')->name('manufacturers.destroy');
     Route::post('/fabricantes/{manufacturer}/imagens', [NfcManufacturerController::class, 'upload'])->whereNumber('manufacturer')->name('manufacturers.images.store');
     Route::get('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'showImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.show');
-    Route::delete('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'deleteImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.destroy');    Route::post('/producao', 'storeProduction')->name('production.store');
+    Route::delete('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'deleteImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.destroy');
+    Route::post('/producao', 'storeProduction')->name('production.store');
     Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
     Route::post('/avisos', 'storeNotice')->name('notices.store');
     Route::patch('/avisos/{notice}/resolver', 'resolveNotice')->whereNumber('notice')->name('notices.resolve');
@@ -103,7 +104,8 @@ Route::middleware('auth')->group(function () {
         Route::delete('/fabricantes/{manufacturer}', [NfcManufacturerController::class, 'destroy'])->whereNumber('manufacturer')->name('manufacturers.destroy');
         Route::post('/fabricantes/{manufacturer}/imagens', [NfcManufacturerController::class, 'upload'])->whereNumber('manufacturer')->name('manufacturers.images.store');
         Route::get('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'showImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.show');
-        Route::delete('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'deleteImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.destroy');        Route::post('/producao', 'storeProduction')->name('production.store');
+        Route::delete('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'deleteImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.destroy');
+        Route::post('/producao', 'storeProduction')->name('production.store');
         Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
         Route::post('/avisos', 'storeNotice')->name('notices.store');
         Route::patch('/avisos/{notice}/resolver', 'resolveNotice')->whereNumber('notice')->name('notices.resolve');
