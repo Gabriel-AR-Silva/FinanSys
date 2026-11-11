@@ -28,6 +28,7 @@ class ManageNfcRecords
             'units' => [[
                 'id' => (string) Str::uuid(),
                 'name' => $data['unit_name'] ?? 'Unidade 1',
+                'production_id' => null,
             ]],
             'sales' => [],
         ]);
@@ -43,22 +44,27 @@ class ManageNfcRecords
 
     public function storeUnit(User $user, int $company, array $data): void
     {
-        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($data): array {
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($data, $user): array {
             $unitId = strtolower($data['operation_id']);
 
             if ($this->indexOf($payload['units'], $unitId) === null) {
-                $payload['units'][] = ['id' => $unitId, 'name' => $data['name']];
+                $payload['units'][] = [
+                    'id' => $unitId,
+                    'name' => $data['name'],
+                    'production_id' => $this->validatedProductionId($user, $data['production_id'] ?? null),
+                ];
             }
 
             return $payload;
         });
     }
 
-    public function updateUnit(User $user, int $company, string $unit, string $name): void
+    public function updateUnit(User $user, int $company, string $unit, array $data): void
     {
-        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($unit, $name): array {
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($user, $unit, $data): array {
             $index = $this->indexOrFail($payload['units'], $unit);
-            $payload['units'][$index]['name'] = $name;
+            $payload['units'][$index]['name'] = $data['name'];
+            $payload['units'][$index]['production_id'] = $this->validatedProductionId($user, $data['production_id'] ?? null);
 
             return $payload;
         });
@@ -298,10 +304,28 @@ class ManageNfcRecords
 
         return [
             'produced_on' => $data['produced_on'] ?? null,
+            'status' => $data['status'] ?? 'completed',
             'quantity' => $quantity,
             'customized_quantity' => $customizedQuantity,
             'cost_cents' => isset($data['cost_cents']) ? (int) $data['cost_cents'] : null,
         ];
+    }
+
+    private function validatedProductionId(User $user, ?int $productionId): ?int
+    {
+        if ($productionId === null) {
+            return null;
+        }
+
+        $exists = NfcRecord::query()->whereBelongsTo($user)
+            ->whereIn('kind', [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION])
+            ->whereKey($productionId)->exists();
+
+        if (! $exists) {
+            throw ValidationException::withMessages(['production_id' => 'Selecione um lote de fabricação válido.']);
+        }
+
+        return $productionId;
     }
 
     private function newPlate(string $type, string $label, bool $customizing = false): array

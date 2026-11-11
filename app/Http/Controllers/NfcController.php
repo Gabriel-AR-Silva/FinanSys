@@ -48,6 +48,7 @@ class NfcController extends Controller
         $data = $request->validate([
             'operation_id' => self::OPERATION_RULES,
             'name' => self::NAME_RULES,
+            'production_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $records->storeUnit($request->user(), $company, $data);
@@ -57,8 +58,11 @@ class NfcController extends Controller
 
     public function updateUnit(Request $request, ManageNfcRecords $records, int $company, string $unit): RedirectResponse
     {
-        $data = $request->validate(['name' => self::NAME_RULES]);
-        $records->updateUnit($request->user(), $company, $unit, $data['name']);
+        $data = $request->validate([
+            'name' => self::NAME_RULES,
+            'production_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $records->updateUnit($request->user(), $company, $unit, $data);
 
         return to_route('nfc.index');
     }
@@ -187,6 +191,7 @@ class NfcController extends Controller
             'quantity' => ['required', 'integer', 'min:1', 'max:1000000'],
             'customized_quantity' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'cost_cents' => ['nullable', 'integer', 'min:0', 'max:999999999'],
+            'status' => ['sometimes', Rule::in(['in_progress', 'completed'])],
         ];
     }
 

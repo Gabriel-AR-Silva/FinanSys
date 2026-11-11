@@ -14,6 +14,7 @@ const props = defineProps({
     sale: { type: Object, default: null },
     plate: { type: Object, default: null },
     batch: { type: Object, default: null },
+    production: { type: Array, required: true },
 });
 const emit = defineEmits(['cancel', 'saved', 'busy']);
 
@@ -41,7 +42,7 @@ function fields() {
                 interested: company?.interested ?? true,
             };
         case 'unit':
-            return { ...(!unit && { operation_id: crypto.randomUUID() }), name: unit?.name ?? '' };
+            return { ...(!unit && { operation_id: crypto.randomUUID() }), name: unit?.name ?? '', production_id: unit?.production_id ?? null };
         case 'sale':
             return {
                 ...(!sale && { operation_id: crypto.randomUUID(), standard_quantity: 1, custom_quantity: 0, in_customization_quantity: 0, payments: [] }),
@@ -65,6 +66,7 @@ function fields() {
                 quantity: batch?.quantity ?? (context.initial ? 60 : 1),
                 customized_quantity: batch ? batch.customized_quantity ?? '' : context.initial ? '' : 0,
                 cost: inputMoney(batch?.cost_cents),
+                status: batch?.status ?? 'completed',
             };
         case 'notice':
             return { operation_id: crypto.randomUUID(), text: '', important: false, company_id: context.companyId ?? '', plate_id: context.plateId ?? '' };
@@ -178,9 +180,19 @@ function submit() {
             </label>
         </template>
 
-        <label v-else-if="kind === 'unit'" class="nfc-field">Nome da unidade
-            <input v-model.trim="form.name" class="nfc-control" required />
-        </label>
+        <template v-else-if="kind === 'unit'">
+            <label class="nfc-field">Nome da unidade
+                <input v-model.trim="form.name" class="nfc-control" required />
+            </label>
+            <label class="nfc-field">Lote vinculado
+                <select v-model="form.production_id" class="nfc-control">
+                    <option :value="null">Sem lote vinculado</option>
+                    <option v-for="batchOption in production" :key="batchOption.id" :value="batchOption.id">
+                        {{ batchOption.initial ? 'Lote inicial' : batchOption.produced_on ? date(batchOption.produced_on) : 'Sem data' }} · {{ batchOption.quantity }} plaquinhas
+                    </option>
+                </select>
+            </label>
+        </template>
 
         <template v-else-if="kind === 'sale'">
             <label class="nfc-field">Unidade
@@ -269,8 +281,14 @@ function submit() {
         </template>
 
         <template v-else-if="kind === 'batch'">
+            <label class="nfc-field">Etapa do lote
+                <select v-model="form.status" class="nfc-control" required>
+                    <option value="in_progress">Em fabricação</option>
+                    <option value="completed">Fabricado</option>
+                </select>
+            </label>
             <label class="nfc-field">Data da fabricação
-                <input v-model="form.produced_on" class="nfc-control" type="date" :required="!initialBatch" />
+                <input v-model="form.produced_on" class="nfc-control" type="date" :required="!initialBatch && form.status === 'completed'" />
             </label>
             <div class="grid min-w-0 gap-4 sm:grid-cols-2">
                 <label class="nfc-field">Quantidade fabricada

@@ -207,6 +207,40 @@ class NfcWorkspaceTest extends TestCase
             )));
     }
 
+    public function test_production_status_and_unit_link_are_scoped_to_the_owner(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner);
+        $this->post(route('nfc.production.store'), [
+            'operation_id' => (string) Str::uuid(),
+            'initial' => false,
+            'status' => 'in_progress',
+            'quantity' => 10,
+        ])->assertRedirect(route('nfc.index'));
+        $batch = NfcRecord::whereBelongsTo($owner)->where('kind', NfcRecord::PRODUCTION)->firstOrFail();
+        $company = $this->createCompany($owner);
+        $unitId = (string) Str::uuid();
+        $this->post(route('nfc.units.store', ['company' => $company->id]), [
+            'operation_id' => $unitId,
+            'name' => 'Filial teste',
+            'production_id' => $batch->id,
+        ])->assertRedirect(route('nfc.index'));
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('summary.in_production', 10)
+            ->where('summary.manufactured', 0)
+            ->where('companies.0.units.1.production_id', $batch->id)
+            ->where('companies.0.units.1.production_status', 'in_progress'));
+
+        $intruder = User::factory()->create();
+        $this->actingAs($intruder);
+        $otherCompany = $this->createCompany($intruder, 'Outra');
+        $this->post(route('nfc.units.store', ['company' => $otherCompany->id]), [
+            'operation_id' => (string) Str::uuid(),
+            'name' => 'Invasora',
+            'production_id' => $batch->id,
+        ])->assertSessionHasErrors('production_id');
+    }
+
     public function test_defective_plates_are_counted_and_estimated_losses_do_not_change_revenue(): void
     {
         $this->travelTo(new DateTimeImmutable('2026-11-11T15:00:00Z'));

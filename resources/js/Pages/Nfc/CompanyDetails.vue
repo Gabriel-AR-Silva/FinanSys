@@ -44,6 +44,7 @@ function edit(kind, context = {}) {
         <details v-for="unit in units" :key="unit.id" class="nfc-panel min-w-0" :open="units.length === 1 || unit.sales.some(sale => sale.id === highlightSaleId)">
             <summary class="cursor-pointer break-words rounded-xl px-3 py-3 font-semibold">
                 {{ unit.name }} <span class="nfc-muted text-sm font-normal">· {{ unit.sales.length }} {{ unit.sales.length === 1 ? 'venda' : 'vendas' }}</span>
+                <span v-if="unit.production_id" class="nfc-badge ml-1" :class="unit.production_status === 'in_progress' ? 'nfc-warning' : 'nfc-success'">{{ unit.production_status === 'in_progress' ? 'Em fabricação' : 'Fabricado' }} · lote #{{ unit.production_id }}</span>
             </summary>
             <div class="nfc-rule flex min-w-0 flex-col gap-3 border-t p-3">
                 <div class="flex flex-wrap gap-2">

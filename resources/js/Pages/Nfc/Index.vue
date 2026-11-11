@@ -57,6 +57,7 @@ const metrics = computed(() => {
     return [
         { label: 'Interessadas', value: totals.interested },
         { label: 'Fabricadas', value: totals.manufactured },
+        { label: 'Em fabricação', value: totals.in_production ?? 0, tone: 'nfc-warning' },
         { label: 'Em customização', value: totals.in_customization },
         { label: 'Vendidas', value: totals.sold, detail: `${totals.sold_standard} normais · ${totals.sold_custom} personalizadas` },
         { label: 'Plaquinhas pagas', value: totals.paid_plates },
@@ -193,7 +194,8 @@ watch(dialog, async (current, previous) => {
                 <ul v-if="production.length" class="nfc-panel min-w-0">
                     <li v-for="item in production" :key="item.id" class="nfc-rule flex min-w-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 last:border-b-0">
                         <div class="min-w-0">
-                            <p class="text-sm font-semibold">{{ item.initial ? 'Lote inicial' : date(item.produced_on) }} · {{ item.quantity }} plaquinhas</p>
+                            <p class="text-sm font-semibold">{{ item.initial ? 'Lote inicial' : item.produced_on ? date(item.produced_on) : 'Lote sem data' }} · {{ item.quantity }} plaquinhas</p>
+                            <span class="nfc-badge" :class="item.status === 'in_progress' ? 'nfc-warning' : 'nfc-success'">{{ item.status === 'in_progress' ? 'Em fabricação' : 'Fabricado' }}</span>
                             <p class="nfc-muted text-sm">{{ item.customized_quantity === null ? 'Tipos a informar' : `${item.quantity - item.customized_quantity} normais · ${item.customized_quantity} personalizadas` }}</p>
                         </div>
                         <span class="nfc-muted text-sm tabular-nums">{{ item.cost_cents === null ? 'Custo a informar' : money(item.cost_cents) }}</span>
@@ -226,6 +228,7 @@ watch(dialog, async (current, previous) => {
                     :sale="sale"
                     :plate="plate"
                     :batch="batch"
+                    :production="production"
                     @cancel="goBack"
                     @saved="saved"
                     @busy="busy = $event"
