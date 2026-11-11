@@ -286,44 +286,6 @@ class ManageNfcRecords
         ]);
     }
 
-    public function deleteProduction(User $user, int $production): void
-    {
-        DB::transaction(function () use ($user, $production): void {
-            $batch = NfcRecord::query()->whereBelongsTo($user)
-                ->whereIn('kind', [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION])
-                ->lockForUpdate()->findOrFail($production);
-            abort_if(! empty($batch->payload['deleted_at']), 404);
-
-            $companies = NfcRecord::query()->whereBelongsTo($user)
-                ->where('kind', NfcRecord::COMPANY)->lockForUpdate()->get();
-
-            foreach ($companies as $company) {
-                $before = $company->payload;
-                if (! empty($before['deleted_at'])) {
-                    continue;
-                }
-
-                $after = $before;
-                foreach ($after['units'] as &$unit) {
-                    if (($unit['production_id'] ?? null) === $production) {
-                        $unit['production_id'] = null;
-                    }
-                }
-                unset($unit);
-
-                if ($after !== $before) {
-                    $company->update(['payload' => $after]);
-                    $this->recordHistory($user, 'updated', $company, $before, $after);
-                }
-            }
-
-            $before = $batch->payload;
-            $after = [...$before, 'deleted_at' => now()->toISOString()];
-            $batch->update(['payload' => $after]);
-            $this->recordHistory($user, 'deleted', $batch, $before, $after);
-        }, 3);
-    }
-
     public function deleteUnit(User $user, int $company, string $unit): void
     {
         $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($unit): array {
