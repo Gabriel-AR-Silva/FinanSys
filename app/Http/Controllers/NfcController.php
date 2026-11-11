@@ -270,6 +270,7 @@ class NfcController extends Controller
             'quantity' => ['required', 'integer', 'min:1', 'max:1000000'],
             'customized_quantity' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'cost_cents' => ['nullable', 'integer', 'min:0', 'max:999999999'],
+            'manufacturer_id' => ['nullable', 'integer', 'min:1'],
             'status' => ['sometimes', Rule::in(['in_progress', 'completed'])],
         ];
     }
