@@ -25,6 +25,9 @@ class ResolveNfcShareToken
         abort_if($link->user === null, 404);
         $request->attributes->set('nfc_share_owner', $link->user);
         $request->attributes->set('nfc_share_link', $link);
+        $request->attributes->set('nfc_share_token', $token);
+        // The token is a scope credential, not a controller action argument.
+        $request->route()->forgetParameter('token');
 
         $response = $next($request);
         $response->headers->set('Cache-Control', 'private, no-store, max-age=0');
