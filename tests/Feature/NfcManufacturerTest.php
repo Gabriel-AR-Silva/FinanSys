@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\NfcAccessLink;
 use App\Models\NfcRecord;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -122,7 +123,7 @@ class NfcManufacturerTest extends TestCase
         $this->get($sharedImageUrl)->assertOk();
 
         $this->actingAs($owner)->delete(route('nfc.share-links.destroy', [
-            'link' => $owner->nfcAccessLinks()->first()->id,
+            'link' => NfcAccessLink::query()->where('user_id', $owner->id)->firstOrFail()->id,
         ]))->assertRedirect(route('nfc.index'));
         Auth::logout();
         $this->get($sharedImageUrl)->assertNotFound();
