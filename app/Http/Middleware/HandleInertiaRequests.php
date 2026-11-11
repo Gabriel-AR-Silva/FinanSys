@@ -30,15 +30,17 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $isSharedNfc = $request->routeIs('nfc.share.*');
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $isSharedNfc ? null : $request->user(),
             ],
             'features' => [
-                'ofx' => (bool) config('features.ofx', false),
+                'ofx' => ! $isSharedNfc && (bool) config('features.ofx', false),
             ],
-            'onboarding' => fn (): ?array => $request->user()
+            'onboarding' => fn (): ?array => ! $isSharedNfc && $request->user()
                 ? app(OnboardingProgressQuery::class)->forUser($request->user())
                 : null,
             'flash' => [
