@@ -55,26 +55,26 @@ Route::get('/dashboard', DashboardController::class)
     ->name('dashboard');
 
 Route::prefix('plaquinhas-nfc/compartilhado/{token}')->name('nfc.share.')->middleware([ResolveNfcShareToken::class, EnsureNfcRecordsAvailable::class, 'throttle:60,1'])->controller(NfcController::class)->group(function () {
-        Route::get('/', 'index')->name('index');
-        Route::post('/empresas', 'storeCompany')->name('companies.store');
-        Route::patch('/empresas/{company}', 'updateCompany')->whereNumber('company')->name('companies.update');
-        Route::post('/empresas/{company}/unidades', 'storeUnit')->whereNumber('company')->name('units.store');
-        Route::patch('/empresas/{company}/unidades/{unit}', 'updateUnit')->whereNumber('company')->whereUuid('unit')->name('units.update');
-        Route::post('/empresas/{company}/vendas', 'storeSale')->whereNumber('company')->name('sales.store');
-        Route::patch('/empresas/{company}/vendas/{sale}', 'updateSale')->whereNumber('company')->whereUuid('sale')->name('sales.update');
-        Route::post('/empresas/{company}/vendas/{sale}/pagamentos', 'storePayment')->whereNumber('company')->whereUuid('sale')->name('payments.store');
-        Route::patch('/empresas/{company}/vendas/{sale}/plaquinhas/{plate}', 'updatePlate')->whereNumber('company')->whereUuid(['sale', 'plate'])->name('plates.update');
-        Route::post('/producao', 'storeProduction')->name('production.store');
-        Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
-        Route::post('/avisos', 'storeNotice')->name('notices.store');
-        Route::patch('/avisos/{notice}/resolver', 'resolveNotice')->whereNumber('notice')->name('notices.resolve');
-        Route::delete('/empresas/{company}', 'deleteCompany')->whereNumber('company')->name('companies.destroy');
-        Route::delete('/empresas/{company}/unidades/{unit}', 'deleteUnit')->whereNumber('company')->whereUuid('unit')->name('units.destroy');
-        Route::delete('/empresas/{company}/vendas/{sale}', 'deleteSale')->whereNumber('company')->whereUuid('sale')->name('sales.destroy');
-        Route::delete('/empresas/{company}/vendas/{sale}/plaquinhas/{plate}', 'deletePlate')->whereNumber('company')->whereUuid(['sale', 'plate'])->name('plates.destroy');
-        Route::delete('/producao/{production}', 'deleteProduction')->whereNumber('production')->name('production.destroy');
-        Route::delete('/avisos/{notice}', 'deleteNotice')->whereNumber('notice')->name('notices.destroy');
-    });
+    Route::get('/', 'index')->name('index');
+    Route::post('/empresas', 'storeCompany')->name('companies.store');
+    Route::patch('/empresas/{company}', 'updateCompany')->whereNumber('company')->name('companies.update');
+    Route::post('/empresas/{company}/unidades', 'storeUnit')->whereNumber('company')->name('units.store');
+    Route::patch('/empresas/{company}/unidades/{unit}', 'updateUnit')->whereNumber('company')->whereUuid('unit')->name('units.update');
+    Route::post('/empresas/{company}/vendas', 'storeSale')->whereNumber('company')->name('sales.store');
+    Route::patch('/empresas/{company}/vendas/{sale}', 'updateSale')->whereNumber('company')->whereUuid('sale')->name('sales.update');
+    Route::post('/empresas/{company}/vendas/{sale}/pagamentos', 'storePayment')->whereNumber('company')->whereUuid('sale')->name('payments.store');
+    Route::patch('/empresas/{company}/vendas/{sale}/plaquinhas/{plate}', 'updatePlate')->whereNumber('company')->whereUuid(['sale', 'plate'])->name('plates.update');
+    Route::post('/producao', 'storeProduction')->name('production.store');
+    Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
+    Route::post('/avisos', 'storeNotice')->name('notices.store');
+    Route::patch('/avisos/{notice}/resolver', 'resolveNotice')->whereNumber('notice')->name('notices.resolve');
+    Route::delete('/empresas/{company}', 'deleteCompany')->whereNumber('company')->name('companies.destroy');
+    Route::delete('/empresas/{company}/unidades/{unit}', 'deleteUnit')->whereNumber('company')->whereUuid('unit')->name('units.destroy');
+    Route::delete('/empresas/{company}/vendas/{sale}', 'deleteSale')->whereNumber('company')->whereUuid('sale')->name('sales.destroy');
+    Route::delete('/empresas/{company}/vendas/{sale}/plaquinhas/{plate}', 'deletePlate')->whereNumber('company')->whereUuid(['sale', 'plate'])->name('plates.destroy');
+    Route::delete('/producao/{production}', 'deleteProduction')->whereNumber('production')->name('production.destroy');
+    Route::delete('/avisos/{notice}', 'deleteNotice')->whereNumber('notice')->name('notices.destroy');
+});
 
 Route::middleware('auth')->group(function () {
     Route::post('/plaquinhas-nfc/links', [NfcShareLinkController::class, 'store'])

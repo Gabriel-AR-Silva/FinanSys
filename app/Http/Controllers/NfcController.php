@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\ManageNfcRecords;
 use App\Models\NfcAccessLink;
+use App\Models\NfcRecord;
 use App\Models\User;
 use App\Queries\NfcDashboardQuery;
 use Illuminate\Http\RedirectResponse;
@@ -180,7 +181,7 @@ class NfcController extends Controller
 
     public function deleteCompany(Request $request, ManageNfcRecords $records, int $company): RedirectResponse
     {
-        $records->deleteRecord($this->owner($request), $company, \App\Models\NfcRecord::COMPANY);
+        $records->deleteRecord($this->owner($request), $company, NfcRecord::COMPANY);
 
         return $this->redirectToDashboard($request);
     }
@@ -215,7 +216,7 @@ class NfcController extends Controller
 
     public function deleteNotice(Request $request, ManageNfcRecords $records, int $notice): RedirectResponse
     {
-        $records->deleteRecord($this->owner($request), $notice, \App\Models\NfcRecord::NOTICE);
+        $records->deleteRecord($this->owner($request), $notice, NfcRecord::NOTICE);
 
         return $this->redirectToDashboard($request);
     }
