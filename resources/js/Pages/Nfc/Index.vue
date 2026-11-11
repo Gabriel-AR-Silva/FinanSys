@@ -150,8 +150,8 @@ const title = computed(() => {
     }
 });
 
-const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído' };
-const historyKind = { company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial' };
+const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído', revoked: 'Revogado' };
+const historyKind = { company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial', share_link: 'Link compartilhado' };
 const datetime = text => new Date(text).toLocaleString('pt-BR');
 function destroy(kind, context = {}) {
     if (busy.value) return;

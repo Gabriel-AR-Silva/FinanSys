@@ -208,9 +208,7 @@ class NfcController extends Controller
 
     public function deleteProduction(Request $request, ManageNfcRecords $records, int $production): RedirectResponse
     {
-        $records->deleteRecord($this->owner($request), $production, [
-            \App\Models\NfcRecord::PRODUCTION, \App\Models\NfcRecord::INITIAL_PRODUCTION,
-        ]);
+        $records->deleteProduction($this->owner($request), $production);
 
         return $this->redirectToDashboard($request);
     }

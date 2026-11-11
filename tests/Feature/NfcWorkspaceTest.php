@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\NfcRecord;
+use App\Models\NfcAccessLink;
+use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -286,6 +288,67 @@ class NfcWorkspaceTest extends TestCase
             'name' => 'Reviver sem auditoria',
             'interested' => true,
         ])->assertNotFound();
+    }
+
+    public function test_scoped_shared_link_allows_nfc_only_and_can_be_revoked(): void
+    {
+        $other = User::factory()->create();
+        $otherCompany = $this->createCompany($other, 'Outra empresa');
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $this->post(route('nfc.share-links.store'))->assertRedirect(route('nfc.index'));
+        $url = session('nfc_share_url');
+        $this->assertNotNull($url);
+        preg_match('~/compartilhado/([^/?]+)~', $url, $matches);
+        $token = $matches[1];
+        $link = NfcAccessLink::query()->where('user_id', $owner->id)->firstOrFail();
+        $this->assertSame(hash('sha256', $token), $link->token_hash);
+        $this->assertNotSame($token, $link->token_hash);
+
+        Auth::logout();
+        $this->get($url)->assertInertia(fn (Assert $page) => $page
+            ->component('Nfc/Index')
+            ->where('shared', true)
+            ->where('auth.user', null)
+            ->has('companies', 1)
+            ->where('companies.0.id', $company->id));
+
+        $this->get(route('dashboard'))->assertRedirect(route('login'));
+        $this->post(route('nfc.companies.store'), [])->assertRedirect(route('login'));
+        $this->patch(route('nfc.share.companies.update', [
+            'token' => $token, 'company' => $otherCompany->id,
+        ]), [
+            'name' => 'Invasão', 'interested' => false,
+        ])->assertNotFound();
+
+        $this->post(route('nfc.share.companies.store', ['token' => $token]), [
+            'operation_id' => (string) Str::uuid(),
+            'name' => 'Nova pelo link',
+            'interested' => true,
+        ])->assertRedirect(route('nfc.share.index', ['token' => $token]));
+        $this->assertSame(2, NfcRecord::query()->where('user_id', $owner->id)
+            ->where('kind', NfcRecord::COMPANY)->count());
+        $this->assertSame('Link compartilhado #'.$link->id,
+            NfcRecord::query()->where('user_id', $owner->id)->where('kind', NfcRecord::HISTORY)
+                ->latest('id')->firstOrFail()->payload['actor']);
+
+        $this->actingAs($owner)->delete(route('nfc.share-links.destroy', ['link' => $link->id]))
+            ->assertRedirect(route('nfc.index'));
+        Auth::logout();
+        $this->get($url)->assertNotFound();
+        $this->get(route('nfc.share.index', ['token' => str_repeat('a', 64)]))->assertNotFound();
+    }
+
+    public function test_expired_nfc_share_token_is_rejected(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->post(route('nfc.share-links.store'))
+            ->assertRedirect(route('nfc.index'));
+        $url = session('nfc_share_url');
+        NfcAccessLink::query()->where('user_id', $owner->id)->firstOrFail()
+            ->update(['expires_at' => now()->subSecond()]);
+        Auth::logout();
+        $this->get($url)->assertNotFound();
     }
 
     private function createCompany(User $user, string $name = 'Pontasso'): NfcRecord

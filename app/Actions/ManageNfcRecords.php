@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Models\NfcAccessLink;
 use App\Models\NfcRecord;
 use App\Models\User;
 use Closure;
@@ -248,6 +249,43 @@ class ManageNfcRecords
         ], 'deleted');
     }
 
+    public function deleteProduction(User $user, int $production): void
+    {
+        $companies = NfcRecord::query()->whereBelongsTo($user)
+            ->where('kind', NfcRecord::COMPANY)->get();
+        foreach ($companies as $company) {
+            if (! empty($company->payload['deleted_at'])) {
+                continue;
+            }
+            foreach ($company->payload['units'] as $unit) {
+                if (($unit['production_id'] ?? null) === $production) {
+                    throw ValidationException::withMessages(['production' => 'Desvincule o lote das unidades antes de excluí-lo.']);
+                }
+            }
+        }
+
+        $this->deleteRecord($user, $production, [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION]);
+    }
+
+    public function recordAccessEvent(User $user, string $event, NfcAccessLink $link): void
+    {
+        NfcRecord::query()->create([
+            'user_id' => $user->id,
+            'kind' => NfcRecord::HISTORY,
+            'record_key' => (string) Str::uuid(),
+            'payload' => [
+                'event' => $event,
+                'target_kind' => 'share_link',
+                'target_id' => $link->id,
+                'label' => 'Link de acesso NFC',
+                'actor' => $user->name,
+                'occurred_at' => now()->toISOString(),
+                'before' => [],
+                'after' => ['expires_at' => $link->expires_at->toISOString(), 'revoked' => $link->revoked_at !== null],
+            ],
+        ]);
+    }
+
     public function deleteUnit(User $user, int $company, string $unit): void
     {
         $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($unit): array {
@@ -329,7 +367,9 @@ class ManageNfcRecords
                 'target_kind' => $record->kind,
                 'target_id' => $record->id,
                 'label' => $after['name'] ?? $before['name'] ?? ($after['text'] ?? $before['text'] ?? null),
-                'actor' => $user->name,
+                'actor' => request()->attributes->has('nfc_share_link')
+                    ? 'Link compartilhado #'.request()->attributes->get('nfc_share_link')->id
+                    : $user->name,
                 'occurred_at' => now()->toISOString(),
                 'before' => $before,
                 'after' => $after,
