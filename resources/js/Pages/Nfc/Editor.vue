@@ -14,6 +14,8 @@ const props = defineProps({
     sale: { type: Object, default: null },
     plate: { type: Object, default: null },
     batch: { type: Object, default: null },
+    production: { type: Array, required: true },
+    nfcRoute: { type: Function, required: true },
 });
 const emit = defineEmits(['cancel', 'saved', 'busy']);
 
@@ -41,7 +43,7 @@ function fields() {
                 interested: company?.interested ?? true,
             };
         case 'unit':
-            return { ...(!unit && { operation_id: crypto.randomUUID() }), name: unit?.name ?? '' };
+            return { ...(!unit && { operation_id: crypto.randomUUID() }), name: unit?.name ?? '', production_id: unit?.production_id ?? null };
         case 'sale':
             return {
                 ...(!sale && { operation_id: crypto.randomUUID(), standard_quantity: 1, custom_quantity: 0, in_customization_quantity: 0, payments: [] }),
@@ -52,7 +54,12 @@ function fields() {
         case 'payment':
             return { operation_id: crypto.randomUUID(), method: '', amount: inputMoney(sale.balance_cents) };
         case 'plate':
-            return { type: plate.type, label: plate.label ?? '', notes: plate.notes ?? '', customizing: plate.customizing };
+            return {
+                type: plate.type, label: plate.label ?? '', notes: plate.notes ?? '',
+                customizing: plate.customizing,
+                defective: plate.defective ?? false,
+                estimated_loss: inputMoney(plate.estimated_loss_cents),
+            };
         case 'batch':
             return {
                 ...(!batch && { operation_id: crypto.randomUUID(), initial: Boolean(context.initial) }),
@@ -60,6 +67,7 @@ function fields() {
                 quantity: batch?.quantity ?? (context.initial ? 60 : 1),
                 customized_quantity: batch ? batch.customized_quantity ?? '' : context.initial ? '' : 0,
                 cost: inputMoney(batch?.cost_cents),
+                status: batch?.status ?? 'completed',
             };
         case 'notice':
             return { operation_id: crypto.randomUUID(), text: '', important: false, company_id: context.companyId ?? '', plate_id: context.plateId ?? '' };
@@ -103,24 +111,28 @@ function submit() {
 
     switch (props.kind) {
         case 'company-form':
-            if (company) form.patch(route('nfc.companies.update', { company: company.id }), options);
-            else form.post(route('nfc.companies.store'), options);
+            if (company) form.patch(nfcRoute('nfc.companies.update', { company: company.id }), options);
+            else form.post(nfcRoute('nfc.companies.store'), options);
             break;
         case 'unit':
-            if (unit) form.patch(route('nfc.units.update', { company: company.id, unit: unit.id }), options);
-            else form.post(route('nfc.units.store', { company: company.id }), options);
+            if (unit) form.patch(nfcRoute('nfc.units.update', { company: company.id, unit: unit.id }), options);
+            else form.post(nfcRoute('nfc.units.store', { company: company.id }), options);
             break;
         case 'sale':
             form.transform(salePayload);
-            if (sale) form.patch(route('nfc.sales.update', { company: company.id, sale: sale.id }), options);
-            else form.post(route('nfc.sales.store', { company: company.id }), options);
+            if (sale) form.patch(nfcRoute('nfc.sales.update', { company: company.id, sale: sale.id }), options);
+            else form.post(nfcRoute('nfc.sales.store', { company: company.id }), options);
             break;
         case 'payment':
             form.transform(({ amount, ...data }) => ({ ...data, amount_cents: asCents(amount) }));
-            form.post(route('nfc.payments.store', { company: company.id, sale: sale.id }), options);
+            form.post(nfcRoute('nfc.payments.store', { company: company.id, sale: sale.id }), options);
             break;
         case 'plate':
-            form.patch(route('nfc.plates.update', { company: company.id, sale: sale.id, plate: plate.id }), options);
+            form.transform(({ estimated_loss, ...data }) => ({
+                ...data,
+                estimated_loss_cents: data.defective && estimated_loss !== '' ? asCents(estimated_loss) : null,
+            }));
+            form.patch(nfcRoute('nfc.plates.update', { company: company.id, sale: sale.id, plate: plate.id }), options);
             break;
         case 'batch':
             form.transform(({ cost, customized_quantity, produced_on, ...data }) => ({
@@ -129,12 +141,12 @@ function submit() {
                 customized_quantity: customized_quantity === '' ? null : customized_quantity,
                 cost_cents: asCents(cost),
             }));
-            if (batch) form.patch(route('nfc.production.update', { production: batch.id }), options);
-            else form.post(route('nfc.production.store'), options);
+            if (batch) form.patch(nfcRoute('nfc.production.update', { production: batch.id }), options);
+            else form.post(nfcRoute('nfc.production.store'), options);
             break;
         case 'notice':
             form.transform(data => ({ ...data, company_id: data.company_id || null, plate_id: data.plate_id || null }));
-            form.post(route('nfc.notices.store'), options);
+            form.post(nfcRoute('nfc.notices.store'), options);
             break;
     }
 }
@@ -154,8 +166,8 @@ function submit() {
                 <label class="nfc-field">Telefone ou WhatsApp
                     <input v-model.trim="form.phone" class="nfc-control" type="tel" autocomplete="tel" />
                 </label>
-                <label class="nfc-field">CNPJ
-                    <input v-model.trim="form.cnpj" class="nfc-control" inputmode="numeric" />
+                <label class="nfc-field">CPF/CNPJ
+                    <input v-model.trim="form.cnpj" class="nfc-control" type="text" autocomplete="off" />
                 </label>
             </div>
             <label class="nfc-field">Informações da empresa
@@ -169,9 +181,19 @@ function submit() {
             </label>
         </template>
 
-        <label v-else-if="kind === 'unit'" class="nfc-field">Nome da unidade
-            <input v-model.trim="form.name" class="nfc-control" required />
-        </label>
+        <template v-else-if="kind === 'unit'">
+            <label class="nfc-field">Nome da unidade
+                <input v-model.trim="form.name" class="nfc-control" required />
+            </label>
+            <label class="nfc-field">Lote vinculado
+                <select v-model="form.production_id" class="nfc-control">
+                    <option :value="null">Sem lote vinculado</option>
+                    <option v-for="batchOption in production" :key="batchOption.id" :value="batchOption.id">
+                        {{ batchOption.initial ? 'Lote inicial' : batchOption.produced_on ? date(batchOption.produced_on) : 'Sem data' }} · {{ batchOption.quantity }} plaquinhas
+                    </option>
+                </select>
+            </label>
+        </template>
 
         <template v-else-if="kind === 'sale'">
             <label class="nfc-field">Unidade
@@ -247,14 +269,27 @@ function submit() {
             <label v-if="form.type === 'custom'" class="flex min-h-11 items-center gap-2 text-sm font-medium">
                 <input v-model="form.customizing" type="checkbox" class="nfc-check" /> Em customização
             </label>
+            <label class="flex min-h-11 items-center gap-2 text-sm font-medium">
+                <input v-model="form.defective" type="checkbox" class="nfc-check" /> Plaquinha com defeito
+            </label>
+            <label v-if="form.defective" class="nfc-field">Possível prejuízo (R$)
+                <input v-model.trim="form.estimated_loss" class="nfc-control" inputmode="decimal" :pattern="decimalPattern" placeholder="Ainda não estimado" />
+            </label>
+            <p v-if="form.defective" class="nfc-muted text-xs">Estimativa informativa: não altera o valor da venda nem os pagamentos recebidos.</p>
             <label class="nfc-field">Observação
                 <textarea v-model.trim="form.notes" class="nfc-control" rows="3" />
             </label>
         </template>
 
         <template v-else-if="kind === 'batch'">
+            <label class="nfc-field">Etapa do lote
+                <select v-model="form.status" class="nfc-control" required>
+                    <option value="in_progress">Em fabricação</option>
+                    <option value="completed">Fabricado</option>
+                </select>
+            </label>
             <label class="nfc-field">Data da fabricação
-                <input v-model="form.produced_on" class="nfc-control" type="date" :required="!initialBatch" />
+                <input v-model="form.produced_on" class="nfc-control" type="date" :required="!initialBatch && form.status === 'completed'" />
             </label>
             <div class="grid min-w-0 gap-4 sm:grid-cols-2">
                 <label class="nfc-field">Quantidade fabricada
