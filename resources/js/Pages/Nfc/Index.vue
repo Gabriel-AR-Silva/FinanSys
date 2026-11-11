@@ -4,7 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import NfcSharedLayout from '@/Layouts/NfcSharedLayout.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, X } from '@lucide/vue';
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import CompanyDetails from './CompanyDetails.vue';
 import Editor from './Editor.vue';
 import Notices from './Notices.vue';
@@ -43,6 +43,23 @@ const dialogHeading = ref(null);
 const busy = ref(false);
 const shareBusy = ref(false);
 const copied = ref(false);
+const feedback = ref(null);
+let feedbackTimer = null;
+
+function notify({ type = 'success', message }) {
+    if (!message) return;
+    if (feedbackTimer) clearTimeout(feedbackTimer);
+    feedback.value = { type, message };
+    feedbackTimer = setTimeout(() => { feedback.value = null; feedbackTimer = null; }, type === 'error' ? 8000 : 4500);
+}
+
+function reportError(errors, fallback) {
+    const first = Object.values(errors ?? {}).flat().find(Boolean);
+    notify({ type: 'error', message: first ? String(first) : fallback });
+}
+
+onBeforeUnmount(() => { if (feedbackTimer) clearTimeout(feedbackTimer); });
+
 const nfcRoute = (name, params = {}) => props.shared
     ? route(name.replace(/^nfc\./, 'nfc.share.'), { token: props.share_token, ...params })
     : route(name, params);
@@ -53,6 +70,8 @@ function createShare() {
         preserveScroll: true,
         onStart: () => { shareBusy.value = true; },
         onFinish: () => { shareBusy.value = false; },
+        onSuccess: () => notify({ message: 'Link criado. Copie o endereço para compartilhar.' }),
+        onError: errors => reportError(errors, 'Não foi possível gerar o link.'),
     });
 }
 
@@ -62,6 +81,8 @@ function revokeShare(link) {
         preserveScroll: true,
         onStart: () => { shareBusy.value = true; },
         onFinish: () => { shareBusy.value = false; },
+        onSuccess: () => notify({ message: 'Link revogado.' }),
+        onError: errors => reportError(errors, 'Não foi possível revogar o link.'),
     });
 }
 
@@ -70,8 +91,10 @@ async function copyShare() {
     try {
         await navigator.clipboard.writeText(props.created_share_url);
         copied.value = true;
+        notify({ message: 'Link copiado.' });
     } catch (_) {
         copied.value = false;
+        notify({ type: 'error', message: 'Não foi possível copiar automaticamente. Selecione o link para copiar.' });
     }
 }
 
@@ -200,7 +223,11 @@ function destroy(kind, context = {}) {
         preserveScroll: true,
         onStart: () => { busy.value = true; },
         onFinish: () => { busy.value = false; },
-        onSuccess: () => { if (kind === 'company') dialog.value = null; },
+        onSuccess: () => {
+            if (kind === 'company') dialog.value = null;
+            notify({ message: 'Registro excluído. Listas e indicadores atualizados.' });
+        },
+        onError: errors => reportError(errors, 'Não foi possível excluir este registro. Confira os vínculos e tente novamente.'),
     });
 }
 
@@ -217,10 +244,19 @@ function goBack() {
     dialog.value = dialog.value?.previous ?? null;
 }
 
-function saved() {
-    if (dialog.value?.kind === 'company-form' && !company.value) filter.value = 'all';
+function saved(message = 'Registro salvo.') {
+    if (dialog.value?.kind === 'company-form' && !company.value) {
+        filter.value = 'all';
+        search.value = '';
+        activeRegistryTab.value = 'companies';
+    }
+    if (dialog.value?.kind === 'batch') {
+        productionSearch.value = '';
+        activeRegistryTab.value = 'production';
+    }
     busy.value = false;
     goBack();
+    notify({ message });
 }
 
 function closeDialog() {
@@ -241,6 +277,16 @@ watch(dialog, async (current, previous) => {
 <template>
     <component :is="shared ? NfcSharedLayout : AuthenticatedLayout">
         <Head title="Plaquinhas NFC" />
+        <div v-if="feedback" class="fixed bottom-4 right-4 z-[90] w-[calc(100%-2rem)] max-w-sm rounded-xl border p-3 shadow-lg"
+            :class="feedback.type === 'error' ? 'nfc-feedback-error' : 'nfc-feedback-success'"
+            :role="feedback.type === 'error' ? 'alert' : 'status'" aria-live="polite">
+            <div class="flex items-start gap-2">
+                <p class="min-w-0 flex-1 break-words text-sm font-medium">{{ feedback.message }}</p>
+                <button type="button" class="shrink-0 rounded-md p-1 hover:opacity-75" aria-label="Fechar mensagem" @click="feedback = null">
+                    <X :size="16" aria-hidden="true" />
+                </button>
+            </div>
+        </div>
 
         <div class="flex min-w-0 flex-col gap-6 sm:gap-8">
             <header class="flex flex-wrap items-center justify-between gap-3">
@@ -251,9 +297,6 @@ watch(dialog, async (current, previous) => {
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
                         <Bell :size="18" aria-hidden="true" />
                         <span v-if="noticeCount" class="nfc-badge nfc-warning tabular-nums" aria-hidden="true">{{ noticeCount }}</span>
-                    </button>
-                    <button type="button" class="nfc-button nfc-primary" @click="edit('company-form')">
-                        <Plus :size="18" aria-hidden="true" /> Nova empresa
                     </button>
                 </div>
             </header>
@@ -303,11 +346,14 @@ watch(dialog, async (current, previous) => {
             </div>
 
             <section v-if="!schema_pending" v-show="activeRegistryTab === 'companies'" id="nfc-panel-companies" role="tabpanel" aria-labelledby="nfc-tab-companies" class="flex min-w-0 flex-col gap-3">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h2 id="nfc-companies" class="flex items-center gap-2 text-lg font-semibold"><Building2 :size="19" aria-hidden="true" /> Empresas</h2>
-                    <div class="flex flex-wrap gap-1.5" aria-label="Filtrar empresas" role="group">
-                        <button v-for="option in filters" :key="option.key" type="button" class="nfc-button" :aria-pressed="filter === option.key" @click="filter = option.key">{{ option.label }}</button>
-                    </div>
+                <div class="flex min-w-0 items-center justify-between gap-2">
+                    <h2 id="nfc-companies" class="flex min-w-0 items-center gap-2 text-lg font-semibold"><Building2 :size="19" aria-hidden="true" /> Empresas</h2>
+                    <button type="button" class="nfc-button nfc-primary shrink-0" @click="edit('company-form')">
+                        <Plus :size="16" aria-hidden="true" /> Nova empresa
+                    </button>
+                </div>
+                <div class="flex flex-wrap gap-1.5" aria-label="Filtrar empresas" role="group">
+                    <button v-for="option in filters" :key="option.key" type="button" class="nfc-button" :aria-pressed="filter === option.key" @click="filter = option.key">{{ option.label }}</button>
                 </div>
                 <label class="nfc-field max-w-xl">Buscar empresa, CPF/CNPJ, unidade, venda ou plaquinha
                     <input v-model.trim="search" type="search" class="nfc-control" placeholder="Digite para filtrar..." aria-label="Buscar no módulo NFC" />
@@ -422,7 +468,7 @@ watch(dialog, async (current, previous) => {
                     </ul>
                     <p v-if="!history.length" class="nfc-muted text-sm">Nenhuma alteração registrada.</p>
                 </div>
-                <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :warranty-notices="warranty_notices" :nfc-route="nfcRoute" @create="edit('notice')" @open-company="showCompany" @busy="busy = $event" />
+                <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :warranty-notices="warranty_notices" :nfc-route="nfcRoute" @create="edit('notice')" @open-company="showCompany" @busy="busy = $event" @feedback="notify" />
                 <Editor
                     v-else
                     :key="dialog.kind"
@@ -440,6 +486,7 @@ watch(dialog, async (current, previous) => {
                     @cancel="goBack"
                     @saved="saved"
                     @busy="busy = $event"
+                    @feedback="notify"
                 />
             </section>
         </Modal>
