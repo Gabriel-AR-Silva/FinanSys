@@ -47,6 +47,22 @@ const companiesShown = computed(() => {
         ].some(value => String(value ?? '').toLocaleLowerCase('pt-BR').includes(text));
     });
 });
+const unitRows = computed(() => companiesShown.value.flatMap(company => company.units.map(unit => {
+    const sales = company.sales.filter(sale => sale.unit_id === unit.id);
+    return {
+        id: unit.id,
+        companyId: company.id,
+        companyName: company.name,
+        identifier: company.cnpj,
+        unitName: unit.name,
+        productionId: unit.production_id ?? null,
+        productionStatus: unit.production_status ?? null,
+        sold: sales.reduce((sum, sale) => sum + sale.plates.length, 0),
+        total: sales.reduce((sum, sale) => sum + sale.total_cents, 0),
+        received: sales.reduce((sum, sale) => sum + sale.paid_cents, 0),
+        outstanding: sales.reduce((sum, sale) => sum + sale.balance_cents, 0),
+    };
+})));
 const noticeCount = computed(() => props.notices.filter(notice => !notice.resolved_at).length + props.warranty_notices.length);
 const hasInitialBatch = computed(() => props.production.some(batch => batch.initial));
 
@@ -161,24 +177,35 @@ watch(dialog, async (current, previous) => {
                 <label class="nfc-field max-w-xl">Buscar empresa, CPF/CNPJ, unidade, venda ou plaquinha
                     <input v-model.trim="search" type="search" class="nfc-control" placeholder="Digite para filtrar..." aria-label="Buscar no módulo NFC" />
                 </label>
-                <div v-if="companiesShown.length" class="nfc-panel min-w-0">
-                    <div aria-hidden="true" class="nfc-muted hidden grid-cols-[minmax(0,1.6fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_minmax(0,1fr)_1rem] gap-3 border-b px-4 py-3 text-xs font-semibold nfc-rule md:grid">
-                        <span>Empresa</span><span>Unidades</span><span>Vendidas</span><span>A receber</span>
-                    </div>
-                    <ul>
-                        <li v-for="item in companiesShown" :key="item.id" class="nfc-rule border-b last:border-b-0">
-                            <button type="button" class="nfc-row grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl px-4 py-3 text-left text-sm md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_minmax(0,1fr)_1rem]" @click="showCompany(item.id)">
-                                <span class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-semibold [overflow-wrap:anywhere]">
-                                    {{ item.name }}
-                                    <span v-if="item.interested" class="nfc-badge nfc-info">Interessada</span>
-                                </span>
-                                <span class="nfc-muted col-start-1 row-start-2 md:col-auto md:row-auto"><span class="md:sr-only">Unidades </span>{{ item.units.length }}</span>
-                                <span class="nfc-muted col-start-2 row-start-2 md:col-auto md:row-auto"><span class="md:sr-only">Vendidas </span>{{ item.sold }}</span>
-                                <span class="col-start-1 row-start-3 font-medium tabular-nums [overflow-wrap:anywhere] md:col-auto md:row-auto"><span class="md:sr-only">A receber </span>{{ money(item.outstanding_cents) }}</span>
-                                <ChevronRight :size="16" class="nfc-muted col-start-2 row-start-1 justify-self-end md:col-auto md:row-auto" aria-hidden="true" />
+                <div v-if="unitRows.length" class="flex flex-col gap-3">
+                    <ul class="flex flex-col gap-2 md:hidden" aria-label="Empresas e unidades NFC">
+                        <li v-for="row in unitRows" :key="row.companyId + '-' + row.id" class="nfc-panel min-w-0">
+                            <button type="button" class="nfc-row flex w-full min-w-0 flex-col items-start gap-2 rounded-xl p-4 text-left" @click="showCompany(row.companyId)">
+                                <span class="flex w-full items-center justify-between gap-2 font-semibold">{{ row.companyName }} <ChevronRight :size="16" aria-hidden="true" /></span>
+                                <span class="nfc-muted text-sm">{{ row.unitName }} · {{ row.identifier || 'Sem CPF/CNPJ' }}</span>
+                                <span class="nfc-badge" :class="row.productionStatus === 'in_progress' ? 'nfc-warning' : row.productionStatus ? 'nfc-success' : 'nfc-neutral'">{{ row.productionStatus === 'in_progress' ? 'Em fabricação' : row.productionStatus ? 'Fabricado' : 'Sem lote' }}</span>
+                                <span class="flex w-full flex-wrap gap-3 text-sm"><span>{{ row.sold }} vendidas</span><span>Valor: {{ money(row.total) }}</span><span>Recebido: {{ money(row.received) }}</span><span>A receber: {{ money(row.outstanding) }}</span></span>
                             </button>
                         </li>
                     </ul>
+                    <div class="nfc-panel hidden min-w-0 overflow-x-auto md:block">
+                        <table class="w-full min-w-[780px] text-left text-sm">
+                            <thead class="nfc-muted nfc-rule border-b text-xs">
+                                <tr><th class="px-4 py-3">Empresa / CPF-CNPJ</th><th class="px-3 py-3">Unidade</th><th class="px-3 py-3">Lote / Status</th><th class="px-3 py-3 text-right">Vendidas</th><th class="px-3 py-3 text-right">Valor</th><th class="px-3 py-3 text-right">Pago</th><th class="px-4 py-3 text-right">A receber</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="row in unitRows" :key="row.companyId + '-' + row.id" class="nfc-rule border-b last:border-b-0">
+                                    <td class="px-4 py-3"><button type="button" class="font-semibold underline-offset-2 hover:underline" @click="showCompany(row.companyId)">{{ row.companyName }}</button><p class="nfc-muted text-xs">{{ row.identifier || '—' }}</p></td>
+                                    <td class="px-3 py-3">{{ row.unitName }}</td>
+                                    <td class="px-3 py-3"><span :class="row.productionStatus === 'in_progress' ? 'nfc-warning' : row.productionStatus ? 'nfc-success' : 'nfc-neutral'" class="nfc-badge">{{ row.productionStatus === 'in_progress' ? 'Em fabricação' : row.productionStatus ? 'Fabricado' : 'Sem lote' }}</span><span v-if="row.productionId" class="nfc-muted block text-xs">Lote #{{ row.productionId }}</span></td>
+                                    <td class="px-3 py-3 text-right tabular-nums">{{ row.sold }}</td>
+                                    <td class="px-3 py-3 text-right tabular-nums">{{ money(row.total) }}</td>
+                                    <td class="px-3 py-3 text-right tabular-nums">{{ money(row.received) }}</td>
+                                    <td class="px-4 py-3 text-right font-semibold tabular-nums">{{ money(row.outstanding) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
                 <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ companies.length ? 'Nenhuma empresa neste filtro.' : 'Nenhuma empresa cadastrada.' }}</p>
             </section>
