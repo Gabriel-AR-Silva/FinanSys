@@ -1,6 +1,6 @@
 # Plaquinhas NFC
 
-O módulo reúne produção, empresas interessadas, vendas e avisos em uma página autenticada do FinanSys. O menu abre `/plaquinhas-nfc`, com um painel e um sininho próprios.
+O módulo reúne produção, empresas interessadas, vendas, avisos, defeitos e trilha de auditoria. O proprietário utiliza uma página autenticada do FinanSys; um link delegado concede acesso somente ao módulo NFC. O menu abre `/plaquinhas-nfc`, com um painel e um sininho próprios.
 
 ## Plano de implementação
 
@@ -13,7 +13,7 @@ O módulo reúne produção, empresas interessadas, vendas e avisos em uma pági
 
 ## Dados e regras
 
-- **Empresa e unidade.** A ficha aceita nome, telefone, CNPJ, observações e indicação de interesse. Cada empresa pode cadastrar e renomear unidades. Uma venda pertence a uma unidade.
+- **Empresa e unidade.** A ficha aceita nome, telefone, CPF/CNPJ (campo livre, persistido no campo legado `cnpj`), observações e indicação de interesse. Cada empresa pode cadastrar e renomear unidades. Uma venda pertence a uma unidade.
 - **Produção.** Cada lote registra quantidade, data e custo quando disponíveis. Registre o lote inicial pelo formulário, que abre com **60** unidades. Quantidade personalizada e custo desconhecidos podem ficar em branco no lote inicial. O total fabricado vem dos lotes.
 - **Vendas.** O formulário aceita quantidades de plaquinhas normais e personalizadas. Cada plaquinha da venda recebe um ID para acompanhar a customização ou anotar um defeito. O painel mostra os dois tipos de venda e conta as plaquinhas em customização.
 - **Pagamentos.** Cada entrada tem valor em centavos e forma de pagamento. Uma venda pode combinar dinheiro, Pix, débito e crédito, na hora ou depois. Cada entrada soma no arrecadado. O saldo determina se a venda está pendente, parcial ou quitada. A quantidade de plaquinhas pagas considera vendas quitadas.
@@ -23,6 +23,15 @@ O módulo reúne produção, empresas interessadas, vendas e avisos em uma pági
 ## Estrutura
 
 `nfc_records` armazena o proprietário, o tipo, a chave do registro, o JSON e os timestamps. A ficha da empresa contém unidades, vendas, plaquinhas e pagamentos no JSON. Lotes e avisos têm seus próprios registros na mesma tabela. Chaves estáveis permitem reenviar operações de cadastro, e alterações em uma ficha usam transação para preservar as demais entradas.
+
+## Versão 2 — dados, permissões e histórico
+
+- As unidades podem se vincular a um lote do mesmo proprietário. Status de fabricação: `in_progress` (em fabricação) e `completed` (fabricado). Lotes legados assumem status concluído. O custo de cada plaquinha defeituosa é uma estimativa independente do total de vendas.
+- As mutações NFC registram eventos `history` com snapshots antes/depois, autor e hora, no próprio armazenamento `nfc_records`. Exclusões de registros-pai são lógicas; excluir unidade com vendas é impedido. Desvincule um lote antes de excluí-lo.
+- **Acesso compartilhado:** proprietário autenticado gera link aleatório de uso temporário (sete dias), cujo hash SHA-256 fica em `nfc_access_links`; os links podem ser revogados. O endereço completo é apresentado somente no ato da emissão e não deve ser colocado em logs de analytics. O link concede **leitura e operações de edição/exclusão NFC**, sem autenticar a pessoa no restante do FinanSys. Envie apenas a pessoas de confiança.
+- Middleware valida o token, escopo e validade em todas as rotas delegadas. Compartilhamento não deve expor perfil, ferramentas financeiras, Tsuki ou logout; respostas usam `no-store` e `no-referrer`. Acesso não equivale a login financeiro.
+- Controle de autorização é server-side; o frontend utiliza um layout NFC separado e converte links internos para o namespace `nfc.share.*`.
+- **Migration adicional:** `database/migrations/2026_11_11_010000_create_nfc_access_links_table.php` deve ser aplicada explicitamente junto com a migration base. Não executar `migrate:fresh` em produção.
 
 ## Primeira utilização
 

@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Models\NfcAccessLink;
 use App\Models\NfcRecord;
 use App\Models\User;
 use Closure;
@@ -28,6 +29,7 @@ class ManageNfcRecords
             'units' => [[
                 'id' => (string) Str::uuid(),
                 'name' => $data['unit_name'] ?? 'Unidade 1',
+                'production_id' => null,
             ]],
             'sales' => [],
         ]);
@@ -43,22 +45,27 @@ class ManageNfcRecords
 
     public function storeUnit(User $user, int $company, array $data): void
     {
-        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($data): array {
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($data, $user): array {
             $unitId = strtolower($data['operation_id']);
 
             if ($this->indexOf($payload['units'], $unitId) === null) {
-                $payload['units'][] = ['id' => $unitId, 'name' => $data['name']];
+                $payload['units'][] = [
+                    'id' => $unitId,
+                    'name' => $data['name'],
+                    'production_id' => $this->validatedProductionId($user, $data['production_id'] ?? null),
+                ];
             }
 
             return $payload;
         });
     }
 
-    public function updateUnit(User $user, int $company, string $unit, string $name): void
+    public function updateUnit(User $user, int $company, string $unit, array $data): void
     {
-        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($unit, $name): array {
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($user, $unit, $data): array {
             $index = $this->indexOrFail($payload['units'], $unit);
-            $payload['units'][$index]['name'] = $name;
+            $payload['units'][$index]['name'] = $data['name'];
+            $payload['units'][$index]['production_id'] = $this->validatedProductionId($user, $data['production_id'] ?? null);
 
             return $payload;
         });
@@ -161,6 +168,8 @@ class ManageNfcRecords
             $index = $this->indexOrFail($stored['plates'], $plate);
             $changes = Arr::only($data, ['label', 'notes', 'type']);
             $changes['customizing'] = $data['type'] === 'custom' && (bool) $data['customizing'];
+            $changes['defective'] = (bool) $data['defective'];
+            $changes['estimated_loss_cents'] = $changes['defective'] ? ($data['estimated_loss_cents'] ?? null) : null;
 
             $stored['plates'][$index] = [...$stored['plates'][$index], ...$changes];
 
@@ -206,7 +215,7 @@ class ManageNfcRecords
                 ->where('kind', NfcRecord::COMPANY)
                 ->find($companyId);
 
-            if ($company === null) {
+            if ($company === null || ! empty($company->payload['deleted_at'])) {
                 throw ValidationException::withMessages(['company_id' => 'Selecione uma empresa válida.']);
             }
 
@@ -227,7 +236,102 @@ class ManageNfcRecords
     public function resolveNotice(User $user, int $notice): void
     {
         $this->changeRecord($user, $notice, NfcRecord::NOTICE, function (array $payload): array {
-            $payload['resolved_at'] ??= now()->toISOString();
+            $payload['resolved_at'] = $payload['resolved_at'] ? null : now()->toISOString();
+
+            return $payload;
+        });
+    }
+
+    public function deleteRecord(User $user, int $id, string|array $kinds): void
+    {
+        $this->changeRecord($user, $id, $kinds, fn (array $payload): array => [
+            ...$payload, 'deleted_at' => now()->toISOString(),
+        ], 'deleted');
+    }
+
+    public function deleteProduction(User $user, int $production): void
+    {
+        $companies = NfcRecord::query()->whereBelongsTo($user)
+            ->where('kind', NfcRecord::COMPANY)->get();
+        foreach ($companies as $company) {
+            if (! empty($company->payload['deleted_at'])) {
+                continue;
+            }
+            foreach ($company->payload['units'] as $unit) {
+                if (($unit['production_id'] ?? null) === $production) {
+                    throw ValidationException::withMessages(['production' => 'Desvincule o lote das unidades antes de excluí-lo.']);
+                }
+            }
+        }
+
+        $this->deleteRecord($user, $production, [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION]);
+    }
+
+    public function recordAccessEvent(User $user, string $event, NfcAccessLink $link): void
+    {
+        NfcRecord::query()->create([
+            'user_id' => $user->id,
+            'kind' => NfcRecord::HISTORY,
+            'record_key' => (string) Str::uuid(),
+            'payload' => [
+                'event' => $event,
+                'target_kind' => 'share_link',
+                'target_id' => $link->id,
+                'label' => 'Link de acesso NFC',
+                'actor' => $user->name,
+                'occurred_at' => now()->toISOString(),
+                'before' => [],
+                'after' => ['expires_at' => $link->expires_at->toISOString(), 'revoked' => $link->revoked_at !== null],
+            ],
+        ]);
+    }
+
+    public function deleteUnit(User $user, int $company, string $unit): void
+    {
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($unit): array {
+            $this->indexOrFail($payload['units'], $unit);
+            if (collect($payload['sales'])->contains(fn (array $sale): bool => $sale['unit_id'] === strtolower($unit))) {
+                throw ValidationException::withMessages(['unit' => 'Exclua ou transfira as vendas desta unidade primeiro.']);
+            }
+            $payload['units'] = array_values(array_filter($payload['units'], fn (array $item): bool => $item['id'] !== strtolower($unit)));
+
+            return $payload;
+        });
+    }
+
+    public function deleteSale(User $user, int $company, string $sale): void
+    {
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($sale): array {
+            $this->indexOrFail($payload['sales'], $sale);
+            $payload['sales'] = array_values(array_filter($payload['sales'], fn (array $item): bool => $item['id'] !== strtolower($sale)));
+
+            return $payload;
+        });
+    }
+
+    public function deletePayment(User $user, int $company, string $sale, string $payment): void
+    {
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($sale, $payment): array {
+            $saleIndex = $this->indexOrFail($payload['sales'], $sale);
+            $this->indexOrFail($payload['sales'][$saleIndex]['payments'], $payment);
+            $payload['sales'][$saleIndex]['payments'] = array_values(array_filter(
+                $payload['sales'][$saleIndex]['payments'],
+                fn (array $item): bool => $item['id'] !== strtolower($payment),
+            ));
+
+            return $payload;
+        });
+    }
+
+    public function deletePlate(User $user, int $company, string $sale, string $plate): void
+    {
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($sale, $plate): array {
+            $saleIndex = $this->indexOrFail($payload['sales'], $sale);
+            $this->indexOrFail($payload['sales'][$saleIndex]['plates'], $plate);
+            $payload['sales'][$saleIndex]['plates'] = array_values(array_filter(
+                $payload['sales'][$saleIndex]['plates'],
+                fn (array $item): bool => $item['id'] !== strtolower($plate),
+            ));
 
             return $payload;
         });
@@ -235,21 +339,56 @@ class ManageNfcRecords
 
     private function createRecord(User $user, string $kind, string $key, array $payload): NfcRecord
     {
-        return NfcRecord::query()->firstOrCreate([
-            'user_id' => $user->id,
-            'kind' => $kind,
-            'record_key' => strtolower($key),
-        ], ['payload' => $payload]);
+        return DB::transaction(function () use ($user, $kind, $key, $payload): NfcRecord {
+            $record = NfcRecord::query()->firstOrCreate([
+                'user_id' => $user->id,
+                'kind' => $kind,
+                'record_key' => strtolower($key),
+            ], ['payload' => $payload]);
+
+            if ($record->wasRecentlyCreated) {
+                $this->recordHistory($user, 'created', $record, [], $payload);
+            }
+
+            return $record;
+        }, 3);
     }
 
-    private function changeRecord(User $user, int $id, string|array $kinds, Closure $change): void
+    private function changeRecord(User $user, int $id, string|array $kinds, Closure $change, string $event = 'updated'): void
     {
-        DB::transaction(function () use ($user, $id, $kinds, $change): void {
+        DB::transaction(function () use ($user, $id, $kinds, $change, $event): void {
             $record = NfcRecord::query()->whereBelongsTo($user)->whereIn('kind', (array) $kinds)
                 ->lockForUpdate()->findOrFail($id);
+            $before = $record->payload;
+            abort_if(! empty($before['deleted_at']), 404);
+            $after = $change($before);
 
-            $record->update(['payload' => $change($record->payload)]);
+            if ($after !== $before) {
+                $record->update(['payload' => $after]);
+                $this->recordHistory($user, $event, $record, $before, $after);
+            }
         }, 3);
+    }
+
+    private function recordHistory(User $user, string $event, NfcRecord $record, array $before, array $after): void
+    {
+        NfcRecord::query()->create([
+            'user_id' => $user->id,
+            'kind' => NfcRecord::HISTORY,
+            'record_key' => (string) Str::uuid(),
+            'payload' => [
+                'event' => $event,
+                'target_kind' => $record->kind,
+                'target_id' => $record->id,
+                'label' => $after['name'] ?? $before['name'] ?? ($after['text'] ?? $before['text'] ?? null),
+                'actor' => request()->attributes->has('nfc_share_link')
+                    ? 'Link compartilhado #'.request()->attributes->get('nfc_share_link')->id
+                    : $user->name,
+                'occurred_at' => now()->toISOString(),
+                'before' => $before,
+                'after' => $after,
+            ],
+        ]);
     }
 
     private function changeSale(User $user, int $company, string $sale, Closure $change): void
@@ -296,10 +435,28 @@ class ManageNfcRecords
 
         return [
             'produced_on' => $data['produced_on'] ?? null,
+            'status' => $data['status'] ?? 'completed',
             'quantity' => $quantity,
             'customized_quantity' => $customizedQuantity,
             'cost_cents' => isset($data['cost_cents']) ? (int) $data['cost_cents'] : null,
         ];
+    }
+
+    private function validatedProductionId(User $user, ?int $productionId): ?int
+    {
+        if ($productionId === null) {
+            return null;
+        }
+
+        $exists = NfcRecord::query()->whereBelongsTo($user)
+            ->whereIn('kind', [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION])
+            ->whereKey($productionId)->first();
+
+        if (! $exists || ! empty($exists->payload['deleted_at'])) {
+            throw ValidationException::withMessages(['production_id' => 'Selecione um lote de fabricação válido.']);
+        }
+
+        return $productionId;
     }
 
     private function newPlate(string $type, string $label, bool $customizing = false): array
@@ -310,6 +467,8 @@ class ManageNfcRecords
             'label' => $label,
             'notes' => null,
             'customizing' => $customizing,
+            'defective' => false,
+            'estimated_loss_cents' => null,
         ];
     }
 

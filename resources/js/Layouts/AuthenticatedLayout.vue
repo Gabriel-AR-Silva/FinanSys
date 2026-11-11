@@ -122,7 +122,7 @@ watch(mobileNavigationOpen, open => {
             <button type="button" class="absolute right-2 top-6 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400" :aria-label="sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'" @click="sidebarCollapsed = !sidebarCollapsed"><PanelLeftOpen v-if="sidebarCollapsed" :size="18" /><PanelLeftClose v-else :size="18" /></button>
             <Link :href="route('dashboard')" class="flex h-12 shrink-0 items-center text-lg font-bold tracking-tight" :class="sidebarCollapsed ? 'justify-start pl-1 text-sm' : 'pl-2'" aria-label="FinanSys — visão geral"><span>Finan<span class="text-emerald-400">Sys</span></span></Link>
 
-            <nav class="mt-6 min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain pb-4 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Navegação principal">
+            <nav class="mt-6 min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain pb-4 pr-1 [scrollbar-width:thin] [scrollbar-color:var(--fs-border)_transparent]" aria-label="Navegação principal">
                 <section v-for="section in sections" :key="section.label" :aria-label="section.label">
                     <h2 v-if="!sidebarCollapsed" class="mb-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">{{ section.label }}</h2>
                     <div v-else class="mb-2 border-t border-white/10" aria-hidden="true" />
@@ -198,7 +198,7 @@ watch(mobileNavigationOpen, open => {
             <button type="button" class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" aria-label="Fechar navegação" @click="closeMobileNavigation" />
             <aside class="relative flex h-dvh max-h-dvh w-[min(86vw,22rem)] flex-col overflow-hidden bg-slate-950 px-5 py-5 text-white shadow-2xl" role="dialog" aria-modal="true" aria-label="Menu principal">
                 <div class="flex shrink-0 items-center justify-between"><Link :href="route('dashboard')" class="text-lg font-bold" @click="closeMobileNavigation(false)">Finan<span class="text-emerald-400">Sys</span></Link><button type="button" class="rounded-lg p-2 text-slate-300 hover:bg-white/10" aria-label="Fechar navegação" @click="closeMobileNavigation"><X :size="22" /></button></div>
-                <nav class="mt-6 min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Navegação móvel">
+                <nav class="mt-6 min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pb-5 [scrollbar-width:thin] [scrollbar-color:var(--fs-border)_transparent]" aria-label="Navegação móvel">
                     <section v-for="section in sections" :key="section.label">
                         <h2 class="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{{ section.label }}</h2>
                         <template v-for="item in section.items" :key="item.route">
