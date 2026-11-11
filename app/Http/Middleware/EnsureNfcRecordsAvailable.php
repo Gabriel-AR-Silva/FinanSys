@@ -12,7 +12,7 @@ class EnsureNfcRecordsAvailable
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (Schema::hasTable('nfc_records')) {
+        if (Schema::hasTable('nfc_records') && Schema::hasTable('nfc_access_links')) {
             return $next($request);
         }
 
