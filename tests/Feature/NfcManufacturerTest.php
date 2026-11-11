@@ -194,7 +194,7 @@ class NfcManufacturerTest extends TestCase
     private function png(string $name): UploadedFile
     {
         return UploadedFile::fake()->createWithContent($name, base64_decode(
-            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL7WQAAAABJRU5ErkJggg==',
+            'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAC0lEQVR4nGNgQAYAAA4AAamRc7EAAAAASUVORK5CYII=',
         ));
     }
 }
