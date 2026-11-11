@@ -17,7 +17,7 @@ const props = defineProps({
     production: { type: Array, required: true },
     nfcRoute: { type: Function, required: true },
 });
-const emit = defineEmits(['cancel', 'saved', 'busy']);
+const emit = defineEmits(['cancel', 'saved', 'busy', 'feedback']);
 
 const decimalPattern = '[0-9]+([.,][0-9]{1,2})?';
 const inputMoney = cents => cents == null ? '' : (cents / 100).toFixed(2).replace('.', ',');
@@ -102,37 +102,53 @@ function salePayload({ total, payments, ...data }) {
 function submit() {
     if (form.processing) return;
     const { company, sale, unit, plate, batch } = props;
+    const successMessages = {
+        'company-form': company ? 'Empresa atualizada.' : 'Empresa cadastrada.',
+        unit: unit ? 'Unidade atualizada.' : 'Unidade cadastrada.',
+        sale: sale ? 'Venda atualizada.' : 'Venda cadastrada.',
+        payment: 'Pagamento registrado.',
+        plate: 'Plaquinha atualizada.',
+        batch: batch ? 'Lote atualizado.' : 'Lote cadastrado.',
+        notice: 'Aviso adicionado.',
+    };
     const options = {
         preserveScroll: true,
         onStart: () => emit('busy', true),
         onFinish: () => emit('busy', false),
-        onSuccess: () => emit('saved'),
+        onSuccess: () => emit('saved', successMessages[props.kind] ?? 'Registro salvo.'),
+        onError: errors => {
+            const first = Object.values(errors ?? {}).flat().find(Boolean);
+            emit('feedback', {
+                type: 'error',
+                message: first ? String(first) : 'Não foi possível salvar. Confira os dados e tente novamente.',
+            });
+        },
     };
 
     switch (props.kind) {
         case 'company-form':
-            if (company) form.patch(nfcRoute('nfc.companies.update', { company: company.id }), options);
-            else form.post(nfcRoute('nfc.companies.store'), options);
+            if (company) form.patch(props.nfcRoute('nfc.companies.update', { company: company.id }), options);
+            else form.post(props.nfcRoute('nfc.companies.store'), options);
             break;
         case 'unit':
-            if (unit) form.patch(nfcRoute('nfc.units.update', { company: company.id, unit: unit.id }), options);
-            else form.post(nfcRoute('nfc.units.store', { company: company.id }), options);
+            if (unit) form.patch(props.nfcRoute('nfc.units.update', { company: company.id, unit: unit.id }), options);
+            else form.post(props.nfcRoute('nfc.units.store', { company: company.id }), options);
             break;
         case 'sale':
             form.transform(salePayload);
-            if (sale) form.patch(nfcRoute('nfc.sales.update', { company: company.id, sale: sale.id }), options);
-            else form.post(nfcRoute('nfc.sales.store', { company: company.id }), options);
+            if (sale) form.patch(props.nfcRoute('nfc.sales.update', { company: company.id, sale: sale.id }), options);
+            else form.post(props.nfcRoute('nfc.sales.store', { company: company.id }), options);
             break;
         case 'payment':
             form.transform(({ amount, ...data }) => ({ ...data, amount_cents: asCents(amount) }));
-            form.post(nfcRoute('nfc.payments.store', { company: company.id, sale: sale.id }), options);
+            form.post(props.nfcRoute('nfc.payments.store', { company: company.id, sale: sale.id }), options);
             break;
         case 'plate':
             form.transform(({ estimated_loss, ...data }) => ({
                 ...data,
                 estimated_loss_cents: data.defective && estimated_loss !== '' ? asCents(estimated_loss) : null,
             }));
-            form.patch(nfcRoute('nfc.plates.update', { company: company.id, sale: sale.id, plate: plate.id }), options);
+            form.patch(props.nfcRoute('nfc.plates.update', { company: company.id, sale: sale.id, plate: plate.id }), options);
             break;
         case 'batch':
             form.transform(({ cost, customized_quantity, produced_on, ...data }) => ({
@@ -141,12 +157,12 @@ function submit() {
                 customized_quantity: customized_quantity === '' ? null : customized_quantity,
                 cost_cents: asCents(cost),
             }));
-            if (batch) form.patch(nfcRoute('nfc.production.update', { production: batch.id }), options);
-            else form.post(nfcRoute('nfc.production.store'), options);
+            if (batch) form.patch(props.nfcRoute('nfc.production.update', { production: batch.id }), options);
+            else form.post(props.nfcRoute('nfc.production.store'), options);
             break;
         case 'notice':
             form.transform(data => ({ ...data, company_id: data.company_id || null, plate_id: data.plate_id || null }));
-            form.post(nfcRoute('nfc.notices.store'), options);
+            form.post(props.nfcRoute('nfc.notices.store'), options);
             break;
     }
 }
