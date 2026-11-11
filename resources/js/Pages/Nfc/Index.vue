@@ -1,6 +1,7 @@
 <script setup>
 import Modal from '@/Components/Modal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import NfcSharedLayout from '@/Layouts/NfcSharedLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, X } from '@lucide/vue';
 import { computed, nextTick, ref, watch } from 'vue';
@@ -12,6 +13,10 @@ import './nfc.css';
 
 const props = defineProps({
     schema_pending: { type: Boolean, default: false },
+    shared: { type: Boolean, default: false },
+    share_token: { type: String, default: null },
+    share_links: { type: Array, default: () => [] },
+    created_share_url: { type: String, default: null },
     today: { type: String, default: '' },
     summary: { type: Object, default: () => ({}) },
     companies: { type: Array, default: () => [] },
@@ -31,6 +36,39 @@ const search = ref('');
 const dialog = ref(null);
 const dialogHeading = ref(null);
 const busy = ref(false);
+const shareBusy = ref(false);
+const copied = ref(false);
+const nfcRoute = (name, params = {}) => props.shared
+    ? route(name.replace(/^nfc\./, 'nfc.share.'), { token: props.share_token, ...params })
+    : route(name, params);
+
+function createShare() {
+    if (shareBusy.value) return;
+    router.post(route('nfc.share-links.store'), {}, {
+        preserveScroll: true,
+        onStart: () => { shareBusy.value = true; },
+        onFinish: () => { shareBusy.value = false; },
+    });
+}
+
+function revokeShare(link) {
+    if (shareBusy.value || !window.confirm('Revogar este link? Quem o recebeu perderá o acesso imediatamente.')) return;
+    router.delete(route('nfc.share-links.destroy', { link: link.id }), {
+        preserveScroll: true,
+        onStart: () => { shareBusy.value = true; },
+        onFinish: () => { shareBusy.value = false; },
+    });
+}
+
+async function copyShare() {
+    if (!props.created_share_url) return;
+    try {
+        await navigator.clipboard.writeText(props.created_share_url);
+        copied.value = true;
+    } catch (_) {
+        copied.value = false;
+    }
+}
 
 const companiesShown = computed(() => {
     const text = search.value.trim().toLocaleLowerCase('pt-BR');
@@ -96,6 +134,7 @@ const batch = computed(() => props.production.find(item => item.id === dialog.va
 const titles = {
     notices: 'Avisos',
     history: 'Histórico de alterações',
+    share: 'Links de acesso NFC',
     notice: 'Novo aviso',
     payment: 'Registrar pagamento',
     plate: 'Editar plaquinha',
@@ -125,7 +164,7 @@ function destroy(kind, context = {}) {
     };
     const target = routeNames[kind];
     if (!target || !window.confirm('Excluir este registro? A alteração ficará no histórico e poderá afetar os indicadores.')) return;
-    router.delete(route(target[0], target[1]), {
+    router.delete(nfcRoute(target[0], target[1]), {
         preserveScroll: true,
         onStart: () => { busy.value = true; },
         onFinish: () => { busy.value = false; },
@@ -156,6 +195,10 @@ function closeDialog() {
     if (!busy.value) dialog.value = null;
 }
 
+watch(() => props.created_share_url, value => {
+    if (value && !props.shared) dialog.value = { kind: 'share' };
+}, { immediate: true });
+
 watch(dialog, async (current, previous) => {
     if (!current || !previous) return;
     await nextTick();
@@ -164,13 +207,14 @@ watch(dialog, async (current, previous) => {
 </script>
 
 <template>
-    <AuthenticatedLayout>
+    <component :is="shared ? NfcSharedLayout : AuthenticatedLayout">
         <Head title="Plaquinhas NFC" />
 
         <div class="flex min-w-0 flex-col gap-6 sm:gap-8">
             <header class="flex flex-wrap items-center justify-between gap-3">
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC</h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
+                    <button v-if="!shared" type="button" class="nfc-button" @click="dialog = { kind: 'share' }">Compartilhar</button>
                     <button type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
                         <Bell :size="18" aria-hidden="true" />
@@ -270,6 +314,30 @@ watch(dialog, async (current, previous) => {
                 </header>
 
                 <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
+                <div v-else-if="dialog.kind === 'share' && !shared" class="flex min-w-0 flex-col gap-4">
+                    <p class="nfc-muted text-sm">Links individuais válidos por sete dias. Quem possuir um link poderá consultar e alterar somente os dados do módulo NFC, incluindo exclusões. Revogue assim que não precisar mais.</p>
+                    <button type="button" class="nfc-button nfc-primary self-start" :disabled="shareBusy" @click="createShare">Gerar novo link</button>
+                    <div v-if="created_share_url" class="nfc-panel flex min-w-0 flex-col gap-2 p-3">
+                        <label class="nfc-field">Link gerado (copie agora)
+                            <input class="nfc-control" type="text" readonly :value="created_share_url" @focus="$event.target.select()" />
+                        </label>
+                        <button type="button" class="nfc-button self-start" @click="copyShare">{{ copied ? 'Copiado' : 'Copiar link' }}</button>
+                        <p class="nfc-muted text-xs">Por segurança, o endereço completo não será mostrado novamente.</p>
+                    </div>
+                    <h3 class="font-semibold">Links emitidos</h3>
+                    <ul class="flex flex-col gap-2">
+                        <li v-for="link in share_links" :key="link.id" class="nfc-panel flex flex-wrap items-center justify-between gap-3 p-3 text-sm">
+                            <div><p class="font-semibold">Link #{{ link.id }}</p>
+                                <p class="nfc-muted text-xs">Expira: {{ datetime(link.expires_at) }}</p>
+                                <span v-if="link.revoked_at" class="nfc-badge nfc-neutral">Revogado</span>
+                                <span v-else-if="new Date(link.expires_at) <= new Date()" class="nfc-badge nfc-warning">Expirado</span>
+                                <span v-else class="nfc-badge nfc-success">Ativo</span>
+                            </div>
+                            <button v-if="!link.revoked_at" type="button" class="nfc-button nfc-danger" :disabled="shareBusy" @click="revokeShare(link)">Revogar</button>
+                        </li>
+                    </ul>
+                    <p v-if="!share_links.length" class="nfc-muted text-sm">Nenhum link emitido.</p>
+                </div>
                 <div v-else-if="dialog.kind === 'history'" class="flex max-h-[65dvh] min-w-0 flex-col gap-3 overflow-y-auto">
                     <p class="nfc-muted text-sm">Últimos {{ history.length }} eventos. Criações, edições, resoluções e exclusões são registradas no módulo NFC.</p>
                     <ul class="flex flex-col gap-2">
@@ -284,7 +352,7 @@ watch(dialog, async (current, previous) => {
                     </ul>
                     <p v-if="!history.length" class="nfc-muted text-sm">Nenhuma alteração registrada.</p>
                 </div>
-                <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :warranty-notices="warranty_notices" @create="edit('notice')" @open-company="showCompany" @busy="busy = $event" />
+                <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :warranty-notices="warranty_notices" :nfc-route="nfcRoute" @create="edit('notice')" @open-company="showCompany" @busy="busy = $event" />
                 <Editor
                     v-else
                     :key="dialog.kind"
@@ -298,11 +366,12 @@ watch(dialog, async (current, previous) => {
                     :plate="plate"
                     :batch="batch"
                     :production="production"
+                    :nfc-route="nfcRoute"
                     @cancel="goBack"
                     @saved="saved"
                     @busy="busy = $event"
                 />
             </section>
         </Modal>
-    </AuthenticatedLayout>
+    </component>
 </template>

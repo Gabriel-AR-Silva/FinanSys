@@ -6,6 +6,7 @@ import { date } from './format';
 const props = defineProps({
     notices: { type: Array, required: true },
     warrantyNotices: { type: Array, required: true },
+    nfcRoute: { type: Function, required: true },
 });
 const emit = defineEmits(['create', 'open-company', 'busy']);
 const tab = ref('pending');
@@ -21,7 +22,7 @@ const form = useForm({});
 
 function toggle(notice) {
     if (form.processing) return;
-    form.patch(route('nfc.notices.resolve', { notice: notice.id }), {
+    form.patch(nfcRoute('nfc.notices.resolve', { notice: notice.id }), {
         preserveScroll: true,
         onStart: () => emit('busy', true),
         onFinish: () => emit('busy', false),
@@ -30,7 +31,7 @@ function toggle(notice) {
 
 function destroyNotice(notice) {
     if (form.processing || !window.confirm('Excluir este aviso? A operação ficará registrada no histórico.')) return;
-    form.delete(route('nfc.notices.destroy', { notice: notice.id }), {
+    form.delete(nfcRoute('nfc.notices.destroy', { notice: notice.id }), {
         preserveScroll: true,
         onStart: () => emit('busy', true),
         onFinish: () => emit('busy', false),
