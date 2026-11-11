@@ -14,6 +14,8 @@ const props = defineProps({
     sale: { type: Object, default: null },
     plate: { type: Object, default: null },
     batch: { type: Object, default: null },
+    manufacturer: { type: Object, default: null },
+    manufacturers: { type: Array, required: true },
     production: { type: Array, required: true },
     nfcRoute: { type: Function, required: true },
 });
@@ -31,8 +33,15 @@ function asCents(value) {
 }
 
 function fields() {
-    const { kind, context, company, unit, sale, plate, batch, today } = props;
+    const { kind, context, company, unit, sale, plate, batch, manufacturer, today } = props;
     switch (kind) {
+        case 'manufacturer-form':
+            return {
+                ...(!manufacturer && { operation_id: crypto.randomUUID() }),
+                name: manufacturer?.name ?? '',
+                phone: manufacturer?.phone ?? '',
+                notes: manufacturer?.notes ?? '',
+            };
         case 'company-form':
             return {
                 ...(!company && { operation_id: crypto.randomUUID(), unit_name: '' }),
@@ -68,6 +77,7 @@ function fields() {
                 customized_quantity: batch ? batch.customized_quantity ?? '' : context.initial ? '' : 0,
                 cost: inputMoney(batch?.cost_cents),
                 status: batch?.status ?? 'completed',
+                manufacturer_id: batch?.manufacturer_id ?? null,
             };
         case 'notice':
             return { operation_id: crypto.randomUUID(), text: '', important: false, company_id: context.companyId ?? '', plate_id: context.plateId ?? '' };
@@ -101,8 +111,9 @@ function salePayload({ total, payments, ...data }) {
 
 function submit() {
     if (form.processing) return;
-    const { company, sale, unit, plate, batch } = props;
+    const { company, sale, unit, plate, batch, manufacturer } = props;
     const successMessages = {
+        'manufacturer-form': manufacturer ? 'Fabricante atualizado.' : 'Fabricante cadastrado.',
         'company-form': company ? 'Empresa atualizada.' : 'Empresa cadastrada.',
         unit: unit ? 'Unidade atualizada.' : 'Unidade cadastrada.',
         sale: sale ? 'Venda atualizada.' : 'Venda cadastrada.',
@@ -126,6 +137,10 @@ function submit() {
     };
 
     switch (props.kind) {
+        case 'manufacturer-form':
+            if (manufacturer) form.patch(props.nfcRoute('nfc.manufacturers.update', { manufacturer: manufacturer.id }), options);
+            else form.post(props.nfcRoute('nfc.manufacturers.store'), options);
+            break;
         case 'company-form':
             if (company) form.patch(props.nfcRoute('nfc.companies.update', { company: company.id }), options);
             else form.post(props.nfcRoute('nfc.companies.store'), options);
@@ -195,6 +210,19 @@ function submit() {
             <label class="flex min-h-11 items-center gap-2 text-sm font-medium">
                 <input v-model="form.interested" type="checkbox" class="nfc-check" /> Empresa interessada
             </label>
+        </template>
+
+        <template v-else-if="kind === 'manufacturer-form'">
+            <label class="nfc-field">Nome do fabricante
+                <input v-model.trim="form.name" class="nfc-control" autocomplete="organization" required />
+            </label>
+            <label class="nfc-field">Telefone ou WhatsApp
+                <input v-model.trim="form.phone" class="nfc-control" type="tel" autocomplete="tel" />
+            </label>
+            <label class="nfc-field">Informações / observações
+                <textarea v-model.trim="form.notes" class="nfc-control" rows="3" />
+            </label>
+            <p class="nfc-muted text-xs">Depois de salvar, abra a ficha do fabricante para anexar até 10 imagens.</p>
         </template>
 
         <template v-else-if="kind === 'unit'">
@@ -298,6 +326,12 @@ function submit() {
         </template>
 
         <template v-else-if="kind === 'batch'">
+            <label class="nfc-field">Fabricante
+                <select v-model="form.manufacturer_id" class="nfc-control">
+                    <option :value="null">Sem fabricante vinculado</option>
+                    <option v-for="item in manufacturers" :key="item.id" :value="item.id">{{ item.name }}</option>
+                </select>
+            </label>
             <label class="nfc-field">Etapa do lote
                 <select v-model="form.status" class="nfc-control" required>
                     <option value="in_progress">Em fabricação</option>
