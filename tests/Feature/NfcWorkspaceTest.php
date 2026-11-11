@@ -209,6 +209,81 @@ class NfcWorkspaceTest extends TestCase
             )));
     }
 
+    public function test_notice_creation_resolution_and_deletion_are_reflected_in_fresh_dashboard_data(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner);
+        $operationId = (string) Str::uuid();
+
+        $this->post(route('nfc.notices.store'), [
+            'operation_id' => $operationId,
+            'text' => 'Aviso de teste',
+            'important' => false,
+        ])->assertRedirect(route('nfc.index'));
+
+        $notice = NfcRecord::query()->whereBelongsTo($owner)
+            ->where('kind', NfcRecord::NOTICE)->where('record_key', $operationId)->firstOrFail();
+
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->has('notices', 1)
+            ->where('notices.0.id', $notice->id)
+            ->where('notices.0.text', 'Aviso de teste')
+            ->where('notices.0.resolved_at', null));
+
+        $this->patch(route('nfc.notices.resolve', ['notice' => $notice->id]))
+            ->assertRedirect(route('nfc.index'));
+
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('notices.0.resolved_at', fn ($value): bool => is_string($value) && $value !== ''));
+
+        $this->delete(route('nfc.notices.destroy', ['notice' => $notice->id]))
+            ->assertRedirect(route('nfc.index'));
+
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->has('notices', 0)
+            ->where('history.0.event', 'deleted')
+            ->where('history.0.target_id', $notice->id));
+
+        $this->assertNotNull($notice->fresh()->payload['deleted_at']);
+        $this->delete(route('nfc.notices.destroy', ['notice' => $notice->id]))->assertNotFound();
+    }
+
+    public function test_shared_nfc_link_can_manage_notices_without_an_authenticated_session(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->post(route('nfc.share-links.store'))
+            ->assertRedirect(route('nfc.index'));
+
+        $url = session('nfc_share_url');
+        $this->assertNotNull($url);
+        preg_match('~/compartilhado/([^/?]+)~', $url, $matches);
+        $token = $matches[1];
+
+        Auth::logout();
+        $operationId = (string) Str::uuid();
+        $this->post(route('nfc.share.notices.store', ['token' => $token]), [
+            'operation_id' => $operationId,
+            'text' => 'Aviso via link',
+            'important' => false,
+        ])->assertRedirect(route('nfc.share.index', ['token' => $token]));
+
+        $notice = NfcRecord::query()->whereBelongsTo($owner)
+            ->where('kind', NfcRecord::NOTICE)->where('record_key', $operationId)->firstOrFail();
+
+        $this->get(route('nfc.share.index', ['token' => $token]))->assertInertia(fn (Assert $page) => $page
+            ->where('shared', true)
+            ->has('notices', 1)
+            ->where('notices.0.id', $notice->id));
+
+        $this->delete(route('nfc.share.notices.destroy', ['token' => $token, 'notice' => $notice->id]))
+            ->assertRedirect(route('nfc.share.index', ['token' => $token]));
+
+        $this->get(route('nfc.share.index', ['token' => $token]))->assertInertia(fn (Assert $page) => $page
+            ->has('notices', 0)
+            ->where('history.0.event', 'deleted')
+            ->where('history.0.target_id', $notice->id));
+    }
+
     public function test_production_status_and_unit_link_are_scoped_to_the_owner(): void
     {
         $owner = User::factory()->create();
