@@ -29,6 +29,7 @@ class NfcDashboardQuery
                 ...$company,
                 'units' => array_map(function (array $unit) use ($production): array {
                     $batch = $production->firstWhere('id', $unit['production_id'] ?? null);
+
                     return [
                         ...$unit,
                         'production_status' => $batch['status'] ?? null,
