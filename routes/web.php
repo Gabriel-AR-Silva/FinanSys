@@ -23,6 +23,7 @@ use App\Http\Controllers\InternalAlertController;
 use App\Http\Controllers\LedgerEntryController;
 use App\Http\Controllers\LedgerEntryCorrectionController;
 use App\Http\Controllers\LedgerEntryReversalController;
+use App\Http\Controllers\NfcController;
 use App\Http\Controllers\OfxCardCreditPixConfirmationController;
 use App\Http\Controllers\OfxImportConfirmationController;
 use App\Http\Controllers\OfxImportController;
@@ -37,6 +38,7 @@ use App\Http\Controllers\RestoredAccountController;
 use App\Http\Controllers\RestoredLedgerEntryController;
 use App\Http\Controllers\RestoredPocketController;
 use App\Http\Controllers\TransferController;
+use App\Http\Middleware\EnsureNfcRecordsAvailable;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -51,6 +53,22 @@ Route::get('/dashboard', DashboardController::class)
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::prefix('plaquinhas-nfc')->name('nfc.')->middleware(EnsureNfcRecordsAvailable::class)->controller(NfcController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/empresas', 'storeCompany')->name('companies.store');
+        Route::patch('/empresas/{company}', 'updateCompany')->whereNumber('company')->name('companies.update');
+        Route::post('/empresas/{company}/unidades', 'storeUnit')->whereNumber('company')->name('units.store');
+        Route::patch('/empresas/{company}/unidades/{unit}', 'updateUnit')->whereNumber('company')->whereUuid('unit')->name('units.update');
+        Route::post('/empresas/{company}/vendas', 'storeSale')->whereNumber('company')->name('sales.store');
+        Route::patch('/empresas/{company}/vendas/{sale}', 'updateSale')->whereNumber('company')->whereUuid('sale')->name('sales.update');
+        Route::post('/empresas/{company}/vendas/{sale}/pagamentos', 'storePayment')->whereNumber('company')->whereUuid('sale')->name('payments.store');
+        Route::patch('/empresas/{company}/vendas/{sale}/plaquinhas/{plate}', 'updatePlate')->whereNumber('company')->whereUuid(['sale', 'plate'])->name('plates.update');
+        Route::post('/producao', 'storeProduction')->name('production.store');
+        Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
+        Route::post('/avisos', 'storeNotice')->name('notices.store');
+        Route::patch('/avisos/{notice}/resolver', 'resolveNotice')->whereNumber('notice')->name('notices.resolve');
+    });
+
     Route::get('/orcamento-diario', [DailyBudgetController::class, 'edit'])->name('daily-budgets.edit');
     Route::post('/orcamento-diario', [DailyBudgetController::class, 'store'])->name('daily-budgets.store');
     Route::post('/check-ins-financeiros', [DailyFinancialCheckInController::class, 'store'])->name('daily-check-ins.store');
