@@ -164,6 +164,50 @@ class NfcController extends Controller
         return to_route('nfc.index');
     }
 
+    public function deleteCompany(Request $request, ManageNfcRecords $records, int $company): RedirectResponse
+    {
+        $records->deleteRecord($request->user(), $company, \App\Models\NfcRecord::COMPANY);
+
+        return to_route('nfc.index');
+    }
+
+    public function deleteUnit(Request $request, ManageNfcRecords $records, int $company, string $unit): RedirectResponse
+    {
+        $records->deleteUnit($request->user(), $company, $unit);
+
+        return to_route('nfc.index');
+    }
+
+    public function deleteSale(Request $request, ManageNfcRecords $records, int $company, string $sale): RedirectResponse
+    {
+        $records->deleteSale($request->user(), $company, $sale);
+
+        return to_route('nfc.index');
+    }
+
+    public function deletePlate(Request $request, ManageNfcRecords $records, int $company, string $sale, string $plate): RedirectResponse
+    {
+        $records->deletePlate($request->user(), $company, $sale, $plate);
+
+        return to_route('nfc.index');
+    }
+
+    public function deleteProduction(Request $request, ManageNfcRecords $records, int $production): RedirectResponse
+    {
+        $records->deleteRecord($request->user(), $production, [
+            \App\Models\NfcRecord::PRODUCTION, \App\Models\NfcRecord::INITIAL_PRODUCTION,
+        ]);
+
+        return to_route('nfc.index');
+    }
+
+    public function deleteNotice(Request $request, ManageNfcRecords $records, int $notice): RedirectResponse
+    {
+        $records->deleteRecord($request->user(), $notice, \App\Models\NfcRecord::NOTICE);
+
+        return to_route('nfc.index');
+    }
+
     private function companyRules(): array
     {
         return [

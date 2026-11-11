@@ -182,7 +182,7 @@ class NfcWorkspaceTest extends TestCase
         $this->post(route('nfc.notices.store'), $linked)->assertRedirect(route('nfc.index'));
 
         $notice = NfcRecord::query()->where('user_id', $owner->id)->where('record_key', $linked['operation_id'])->firstOrFail();
-        $this->assertDatabaseCount('nfc_records', 3);
+        $this->assertSame(2, NfcRecord::query()->where('kind', NfcRecord::NOTICE)->count());
         $this->assertSame($plate['id'], $notice->payload['plate_id']);
 
         $resolveRoute = route('nfc.notices.resolve', ['notice' => $notice->id]);
@@ -267,6 +267,25 @@ class NfcWorkspaceTest extends TestCase
             ->where('summary.received_cents', 0)
             ->where('summary.outstanding_cents', 10000)
             ->where('companies.0.sales.0.plates.0.defective', true));
+    }
+
+    public function test_deletion_is_audited_and_does_not_expose_removed_data(): void
+    {
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $this->delete(route('nfc.companies.destroy', ['company' => $company->id]))
+            ->assertRedirect(route('nfc.index'));
+
+        $this->assertNotNull($company->fresh()->payload['deleted_at']);
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->has('companies', 0)
+            ->where('history.0.event', 'deleted')
+            ->where('history.0.target_id', $company->id));
+
+        $this->patch(route('nfc.companies.update', ['company' => $company->id]), [
+            'name' => 'Reviver sem auditoria',
+            'interested' => true,
+        ])->assertNotFound();
     }
 
     private function createCompany(User $user, string $name = 'Pontasso'): NfcRecord

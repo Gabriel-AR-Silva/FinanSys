@@ -12,7 +12,8 @@ class NfcDashboardQuery
     public function forUser(User $user): array
     {
         $today = CarbonImmutable::today('America/Sao_Paulo');
-        $records = NfcRecord::query()->whereBelongsTo($user)->latest('id')->get();
+        $records = NfcRecord::query()->whereBelongsTo($user)->latest('id')->get()
+            ->reject(fn (NfcRecord $record): bool => ! empty($record->payload['deleted_at']));
         $companies = $records->where('kind', NfcRecord::COMPANY)
             ->map(fn (NfcRecord $record): array => $this->company($record, $today))
             ->values();
@@ -63,6 +64,9 @@ class NfcDashboardQuery
             'production' => $production->all(),
             'notices' => $this->notices($records->where('kind', NfcRecord::NOTICE), $companies->keyBy('id')),
             'warranty_notices' => $this->warrantyNotices($companies, $today),
+            'history' => $records->where('kind', NfcRecord::HISTORY)->take(150)->map(function (NfcRecord $record): array {
+                return ['id' => $record->id, ...$record->payload];
+            })->values()->all(),
         ];
     }
 

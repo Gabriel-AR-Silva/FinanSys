@@ -67,6 +67,12 @@ Route::middleware('auth')->group(function () {
         Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
         Route::post('/avisos', 'storeNotice')->name('notices.store');
         Route::patch('/avisos/{notice}/resolver', 'resolveNotice')->whereNumber('notice')->name('notices.resolve');
+        Route::delete('/empresas/{company}', 'deleteCompany')->whereNumber('company')->name('companies.destroy');
+        Route::delete('/empresas/{company}/unidades/{unit}', 'deleteUnit')->whereNumber('company')->whereUuid('unit')->name('units.destroy');
+        Route::delete('/empresas/{company}/vendas/{sale}', 'deleteSale')->whereNumber('company')->whereUuid('sale')->name('sales.destroy');
+        Route::delete('/empresas/{company}/vendas/{sale}/plaquinhas/{plate}', 'deletePlate')->whereNumber('company')->whereUuid(['sale', 'plate'])->name('plates.destroy');
+        Route::delete('/producao/{production}', 'deleteProduction')->whereNumber('production')->name('production.destroy');
+        Route::delete('/avisos/{notice}', 'deleteNotice')->whereNumber('notice')->name('notices.destroy');
     });
 
     Route::get('/orcamento-diario', [DailyBudgetController::class, 'edit'])->name('daily-budgets.edit');
