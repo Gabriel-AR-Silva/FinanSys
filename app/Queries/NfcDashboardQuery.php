@@ -24,6 +24,7 @@ class NfcDashboardQuery
                 ...$record->payload,
                 'status' => $record->payload['status'] ?? 'completed',
             ])->values();
+
         $companies = $companies->map(function (array $company) use ($production): array {
             return [
                 ...$company,
