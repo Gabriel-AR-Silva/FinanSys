@@ -130,21 +130,21 @@ const unitRows = computed(() => companiesShown.value.flatMap(company => {
         ? company.units
         : [{ id: `empty-${company.id}`, name: 'Sem unidade cadastrada', production_id: null }];
     return units.map(unit => {
-    const sales = company.sales.filter(sale => sale.unit_id === unit.id);
-    return {
-        id: unit.id,
-        companyId: company.id,
-        companyName: company.name,
-        identifier: company.cnpj,
-        unitName: unit.name,
-        hasUnit: !String(unit.id).startsWith('empty-'),
-        productionId: unit.production_id ?? null,
-        productionStatus: unit.production_status ?? null,
-        sold: sales.reduce((sum, sale) => sum + sale.plates.length, 0),
-        total: sales.reduce((sum, sale) => sum + sale.total_cents, 0),
-        received: sales.reduce((sum, sale) => sum + sale.paid_cents, 0),
-        outstanding: sales.reduce((sum, sale) => sum + sale.balance_cents, 0),
-    };
+        const sales = company.sales.filter(sale => sale.unit_id === unit.id);
+        return {
+            id: unit.id,
+            companyId: company.id,
+            companyName: company.name,
+            identifier: company.cnpj,
+            unitName: unit.name,
+            hasUnit: company.units.length > 0,
+            productionId: unit.production_id ?? null,
+            productionStatus: unit.production_status ?? null,
+            sold: sales.reduce((sum, sale) => sum + sale.plates.length, 0),
+            total: sales.reduce((sum, sale) => sum + sale.total_cents, 0),
+            received: sales.reduce((sum, sale) => sum + sale.paid_cents, 0),
+            outstanding: sales.reduce((sum, sale) => sum + sale.balance_cents, 0),
+        };
     });
 }));
 const productionShown = computed(() => {
