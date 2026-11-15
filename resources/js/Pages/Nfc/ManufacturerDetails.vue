@@ -12,22 +12,28 @@ const emit = defineEmits(['edit', 'destroy', 'request-delete-image', 'busy', 'fe
 const uploadForm = useForm({ images: [] });
 const selectedImage = ref(null);
 const availableSlots = computed(() => Math.max(0, 10 - props.manufacturer.images.length));
-const statistics = computed(() => {
+const statisticGroups = computed(() => {
     const s = props.manufacturer.statistics;
     return [
-        { label: 'Lotes', value: s.batches },
-        { label: 'Plaquinhas fabricadas', value: s.manufactured },
-        { label: 'Em fabricação', value: s.in_production },
-        { label: 'Unidades vinculadas', value: s.units },
-        { label: 'Plaquinhas vendidas', value: s.sold },
-        { label: 'Defeituosas', value: s.defective },
-        { label: 'Custo dos lotes', value: money(s.production_cost_cents) },
-        { label: 'Possível prejuízo', value: money(s.estimated_loss_cents) },
-        { label: 'Valor de vendas vinculadas', value: money(s.sales_total_cents) },
-        { label: 'Recebido', value: money(s.received_cents) },
-        { label: 'A receber', value: money(s.outstanding_cents) },
-        { label: 'Vendas com saldo pendente', value: s.pending_sales },
-        { label: 'Lotes sem custo informado', value: s.unknown_cost_batches },
+        { title: 'Produção', description: 'Volume e andamento dos lotes', items: [
+            { label: 'Fabricadas', value: s.manufactured, primary: true },
+            { label: 'Em fabricação', value: s.in_production },
+            { label: 'Lotes', value: s.batches },
+            { label: 'Unidades vinculadas', value: s.units },
+        ] },
+        { title: 'Vendas e recebimentos', description: 'Somente unidades vinculadas a este fabricante', items: [
+            { label: 'Recebido', value: money(s.received_cents), primary: true },
+            { label: 'A receber', value: money(s.outstanding_cents), primary: true, warning: s.outstanding_cents > 0 },
+            { label: 'Valor total vendido', value: money(s.sales_total_cents) },
+            { label: 'Plaquinhas vendidas', value: s.sold },
+            { label: 'Vendas pendentes', value: s.pending_sales },
+        ] },
+        { title: 'Custos e ocorrências', description: 'Custos estimados e registros que precisam de atenção', items: [
+            { label: 'Custo dos lotes', value: money(s.production_cost_cents), primary: true },
+            { label: 'Possível prejuízo', value: money(s.estimated_loss_cents) },
+            { label: 'Defeituosas', value: s.defective },
+            { label: 'Lotes sem custo', value: s.unknown_cost_batches },
+        ] },
     ];
 });
 const imageUrl = image => props.nfcRoute('nfc.manufacturers.images.show', { manufacturer: props.manufacturer.id, image: image.id });
@@ -111,12 +117,18 @@ function upload(event) {
 
         <section class="flex flex-col gap-2">
             <h3 class="font-semibold">Indicadores e pendências</h3>
-            <dl class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                <div v-for="item in statistics" :key="item.label" class="nfc-panel min-w-0 p-3">
-                    <dt class="nfc-muted text-xs">{{ item.label }}</dt>
-                    <dd class="mt-1 break-words font-semibold tabular-nums">{{ item.value }}</dd>
+            <div v-for="group in statisticGroups" :key="group.title" class="nfc-panel min-w-0 space-y-3 p-3 sm:p-4">
+                <div>
+                    <h4 class="text-sm font-semibold">{{ group.title }}</h4>
+                    <p class="nfc-muted text-xs">{{ group.description }}</p>
                 </div>
-            </dl>
+                <dl class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <div v-for="item in group.items" :key="item.label" class="nfc-stat-tile min-w-0 rounded-lg p-3">
+                        <dt class="nfc-muted text-xs leading-snug">{{ item.label }}</dt>
+                        <dd class="mt-1 break-words tabular-nums" :class="[item.primary ? 'text-base font-bold sm:text-lg' : 'text-sm font-semibold', item.warning ? 'text-amber-500' : '']">{{ item.value }}</dd>
+                    </div>
+                </dl>
+            </div>
             <p class="nfc-muted text-xs">Valores de vendas e pagamentos consideram somente unidades vinculadas aos lotes deste fabricante. Os custos são informativos; não representam contas a pagar ao fabricante.</p>
         </section>
 
