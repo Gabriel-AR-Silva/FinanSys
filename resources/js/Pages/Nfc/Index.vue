@@ -79,14 +79,8 @@ function createShare() {
 }
 
 function revokeShare(link) {
-    if (shareBusy.value || props.shared || !authenticatedUser.value || !window.confirm('Revogar este link? Quem o recebeu perderá o acesso imediatamente.')) return;
-    router.delete(route('nfc.share-links.destroy', { link: link.id }), {
-        preserveScroll: true,
-        onStart: () => { shareBusy.value = true; },
-        onFinish: () => { shareBusy.value = false; },
-        onSuccess: () => notify({ message: 'Link revogado.' }),
-        onError: errors => reportError(errors, 'Não foi possível revogar o link.'),
-    });
+    if (shareBusy.value || busy.value || props.shared || !authenticatedUser.value) return;
+    destroy('share-link', { linkId: link.id });
 }
 
 async function copyShare() {
@@ -198,6 +192,7 @@ const manufacturer = computed(() => props.manufacturers.find(item => item.id ===
 
 const titles = {
     notices: 'Avisos',
+    'confirm-delete': 'Confirmar ação',
     history: 'Histórico de alterações',
     share: 'Links de acesso NFC',
     notice: 'Novo aviso',
@@ -220,8 +215,26 @@ const title = computed(() => {
 const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído', revoked: 'Revogado' };
 const historyKind = { manufacturer: 'Fabricante', company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial', share_link: 'Link compartilhado' };
 const datetime = text => new Date(text).toLocaleString('pt-BR');
+const deleteDescriptions = {
+    company: 'A empresa, suas unidades, vendas, pagamentos e plaquinhas deixarão de aparecer no painel.',
+    unit: 'A unidade será removida. Se houver vendas vinculadas, a operação será impedida.',
+    sale: 'A venda, os pagamentos e as plaquinhas vinculadas serão removidos dos indicadores.',
+    plate: 'A plaquinha será removida e os indicadores de vendas e defeitos serão recalculados.',
+    payment: 'O pagamento será removido e o valor a receber será recalculado.',
+    batch: 'O lote será removido. Se estiver vinculado a unidades, a operação será impedida.',
+    manufacturer: 'O fabricante e suas imagens serão removidos. Lotes vinculados podem impedir a exclusão.',
+    image: 'Esta imagem será removida permanentemente da galeria do fabricante.',
+    notice: 'O aviso será excluído da lista de pendências.',
+    'share-link': 'O link deixará de permitir acesso imediatamente, inclusive para quem já o recebeu.',
+};
+const confirmDeleteLabel = computed(() => dialog.value?.deleteKind === 'share-link' ? 'Revogar link' : 'Excluir registro');
 function destroy(kind, context = {}) {
-    if (busy.value) return;
+    if (busy.value || shareBusy.value || !Object.hasOwn(deleteDescriptions, kind)) return;
+    dialog.value = { kind: 'confirm-delete', deleteKind: kind, deleteContext: context, previous: dialog.value };
+}
+function confirmDestroy() {
+    if (busy.value || dialog.value?.kind !== 'confirm-delete') return;
+    const { deleteKind: kind, deleteContext: context } = dialog.value;
     const routeNames = {
         company: ['nfc.companies.destroy', { company: context.companyId }],
         unit: ['nfc.units.destroy', { company: context.companyId, unit: context.unitId }],
@@ -230,18 +243,22 @@ function destroy(kind, context = {}) {
         payment: ['nfc.payments.destroy', { company: context.companyId, sale: context.saleId, payment: context.paymentId }],
         batch: ['nfc.production.destroy', { production: context.batchId }],
         manufacturer: ['nfc.manufacturers.destroy', { manufacturer: context.manufacturerId }],
+        image: ['nfc.manufacturers.images.destroy', { manufacturer: context.manufacturerId, image: context.imageId }],
+        notice: ['nfc.notices.destroy', { notice: context.noticeId }],
+        'share-link': ['nfc.share-links.destroy', { link: context.linkId }],
     };
     const target = routeNames[kind];
-    if (!target || !window.confirm('Excluir este registro? A alteração ficará no histórico e poderá afetar os indicadores.')) return;
-    router.delete(nfcRoute(target[0], target[1]), {
+    if (!target) return;
+    const endpoint = kind === 'share-link' ? route(target[0], target[1]) : nfcRoute(target[0], target[1]);
+    router.delete(endpoint, {
         preserveScroll: true,
         onStart: () => { busy.value = true; },
         onFinish: () => { busy.value = false; },
         onSuccess: () => {
-            if (kind === 'company' || kind === 'manufacturer') dialog.value = null;
-            notify({ message: 'Registro excluído. Listas e indicadores atualizados.' });
+            dialog.value = ['company', 'manufacturer'].includes(kind) ? null : dialog.value?.previous ?? null;
+            notify({ message: kind === 'share-link' ? 'Link revogado.' : 'Registro excluído. Listas e indicadores atualizados.' });
         },
-        onError: errors => reportError(errors, 'Não foi possível excluir este registro. Confira os vínculos e tente novamente.'),
+        onError: errors => reportError(errors, 'Não foi possível concluir esta ação. Confira os vínculos e tente novamente.'),
     });
 }
 
@@ -477,7 +494,15 @@ watch(dialog, async (current, previous) => {
                 </header>
 
                 <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
-                <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @busy="busy = $event" @feedback="notify" />
+                <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
+                <div v-else-if="dialog.kind === 'confirm-delete'" class="flex min-w-0 flex-col gap-4">
+                    <p class="text-sm leading-6">{{ deleteDescriptions[dialog.deleteKind] }}</p>
+                    <p class="nfc-muted text-sm">Esta ação pode afetar indicadores ou registros vinculados. Confira antes de continuar.</p>
+                    <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
+                        <button type="button" class="nfc-button" :disabled="busy" @click="goBack">Cancelar</button>
+                        <button type="button" class="nfc-button nfc-danger" :disabled="busy" @click="confirmDestroy">{{ busy ? 'Processando…' : confirmDeleteLabel }}</button>
+                    </div>
+                </div>
                 <div v-else-if="dialog.kind === 'share' && !shared && share_links_enabled && authenticatedUser" class="flex min-w-0 flex-col gap-4">
                     <p class="nfc-muted text-sm">Links individuais válidos por sete dias. Quem possuir um link poderá consultar e alterar somente os dados do módulo NFC, incluindo exclusões. Revogue assim que não precisar mais.</p>
                     <button type="button" class="nfc-button nfc-primary self-start" :disabled="shareBusy" @click="createShare">Gerar novo link</button>
@@ -516,7 +541,7 @@ watch(dialog, async (current, previous) => {
                     </ul>
                     <p v-if="!history.length" class="nfc-muted text-sm">Nenhuma alteração registrada.</p>
                 </div>
-                <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :warranty-notices="warranty_notices" :nfc-route="nfcRoute" @create="edit('notice')" @open-company="showCompany" @busy="busy = $event" @feedback="notify" />
+                <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :warranty-notices="warranty_notices" :nfc-route="nfcRoute" @create="edit('notice')" @open-company="showCompany" @request-delete="notice => destroy('notice', { noticeId: notice.id })" @busy="busy = $event" @feedback="notify" />
                 <Editor
                     v-else
                     :key="dialog.kind"
