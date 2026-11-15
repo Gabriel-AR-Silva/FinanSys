@@ -185,9 +185,9 @@ function submit() {
 
 <template>
     <form class="flex min-w-0 flex-col gap-4" @submit.prevent="submit">
-        <ul v-if="errors.length" class="nfc-danger grid gap-1 rounded-xl p-3 text-sm [overflow-wrap:anywhere]" role="alert">
+        <div v-if="errors.length" class="nfc-danger rounded-xl border border-current/20 p-3 text-sm [overflow-wrap:anywhere]" role="alert" aria-live="assertive"><p class="mb-2 font-semibold">Confira os campos antes de salvar</p><ul class="grid list-disc gap-1 pl-5">
             <li v-for="message in errors" :key="message">{{ message }}</li>
-        </ul>
+        </ul></div>
 
         <template v-if="kind === 'company-form'">
             <label class="nfc-field">Nome da empresa
