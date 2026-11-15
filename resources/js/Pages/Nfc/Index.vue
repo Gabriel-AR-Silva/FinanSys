@@ -412,12 +412,12 @@ watch(dialog, async (current, previous) => {
                                 <span class="flex w-full items-center justify-between gap-2 font-semibold">{{ row.companyName }} <ChevronRight :size="16" aria-hidden="true" /></span>
                                 <span class="nfc-muted text-sm">{{ row.unitName }} · {{ row.identifier || 'Sem CPF/CNPJ' }}</span>
                                 <span class="nfc-badge" :class="row.productionStatus === 'in_progress' ? 'nfc-warning' : row.productionStatus ? 'nfc-success' : 'nfc-neutral'">{{ !row.hasUnit ? 'Sem unidade' : row.productionStatus === 'in_progress' ? 'Em fabricação' : row.productionStatus ? 'Fabricado' : 'Sem lote' }}</span>
-                                <dl class="grid w-full grid-cols-2 gap-2 text-sm">
-                                    <div><dt class="nfc-muted text-xs">Vendidas</dt><dd class="font-semibold tabular-nums">{{ row.sold }}</dd></div>
-                                    <div><dt class="nfc-muted text-xs">Valor total</dt><dd class="font-semibold tabular-nums">{{ money(row.total) }}</dd></div>
-                                    <div><dt class="nfc-muted text-xs">Recebido</dt><dd class="font-semibold tabular-nums">{{ money(row.received) }}</dd></div>
-                                    <div><dt class="nfc-muted text-xs">A receber</dt><dd class="font-semibold tabular-nums" :class="row.outstanding > 0 ? 'text-[var(--fs-warning)]' : ''">{{ money(row.outstanding) }}</dd></div>
-                                </dl>
+                                <span class="grid w-full grid-cols-2 gap-2 text-sm">
+                                    <span class="flex flex-col"><span class="nfc-muted text-xs">Vendidas</span><span class="font-semibold tabular-nums">{{ row.sold }}</span></span>
+                                    <span class="flex flex-col"><span class="nfc-muted text-xs">Valor total</span><span class="font-semibold tabular-nums">{{ money(row.total) }}</span></span>
+                                    <span class="flex flex-col"><span class="nfc-muted text-xs">Recebido</span><span class="font-semibold tabular-nums">{{ money(row.received) }}</span></span>
+                                    <span class="flex flex-col"><span class="nfc-muted text-xs">A receber</span><span class="font-semibold tabular-nums" :class="row.outstanding > 0 ? 'text-[var(--fs-warning)]' : ''">{{ money(row.outstanding) }}</span></span>
+                                </span>
                             </button>
                         </li>
                     </ul>
