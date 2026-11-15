@@ -9,7 +9,7 @@ const props = defineProps({
     warrantyNotices: { type: Array, required: true },
     nfcRoute: { type: Function, required: true },
 });
-const emit = defineEmits(['create', 'open-company', 'busy', 'feedback']);
+const emit = defineEmits(['create', 'open-company', 'request-delete', 'busy', 'feedback']);
 const tab = ref('pending');
 const pending = computed(() => props.notices.filter(notice => !notice.resolved_at));
 const resolved = computed(() => props.notices.filter(notice => notice.resolved_at));
@@ -42,16 +42,6 @@ function toggle(notice, event) {
     });
 }
 
-function destroyNotice(notice) {
-    if (form.processing || !window.confirm('Excluir este aviso? A operação ficará registrada no histórico.')) return;
-    form.delete(props.nfcRoute('nfc.notices.destroy', { notice: notice.id }), {
-        preserveScroll: true,
-        onStart: () => emit('busy', true),
-        onFinish: () => emit('busy', false),
-        onSuccess: () => emit('feedback', { type: 'success', message: 'Aviso excluído.' }),
-        onError: errors => showError(errors, 'Não foi possível excluir o aviso.'),
-    });
-}
 
 function context(notice) {
     return [notice.company_name, notice.unit_name, notice.plate_label].filter(Boolean).join(' · ');
@@ -102,7 +92,7 @@ function context(notice) {
                                 <p class="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm font-medium" :class="notice.resolved_at ? 'nfc-muted' : ''">{{ notice.text }}</p>
                                 <button type="button" class="nfc-button nfc-icon-button nfc-danger shrink-0"
                                     :disabled="form.processing" :aria-label="'Excluir aviso: ' + notice.text" title="Excluir aviso"
-                                    @click="destroyNotice(notice)">
+                                    @click="emit('request-delete', notice)">
                                     <Trash2 :size="16" aria-hidden="true" />
                                 </button>
                             </div>
