@@ -35,13 +35,13 @@ function destroy(kind, context = {}) {
             <div v-if="company.cnpj"><dt class="nfc-muted">CPF/CNPJ</dt><dd class="break-words font-medium">{{ company.cnpj }}</dd></div>
             <div v-if="company.notes" class="min-w-0 sm:col-span-2"><dt class="nfc-muted">Observações</dt><dd class="whitespace-pre-wrap break-words">{{ company.notes }}</dd></div>
         </dl>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             <button type="button" class="nfc-button" @click="edit('company-form')">Editar empresa</button>
             <button type="button" class="nfc-button" @click="edit('unit')">Nova unidade</button>
             <button type="button" class="nfc-button nfc-primary" @click="edit('sale')">Nova venda</button>
             <button type="button" class="nfc-button nfc-danger" @click="destroy('company')">Excluir empresa</button>
         </div>
-        <dl class="grid min-w-0 grid-cols-2 gap-2" aria-label="Resumo da empresa">
+        <dl class="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Resumo da empresa">
             <div class="nfc-panel flex min-w-0 flex-col gap-1 p-3">
                 <dt class="nfc-muted text-xs">Plaquinhas vendidas</dt>
                 <dd class="text-lg font-semibold tabular-nums">{{ company.sold }}</dd>
