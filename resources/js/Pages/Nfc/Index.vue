@@ -39,6 +39,20 @@ const search = ref('');
 const productionSearch = ref('');
 const manufacturerSearch = ref('');
 const activeRegistryTab = ref('companies');
+const registryTabOrder = ['companies', 'production', 'manufacturers'];
+async function onRegistryTabKeydown(event, current) {
+    const index = registryTabOrder.indexOf(current);
+    let next = null;
+    if (event.key === 'ArrowRight') next = registryTabOrder[(index + 1) % registryTabOrder.length];
+    if (event.key === 'ArrowLeft') next = registryTabOrder[(index - 1 + registryTabOrder.length) % registryTabOrder.length];
+    if (event.key === 'Home') next = registryTabOrder[0];
+    if (event.key === 'End') next = registryTabOrder[registryTabOrder.length - 1];
+    if (next === null) return;
+    event.preventDefault();
+    activeRegistryTab.value = next;
+    await nextTick();
+    document.getElementById(`nfc-tab-${next}`)?.focus();
+}
 const page = usePage();
 const authenticatedUser = computed(() => page.props.auth?.user ?? null);
 const dialog = ref(null);
@@ -373,26 +387,29 @@ watch(dialog, async (current, previous) => {
             <div v-if="!schema_pending" role="tablist" aria-label="Empresas, fabricação e fabricantes NFC"
                 class="nfc-panel flex w-full min-w-0 flex-wrap gap-1 p-1 sm:w-fit">
                 <button id="nfc-tab-companies" type="button" role="tab" aria-controls="nfc-panel-companies"
-                    :aria-selected="activeRegistryTab === 'companies'" :aria-pressed="activeRegistryTab === 'companies'"
+                    :aria-selected="activeRegistryTab === 'companies'" :tabindex="activeRegistryTab === 'companies' ? 0 : -1"
+                    @keydown="onRegistryTabKeydown($event, 'companies')"
                     class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'companies'">
                     <Building2 :size="16" aria-hidden="true" /> Empresas
                     <span class="nfc-badge nfc-neutral tabular-nums">{{ companies.length }}</span>
                 </button>
                 <button id="nfc-tab-production" type="button" role="tab" aria-controls="nfc-panel-production"
-                    :aria-selected="activeRegistryTab === 'production'" :aria-pressed="activeRegistryTab === 'production'"
+                    :aria-selected="activeRegistryTab === 'production'" :tabindex="activeRegistryTab === 'production' ? 0 : -1"
+                    @keydown="onRegistryTabKeydown($event, 'production')"
                     class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'production'">
                     <Factory :size="16" aria-hidden="true" /> Fabricação
                     <span class="nfc-badge nfc-neutral tabular-nums">{{ production.length }}</span>
                 </button>
                 <button id="nfc-tab-manufacturers" type="button" role="tab" aria-controls="nfc-panel-manufacturers"
-                    :aria-selected="activeRegistryTab === 'manufacturers'" :aria-pressed="activeRegistryTab === 'manufacturers'"
+                    :aria-selected="activeRegistryTab === 'manufacturers'" :tabindex="activeRegistryTab === 'manufacturers' ? 0 : -1"
+                    @keydown="onRegistryTabKeydown($event, 'manufacturers')"
                     class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'manufacturers'">
                     <Factory :size="16" aria-hidden="true" /> Fabricantes
                     <span class="nfc-badge nfc-neutral tabular-nums">{{ manufacturers.length }}</span>
                 </button>
             </div>
 
-            <section v-if="!schema_pending" v-show="activeRegistryTab === 'companies'" id="nfc-panel-companies" role="tabpanel" aria-labelledby="nfc-tab-companies" class="flex min-w-0 flex-col gap-3">
+            <section v-if="!schema_pending" v-show="activeRegistryTab === 'companies'" id="nfc-panel-companies" role="tabpanel" aria-labelledby="nfc-tab-companies" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex min-w-0 items-center justify-between gap-2">
                     <h2 id="nfc-companies" class="flex min-w-0 items-center gap-2 text-lg font-semibold"><Building2 :size="19" aria-hidden="true" /> Empresas</h2>
                     <button type="button" class="nfc-button nfc-primary shrink-0" @click="edit('company-form')">
@@ -443,7 +460,7 @@ watch(dialog, async (current, previous) => {
                 <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ companies.length ? 'Nenhuma empresa neste filtro.' : 'Nenhuma empresa cadastrada.' }}</p>
             </section>
 
-            <section v-if="!schema_pending" v-show="activeRegistryTab === 'production'" id="nfc-panel-production" role="tabpanel" aria-labelledby="nfc-tab-production" class="flex min-w-0 flex-col gap-3">
+            <section v-if="!schema_pending" v-show="activeRegistryTab === 'production'" id="nfc-panel-production" role="tabpanel" aria-labelledby="nfc-tab-production" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 id="nfc-production" class="flex items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricação</h2>
                     <div class="flex flex-wrap gap-2">
@@ -471,7 +488,7 @@ watch(dialog, async (current, previous) => {
                 </ul>
                 <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ production.length ? 'Nenhum lote encontrado nesta busca.' : 'Nenhuma fabricação registrada.' }}</p>
             </section>
-            <section v-if="!schema_pending" v-show="activeRegistryTab === 'manufacturers'" id="nfc-panel-manufacturers" role="tabpanel" aria-labelledby="nfc-tab-manufacturers" class="flex min-w-0 flex-col gap-3">
+            <section v-if="!schema_pending" v-show="activeRegistryTab === 'manufacturers'" id="nfc-panel-manufacturers" role="tabpanel" aria-labelledby="nfc-tab-manufacturers" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex min-w-0 items-center justify-between gap-2">
                     <h2 class="flex min-w-0 items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricantes</h2>
                     <button type="button" class="nfc-button nfc-primary shrink-0" @click="edit('manufacturer-form')"><Plus :size="16" aria-hidden="true" /> Novo fabricante</button>
