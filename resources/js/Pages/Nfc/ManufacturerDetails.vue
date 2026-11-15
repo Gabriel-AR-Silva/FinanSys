@@ -125,7 +125,7 @@ function upload(event) {
                 <dl class="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     <div v-for="item in group.items" :key="item.label" class="nfc-stat-tile min-w-0 rounded-lg p-3">
                         <dt class="nfc-muted text-xs leading-snug">{{ item.label }}</dt>
-                        <dd class="mt-1 break-words tabular-nums" :class="[item.primary ? 'text-base font-bold sm:text-lg' : 'text-sm font-semibold', item.warning ? 'text-amber-500' : '']">{{ item.value }}</dd>
+                        <dd class="mt-1 break-words tabular-nums" :class="[item.primary ? 'text-base font-bold sm:text-lg' : 'text-sm font-semibold', item.warning ? 'text-[var(--fs-warning)]' : '']">{{ item.value }}</dd>
                     </div>
                 </dl>
             </div>
