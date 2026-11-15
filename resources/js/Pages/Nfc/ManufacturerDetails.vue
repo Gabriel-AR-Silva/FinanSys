@@ -1,5 +1,5 @@
 <script setup>
-import { router, useForm } from '@inertiajs/vue3';
+import { useForm } from '@inertiajs/vue3';
 import { Download, ImagePlus, Pencil, Trash2 } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { date, money } from './format';
@@ -8,10 +8,9 @@ const props = defineProps({
     manufacturer: { type: Object, required: true },
     nfcRoute: { type: Function, required: true },
 });
-const emit = defineEmits(['edit', 'destroy', 'busy', 'feedback']);
+const emit = defineEmits(['edit', 'destroy', 'request-delete-image', 'busy', 'feedback']);
 const uploadForm = useForm({ images: [] });
 const selectedImage = ref(null);
-const deletingImage = ref(null);
 const availableSlots = computed(() => Math.max(0, 10 - props.manufacturer.images.length));
 const statistics = computed(() => {
     const s = props.manufacturer.statistics;
@@ -62,19 +61,7 @@ function upload(event) {
         onError: errors => feedback('error', Object.values(errors).flat().find(Boolean) || 'Não foi possível enviar as imagens.'),
     });
 }
-function removeImage(image) {
-    if (deletingImage.value || !window.confirm(`Excluir a imagem "${image.name}"?`)) return;
-    router.delete(props.nfcRoute('nfc.manufacturers.images.destroy', { manufacturer: props.manufacturer.id, image: image.id }), {
-        preserveScroll: true,
-        onStart: () => { deletingImage.value = image.id; emit('busy', true); },
-        onFinish: () => { deletingImage.value = null; emit('busy', false); },
-        onSuccess: () => {
-            if (selectedImage.value?.id === image.id) selectedImage.value = null;
-            feedback('success', 'Imagem removida.');
-        },
-        onError: errors => feedback('error', Object.values(errors).flat().find(Boolean) || 'Não foi possível remover a imagem.'),
-    });
-}
+
 </script>
 
 <template>
@@ -106,7 +93,7 @@ function removeImage(image) {
                         <p class="truncate text-xs" :title="image.name">{{ image.name }}</p>
                         <div class="flex items-center justify-between gap-1">
                             <a class="nfc-button nfc-icon-button" :href="imageDownloadUrl(image)" :download="image.name" :aria-label="'Baixar ' + image.name" title="Baixar imagem"><Download :size="16" aria-hidden="true" /></a>
-                            <button type="button" class="nfc-button nfc-icon-button nfc-danger" :disabled="deletingImage !== null || uploadForm.processing" :aria-label="'Excluir ' + image.name" title="Excluir imagem" @click="removeImage(image)"><Trash2 :size="16" aria-hidden="true" /></button>
+                            <button type="button" class="nfc-button nfc-icon-button nfc-danger"  :disabled="uploadForm.processing" :aria-label="'Excluir ' + image.name" title="Excluir imagem" @click="emit('request-delete-image', image)"><Trash2 :size="16" aria-hidden="true" /></button>
                         </div>
                     </figcaption>
                 </figure>
