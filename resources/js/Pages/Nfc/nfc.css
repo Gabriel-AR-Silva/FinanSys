@@ -200,3 +200,28 @@
         border-radius: 0;
     }
 }
+
+/* Grafi: compact, readable detail surfaces across NFC dialogs. */
+.nfc-stat-tile {
+    background: var(--fs-surface-muted);
+    border: 1px solid var(--fs-border);
+}
+.nfc-history-details {
+    background: var(--fs-surface-muted);
+    border: 1px solid var(--fs-border);
+}
+.nfc-history-code {
+    background: var(--fs-surface);
+    border: 1px solid var(--fs-border);
+}
+.nfc-dialog-content :is(button, a, input, select, textarea, summary):focus-visible {
+    outline: 2px solid var(--fs-primary, currentColor);
+    outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .nfc-dialog-content *, .nfc-dialog-content *::before, .nfc-dialog-content *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
+}
