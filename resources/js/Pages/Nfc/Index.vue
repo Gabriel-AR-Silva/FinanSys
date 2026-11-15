@@ -111,7 +111,11 @@ const companiesShown = computed(() => {
         ].some(value => String(value ?? '').toLocaleLowerCase('pt-BR').includes(text));
     });
 });
-const unitRows = computed(() => companiesShown.value.flatMap(company => company.units.map(unit => {
+const unitRows = computed(() => companiesShown.value.flatMap(company => {
+    const units = company.units.length
+        ? company.units
+        : [{ id: `empty-${company.id}`, name: 'Sem unidade cadastrada', production_id: null }];
+    return units.map(unit => {
     const sales = company.sales.filter(sale => sale.unit_id === unit.id);
     return {
         id: unit.id,
@@ -119,6 +123,7 @@ const unitRows = computed(() => companiesShown.value.flatMap(company => company.
         companyName: company.name,
         identifier: company.cnpj,
         unitName: unit.name,
+        hasUnit: !String(unit.id).startsWith('empty-'),
         productionId: unit.production_id ?? null,
         productionStatus: unit.production_status ?? null,
         sold: sales.reduce((sum, sale) => sum + sale.plates.length, 0),
@@ -126,7 +131,8 @@ const unitRows = computed(() => companiesShown.value.flatMap(company => company.
         received: sales.reduce((sum, sale) => sum + sale.paid_cents, 0),
         outstanding: sales.reduce((sum, sale) => sum + sale.balance_cents, 0),
     };
-})));
+    });
+}));
 const productionShown = computed(() => {
     const text = productionSearch.value.trim().toLocaleLowerCase('pt-BR');
     return props.production.map(batch => ({
@@ -160,18 +166,18 @@ const metrics = computed(() => {
     const costsPending = totals.unknown_cost_batches;
 
     return [
+        { label: 'Arrecadado', value: money(totals.received_cents), tone: 'nfc-success' },
+        { label: 'A receber', value: money(totals.outstanding_cents), tone: 'nfc-warning' },
+        { label: 'Vendidas', value: totals.sold, detail: `${totals.sold_standard} normais · ${totals.sold_custom} personalizadas` },
         { label: 'Interessadas', value: totals.interested },
         { label: 'Fabricadas', value: totals.manufactured },
         { label: 'Em fabricação', value: totals.in_production ?? 0, tone: 'nfc-warning' },
         { label: 'Em customização', value: totals.in_customization },
-        { label: 'Vendidas', value: totals.sold, detail: `${totals.sold_standard} normais · ${totals.sold_custom} personalizadas` },
         { label: 'Plaquinhas pagas', value: totals.paid_plates },
         { label: 'Com defeito', value: totals.defective ?? 0, tone: 'nfc-danger' },
         { label: 'Possível prejuízo', value: money(totals.estimated_loss_cents ?? 0), tone: 'nfc-danger',
             detail: totals.unestimated_defects ? (totals.unestimated_defects + ' defeito(s) sem valor estimado') : 'Estimativa, não baixa financeira' },
         { label: 'Custo de fabricação', value: costsPending && costsPending === props.production.length ? '—' : money(totals.production_cost_cents), detail: costsPending ? `${costsPending} ${costsPending === 1 ? 'lote sem custo informado' : 'lotes sem custo informado'}` : null },
-        { label: 'Arrecadado', value: money(totals.received_cents), tone: 'nfc-success' },
-        { label: 'A receber', value: money(totals.outstanding_cents), tone: 'nfc-warning' },
     ];
 });
 
@@ -345,10 +351,10 @@ watch(dialog, async (current, previous) => {
                         class="grid w-full min-w-full shrink-0 snap-start grid-cols-3 items-stretch gap-1.5"
                         role="group" :aria-label="`Indicadores ${index * 3 + 1} a ${index * 3 + pageMetrics.length}`">
                         <div v-for="metric in pageMetrics" :key="metric.label" class="nfc-panel flex min-w-0 flex-col gap-1 px-2 py-2.5">
-                            <dt class="nfc-muted text-[10px] font-medium leading-tight">{{ metric.label }}</dt>
-                            <dd class="min-w-0 self-start text-sm font-semibold leading-snug tabular-nums [overflow-wrap:anywhere]"
+                            <dt class="nfc-muted text-xs font-medium leading-tight">{{ metric.label }}</dt>
+                            <dd class="min-w-0 self-start text-base font-semibold leading-snug tabular-nums [overflow-wrap:anywhere]"
                                 :class="metric.tone && `${metric.tone} rounded-md px-1`">{{ metric.value }}</dd>
-                            <dd v-if="metric.detail" class="nfc-muted text-[10px] leading-tight [overflow-wrap:anywhere]">{{ metric.detail }}</dd>
+                            <dd v-if="metric.detail" class="nfc-muted text-[11px] leading-tight [overflow-wrap:anywhere]">{{ metric.detail }}</dd>
                         </div>
                     </div>
                 </dl>
@@ -405,8 +411,13 @@ watch(dialog, async (current, previous) => {
                             <button type="button" class="nfc-row flex w-full min-w-0 flex-col items-start gap-2 rounded-xl p-4 text-left" @click="showCompany(row.companyId)">
                                 <span class="flex w-full items-center justify-between gap-2 font-semibold">{{ row.companyName }} <ChevronRight :size="16" aria-hidden="true" /></span>
                                 <span class="nfc-muted text-sm">{{ row.unitName }} · {{ row.identifier || 'Sem CPF/CNPJ' }}</span>
-                                <span class="nfc-badge" :class="row.productionStatus === 'in_progress' ? 'nfc-warning' : row.productionStatus ? 'nfc-success' : 'nfc-neutral'">{{ row.productionStatus === 'in_progress' ? 'Em fabricação' : row.productionStatus ? 'Fabricado' : 'Sem lote' }}</span>
-                                <span class="flex w-full flex-wrap gap-3 text-sm"><span>{{ row.sold }} vendidas</span><span>Valor: {{ money(row.total) }}</span><span>Recebido: {{ money(row.received) }}</span><span>A receber: {{ money(row.outstanding) }}</span></span>
+                                <span class="nfc-badge" :class="row.productionStatus === 'in_progress' ? 'nfc-warning' : row.productionStatus ? 'nfc-success' : 'nfc-neutral'">{{ !row.hasUnit ? 'Sem unidade' : row.productionStatus === 'in_progress' ? 'Em fabricação' : row.productionStatus ? 'Fabricado' : 'Sem lote' }}</span>
+                                <dl class="grid w-full grid-cols-2 gap-2 text-sm">
+                                    <div><dt class="nfc-muted text-xs">Vendidas</dt><dd class="font-semibold tabular-nums">{{ row.sold }}</dd></div>
+                                    <div><dt class="nfc-muted text-xs">Valor total</dt><dd class="font-semibold tabular-nums">{{ money(row.total) }}</dd></div>
+                                    <div><dt class="nfc-muted text-xs">Recebido</dt><dd class="font-semibold tabular-nums">{{ money(row.received) }}</dd></div>
+                                    <div><dt class="nfc-muted text-xs">A receber</dt><dd class="font-semibold tabular-nums" :class="row.outstanding > 0 ? 'text-[var(--fs-warning)]' : ''">{{ money(row.outstanding) }}</dd></div>
+                                </dl>
                             </button>
                         </li>
                     </ul>
@@ -419,7 +430,7 @@ watch(dialog, async (current, previous) => {
                                 <tr v-for="row in unitRows" :key="row.companyId + '-' + row.id" class="nfc-rule border-b last:border-b-0">
                                     <td class="px-4 py-3"><button type="button" class="font-semibold underline-offset-2 hover:underline" @click="showCompany(row.companyId)">{{ row.companyName }}</button><p class="nfc-muted text-xs">{{ row.identifier || '—' }}</p></td>
                                     <td class="px-3 py-3">{{ row.unitName }}</td>
-                                    <td class="px-3 py-3"><span :class="row.productionStatus === 'in_progress' ? 'nfc-warning' : row.productionStatus ? 'nfc-success' : 'nfc-neutral'" class="nfc-badge">{{ row.productionStatus === 'in_progress' ? 'Em fabricação' : row.productionStatus ? 'Fabricado' : 'Sem lote' }}</span><span v-if="row.productionId" class="nfc-muted block text-xs">Lote #{{ row.productionId }}</span></td>
+                                    <td class="px-3 py-3"><span :class="row.productionStatus === 'in_progress' ? 'nfc-warning' : row.productionStatus ? 'nfc-success' : 'nfc-neutral'" class="nfc-badge">{{ !row.hasUnit ? 'Sem unidade' : row.productionStatus === 'in_progress' ? 'Em fabricação' : row.productionStatus ? 'Fabricado' : 'Sem lote' }}</span><span v-if="row.productionId" class="nfc-muted block text-xs">Lote #{{ row.productionId }}</span></td>
                                     <td class="px-3 py-3 text-right tabular-nums">{{ row.sold }}</td>
                                     <td class="px-3 py-3 text-right tabular-nums">{{ money(row.total) }}</td>
                                     <td class="px-3 py-3 text-right tabular-nums">{{ money(row.received) }}</td>
