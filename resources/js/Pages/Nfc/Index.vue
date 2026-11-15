@@ -423,19 +423,26 @@ watch(dialog, async (current, previous) => {
                     <input v-model.trim="search" type="search" class="nfc-control" placeholder="Digite para filtrar..." aria-label="Buscar no módulo NFC" />
                 </label>
                 <div v-if="unitRows.length" class="flex flex-col gap-3">
-                    <ul class="nfc-scrollbar flex max-h-[min(58dvh,34rem)] flex-col gap-2 overflow-y-auto overscroll-contain pr-1 md:hidden" aria-label="Empresas e unidades NFC">
-                        <li v-for="row in unitRows" :key="row.companyId + '-' + row.id" class="nfc-panel min-w-0">
-                            <button type="button" class="nfc-row flex w-full min-w-0 flex-col items-start gap-2 rounded-xl p-4 text-left" @click="showCompany(row.companyId)">
-                                <span class="flex w-full items-center justify-between gap-2 font-semibold">{{ row.companyName }} <ChevronRight :size="16" aria-hidden="true" /></span>
-                                <span class="nfc-muted text-sm">{{ row.unitName }} · {{ row.identifier || 'Sem CPF/CNPJ' }}</span>
-                                <span class="nfc-badge" :class="row.productionStatus === 'in_progress' ? 'nfc-warning' : row.productionStatus ? 'nfc-success' : 'nfc-neutral'">{{ !row.hasUnit ? 'Sem unidade' : row.productionStatus === 'in_progress' ? 'Em fabricação' : row.productionStatus ? 'Fabricado' : 'Sem lote' }}</span>
-                                <span class="grid w-full grid-cols-2 gap-2 text-sm">
-                                    <span class="flex flex-col"><span class="nfc-muted text-xs">Vendidas</span><span class="font-semibold tabular-nums">{{ row.sold }}</span></span>
-                                    <span class="flex flex-col"><span class="nfc-muted text-xs">Valor total</span><span class="font-semibold tabular-nums">{{ money(row.total) }}</span></span>
-                                    <span class="flex flex-col"><span class="nfc-muted text-xs">Recebido</span><span class="font-semibold tabular-nums">{{ money(row.received) }}</span></span>
-                                    <span class="flex flex-col"><span class="nfc-muted text-xs">A receber</span><span class="font-semibold tabular-nums" :class="row.outstanding > 0 ? 'text-[var(--fs-warning)]' : ''">{{ money(row.outstanding) }}</span></span>
+                    <ul class="nfc-scrollbar flex max-h-[min(58dvh,34rem)] flex-col gap-2 overflow-y-auto overscroll-contain pr-1 md:hidden" aria-label="Empresas NFC">
+                        <li v-for="company in companiesShown" :key="company.id" class="nfc-panel min-w-0 overflow-hidden">
+                            <button type="button" class="nfc-row flex w-full items-center justify-between gap-3 p-3 text-left" @click="showCompany(company.id)">
+                                <span class="min-w-0">
+                                    <span class="block truncate font-semibold">{{ company.name }}</span>
+                                    <span class="nfc-muted block text-xs">{{ company.cnpj || 'Sem CPF/CNPJ' }} · {{ company.units.length }} {{ company.units.length === 1 ? 'unidade' : 'unidades' }}</span>
                                 </span>
+                                <ChevronRight :size="18" class="shrink-0" aria-hidden="true" />
                             </button>
+                            <div class="nfc-rule border-t px-3 pb-3 pt-2">
+                                <div class="grid grid-cols-3 gap-2 text-xs">
+                                    <div class="min-w-0"><span class="nfc-muted block">Vendidas</span><strong class="tabular-nums">{{ company.sales.reduce((sum, sale) => sum + sale.plates.length, 0) }}</strong></div>
+                                    <div class="min-w-0"><span class="nfc-muted block">Recebido</span><strong class="tabular-nums">{{ money(company.sales.reduce((sum, sale) => sum + sale.paid_cents, 0)) }}</strong></div>
+                                    <div class="min-w-0"><span class="nfc-muted block">A receber</span><strong class="tabular-nums" :class="company.sales.some(sale => sale.balance_cents > 0) ? 'text-[var(--fs-warning)]' : ''">{{ money(company.sales.reduce((sum, sale) => sum + sale.balance_cents, 0)) }}</strong></div>
+                                </div>
+                                <div class="mt-2 flex flex-wrap gap-1.5" aria-label="Unidades da empresa">
+                                    <span v-if="!company.units.length" class="nfc-badge nfc-neutral">Sem unidade</span>
+                                    <span v-for="unit in company.units" :key="unit.id" class="nfc-badge nfc-neutral">{{ unit.name }}</span>
+                                </div>
+                            </div>
                         </li>
                     </ul>
                     <div class="nfc-panel nfc-scrollbar hidden max-h-[min(58dvh,34rem)] min-w-0 overflow-auto overscroll-contain md:block">
