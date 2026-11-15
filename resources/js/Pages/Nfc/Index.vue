@@ -332,7 +332,7 @@ watch(dialog, async (current, previous) => {
 <template>
     <component :is="shared ? NfcSharedLayout : AuthenticatedLayout">
         <Head title="Plaquinhas NFC" />
-        <div v-if="feedback" class="fixed bottom-4 right-4 z-[90] w-[calc(100%-2rem)] max-w-sm rounded-xl border p-3 shadow-lg"
+        <div v-if="feedback" class="fixed bottom-4 left-4 right-4 z-[90] mx-auto w-[calc(100%-2rem)] max-w-sm rounded-xl border p-3 shadow-lg sm:bottom-6 sm:left-auto sm:right-6 sm:mx-0"
             :class="feedback.type === 'error' ? 'nfc-feedback-error' : 'nfc-feedback-success'"
             :role="feedback.type === 'error' ? 'alert' : 'status'" aria-live="polite">
             <div class="flex items-start gap-2">
@@ -569,8 +569,18 @@ watch(dialog, async (current, previous) => {
                             <p class="font-semibold">{{ historyVerb[entry.event] || entry.event }} · {{ historyKind[entry.target_kind] || entry.target_kind }} #{{ entry.target_id }}</p>
                             <p v-if="entry.label" class="min-w-0 break-words">{{ entry.label }}</p>
                             <p class="nfc-muted text-xs">{{ entry.actor }} · {{ datetime(entry.occurred_at) }}</p>
-                            <details class="mt-2"><summary class="cursor-pointer text-xs underline">Ver dados registrados</summary>
-                                <pre class="nfc-muted mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-all text-xs">{{ JSON.stringify({ antes: entry.before, depois: entry.after }, null, 2) }}</pre>
+                            <details class="nfc-history-details mt-2 rounded-lg p-2">
+                                <summary class="cursor-pointer text-xs font-medium">Detalhes técnicos da alteração</summary>
+                                <dl class="mt-2 grid gap-2 sm:grid-cols-2">
+                                    <div v-if="entry.before != null" class="min-w-0">
+                                        <dt class="nfc-muted mb-1 text-xs font-semibold">Antes</dt>
+                                        <dd class="nfc-history-code max-h-44 overflow-auto rounded-md p-2 text-xs"><pre class="whitespace-pre-wrap break-all">{{ JSON.stringify(entry.before, null, 2) }}</pre></dd>
+                                    </div>
+                                    <div v-if="entry.after != null" class="min-w-0">
+                                        <dt class="nfc-muted mb-1 text-xs font-semibold">Depois</dt>
+                                        <dd class="nfc-history-code max-h-44 overflow-auto rounded-md p-2 text-xs"><pre class="whitespace-pre-wrap break-all">{{ JSON.stringify(entry.after, null, 2) }}</pre></dd>
+                                    </div>
+                                </dl>
                             </details>
                         </li>
                     </ul>
