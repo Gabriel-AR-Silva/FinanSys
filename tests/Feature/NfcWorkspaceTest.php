@@ -43,6 +43,39 @@ class NfcWorkspaceTest extends TestCase
             ->assertRedirect(route('nfc.index'));
     }
 
+    public function test_new_company_with_blank_first_unit_uses_a_readable_default_name(): void
+    {
+        $owner = User::factory()->create();
+        $operationId = (string) Str::uuid();
+
+        $this->actingAs($owner)->post(route('nfc.companies.store'), [
+            'operation_id' => $operationId,
+            'name' => 'Empresa teste',
+            'interested' => true,
+            'unit_name' => '   ',
+        ])->assertRedirect(route('nfc.index'));
+
+        $company = NfcRecord::query()->where('user_id', $owner->id)
+            ->where('record_key', $operationId)->firstOrFail();
+
+        $this->assertSame('Unidade 1', $company->payload['units'][0]['name']);
+    }
+
+    public function test_company_remains_accessible_in_dashboard_after_removing_its_only_unit(): void
+    {
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $unitId = $company->payload['units'][0]['id'];
+
+        $this->delete(route('nfc.units.destroy', ['company' => $company->id, 'unit' => $unitId]))
+            ->assertRedirect(route('nfc.index'));
+
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->has('companies', 1)
+            ->where('companies.0.id', $company->id)
+            ->where('companies.0.units', []));
+    }
+
     public function test_companies_and_mutations_are_scoped_to_the_authenticated_owner(): void
     {
         $owner = User::factory()->create();

@@ -41,10 +41,16 @@ function destroy(kind, context = {}) {
             <button type="button" class="nfc-button nfc-primary" @click="edit('sale')">Nova venda</button>
             <button type="button" class="nfc-button nfc-danger" @click="destroy('company')">Excluir empresa</button>
         </div>
-        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-            <span><strong>{{ company.sold }}</strong> vendidas</span>
-            <span><strong>{{ money(company.outstanding_cents) }}</strong> a receber</span>
-        </div>
+        <dl class="grid min-w-0 grid-cols-2 gap-2" aria-label="Resumo da empresa">
+            <div class="nfc-panel flex min-w-0 flex-col gap-1 p-3">
+                <dt class="nfc-muted text-xs">Plaquinhas vendidas</dt>
+                <dd class="text-lg font-semibold tabular-nums">{{ company.sold }}</dd>
+            </div>
+            <div class="nfc-panel flex min-w-0 flex-col gap-1 p-3">
+                <dt class="nfc-muted text-xs">Total a receber</dt>
+                <dd class="text-lg font-semibold tabular-nums" :class="company.outstanding_cents > 0 ? 'text-[var(--fs-warning)]' : ''">{{ money(company.outstanding_cents) }}</dd>
+            </div>
+        </dl>
 
         <details v-for="unit in units" :key="unit.id" class="nfc-panel min-w-0" :open="units.length === 1 || unit.sales.some(sale => sale.id === highlightSaleId)">
             <summary class="cursor-pointer break-words rounded-xl px-3 py-3 font-semibold">
@@ -68,11 +74,20 @@ function destroy(kind, context = {}) {
                             {{ sale.plates.filter(plate => plate.type === 'standard').length }} normais ·
                             {{ sale.plates.filter(plate => plate.type === 'custom').length }} personalizadas
                         </p>
-                        <div class="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-                            <span>Total <strong>{{ money(sale.total_cents) }}</strong></span>
-                            <span>Recebido <strong>{{ money(sale.paid_cents) }}</strong></span>
-                            <span>A receber <strong>{{ money(sale.balance_cents) }}</strong></span>
-                        </div>
+                        <dl class="nfc-panel grid min-w-0 grid-cols-2 gap-3 p-3 text-sm sm:grid-cols-3" aria-label="Resumo financeiro da venda">
+                            <div class="flex min-w-0 flex-col gap-1">
+                                <dt class="nfc-muted text-xs">Valor total</dt>
+                                <dd class="text-base font-semibold tabular-nums">{{ money(sale.total_cents) }}</dd>
+                            </div>
+                            <div class="flex min-w-0 flex-col gap-1">
+                                <dt class="nfc-muted text-xs">Recebido</dt>
+                                <dd class="text-base font-semibold tabular-nums">{{ money(sale.paid_cents) }}</dd>
+                            </div>
+                            <div class="flex min-w-0 flex-col gap-1">
+                                <dt class="nfc-muted text-xs">A receber</dt>
+                                <dd class="text-lg font-bold tabular-nums" :class="sale.balance_cents > 0 ? 'text-[var(--fs-warning)]' : ''">{{ money(sale.balance_cents) }}</dd>
+                            </div>
+                        </dl>
                         <p class="self-start nfc-badge" :class="sale.warranty_status === 'active' ? 'nfc-warning' : 'nfc-info'">
                             {{ sale.warranty_status === 'active' ? 'Em garantia até' : 'Garantia encerrada em' }} {{ date(sale.warranty_until) }}
                         </p>

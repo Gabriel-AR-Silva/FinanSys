@@ -98,7 +98,7 @@ class ManageNfcRecords
             'notes' => $data['notes'] ?? null,
             'units' => [[
                 'id' => (string) Str::uuid(),
-                'name' => $data['unit_name'] ?? 'Unidade 1',
+                'name' => trim((string) ($data['unit_name'] ?? '')) ?: 'Unidade 1',
                 'production_id' => null,
             ]],
             'sales' => [],
