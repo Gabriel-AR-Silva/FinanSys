@@ -113,7 +113,7 @@ class NfcReportPdf
             ];
             $charts = 0;
             foreach ($groups as $group) {
-                if (! count($group['keys'])) {
+                if (count($group['keys']) === 0) {
                     continue;
                 }
                 $charts++;
@@ -193,7 +193,7 @@ class NfcReportPdf
             $contentId = $pageId + 1;
             $kids[] = $pageId.' 0 R';
             $objects[$pageId] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 {$fontRegular} 0 R /F2 {$fontBold} 0 R >> >> /Contents {$contentId} 0 R >>";
-            $objects[$contentId] = '<< /Length '.strlen($stream)." >>\nstream\n".$stream."endstream";
+            $objects[$contentId] = '<< /Length '.strlen($stream)." >>\nstream\n".$stream.'endstream';
         }
         $objects[2] = '<< /Type /Pages /Kids ['.implode(' ', $kids).'] /Count '.$pageCount.' >>';
         $objects[$fontRegular] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
