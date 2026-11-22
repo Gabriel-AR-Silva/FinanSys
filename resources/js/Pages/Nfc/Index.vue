@@ -32,6 +32,7 @@ const props = defineProps({
 const filters = [
     { key: 'all', label: 'Todas' },
     { key: 'interested', label: 'Interessadas' },
+    { key: 'not_interested', label: 'Não interessadas' },
     { key: 'sold', label: 'Com vendas' },
 ];
 const filter = ref('all');
@@ -113,6 +114,7 @@ const companiesShown = computed(() => {
     const text = search.value.trim().toLocaleLowerCase('pt-BR');
     return props.companies.filter(company => {
         if (filter.value === 'interested' && !company.interested) return false;
+        if (filter.value === 'not_interested' && company.interested) return false;
         if (filter.value === 'sold' && !company.sold) return false;
         if (!text) return true;
         return [
@@ -385,25 +387,25 @@ watch(dialog, async (current, previous) => {
             </div>
 
             <div v-if="!schema_pending" role="tablist" aria-label="Empresas, fabricação e fabricantes NFC"
-                class="nfc-panel flex w-full min-w-0 flex-wrap gap-1 p-1 sm:w-fit">
+                class="nfc-rule flex w-full min-w-0 flex-wrap gap-1 border-b pb-1">
                 <button id="nfc-tab-companies" type="button" role="tab" aria-controls="nfc-panel-companies"
                     :aria-selected="activeRegistryTab === 'companies'" :tabindex="activeRegistryTab === 'companies' ? 0 : -1"
                     @keydown="onRegistryTabKeydown($event, 'companies')"
-                    class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'companies'">
+                    class="inline-flex min-h-11 min-w-0 flex-1 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b-[3px] px-2 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:flex-none sm:px-5" :class="activeRegistryTab === 'companies' ? 'border-[var(--fs-info)] text-[var(--fs-info)]' : 'border-transparent text-[var(--fs-text-secondary)] hover:bg-[var(--fs-surface-subtle)]'" @click="activeRegistryTab = 'companies'">
                     <Building2 :size="16" aria-hidden="true" /> Empresas
                     <span class="nfc-badge nfc-neutral tabular-nums">{{ companies.length }}</span>
                 </button>
                 <button id="nfc-tab-production" type="button" role="tab" aria-controls="nfc-panel-production"
                     :aria-selected="activeRegistryTab === 'production'" :tabindex="activeRegistryTab === 'production' ? 0 : -1"
                     @keydown="onRegistryTabKeydown($event, 'production')"
-                    class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'production'">
+                    class="inline-flex min-h-11 min-w-0 flex-1 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b-[3px] px-2 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:flex-none sm:px-5" :class="activeRegistryTab === 'production' ? 'border-[var(--fs-info)] text-[var(--fs-info)]' : 'border-transparent text-[var(--fs-text-secondary)] hover:bg-[var(--fs-surface-subtle)]'" @click="activeRegistryTab = 'production'">
                     <Factory :size="16" aria-hidden="true" /> Fabricação
                     <span class="nfc-badge nfc-neutral tabular-nums">{{ production.length }}</span>
                 </button>
                 <button id="nfc-tab-manufacturers" type="button" role="tab" aria-controls="nfc-panel-manufacturers"
                     :aria-selected="activeRegistryTab === 'manufacturers'" :tabindex="activeRegistryTab === 'manufacturers' ? 0 : -1"
                     @keydown="onRegistryTabKeydown($event, 'manufacturers')"
-                    class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'manufacturers'">
+                    class="inline-flex min-h-11 min-w-0 flex-1 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b-[3px] px-2 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:flex-none sm:px-5" :class="activeRegistryTab === 'manufacturers' ? 'border-[var(--fs-info)] text-[var(--fs-info)]' : 'border-transparent text-[var(--fs-text-secondary)] hover:bg-[var(--fs-surface-subtle)]'" @click="activeRegistryTab = 'manufacturers'">
                     <Factory :size="16" aria-hidden="true" /> Fabricantes
                     <span class="nfc-badge nfc-neutral tabular-nums">{{ manufacturers.length }}</span>
                 </button>
@@ -416,8 +418,9 @@ watch(dialog, async (current, previous) => {
                         <Plus :size="16" aria-hidden="true" /> Nova empresa
                     </button>
                 </div>
-                <div class="flex flex-wrap gap-1.5" aria-label="Filtrar empresas" role="group">
-                    <button v-for="option in filters" :key="option.key" type="button" class="nfc-button" :aria-pressed="filter === option.key" @click="filter = option.key">{{ option.label }}</button>
+                <div class="flex flex-wrap items-center gap-2" aria-label="Filtrar empresas" role="group">
+                    <span class="nfc-muted text-xs font-semibold">Filtrar empresas:</span>
+                    <button v-for="option in filters" :key="option.key" type="button" class="inline-flex min-h-10 items-center rounded-full border px-3 py-1.5 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" :class="filter === option.key ? 'border-[var(--fs-info)] bg-[var(--fs-info-soft)] text-[var(--fs-info)]' : 'border-[var(--fs-border-soft)] text-[var(--fs-text-secondary)] hover:bg-[var(--fs-surface-subtle)]'" :aria-pressed="filter === option.key" @click="filter = option.key">{{ option.label }}</button>
                 </div>
                 <label class="nfc-field max-w-xl">Buscar empresa, CPF/CNPJ, unidade, venda ou plaquinha
                     <input v-model.trim="search" type="search" class="nfc-control" placeholder="Digite para filtrar..." aria-label="Buscar no módulo NFC" />
