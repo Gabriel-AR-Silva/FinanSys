@@ -28,6 +28,7 @@ const props = defineProps({
     companies: { type: Array, default: () => [] },
     production: { type: Array, default: () => [] },
     reinvestments: { type: Array, default: () => [] },
+    damages: { type: Array, default: () => [] },
     manufacturers: { type: Array, default: () => [] },
     notices: { type: Array, default: () => [] },
     warranty_notices: { type: Array, default: () => [] },
@@ -138,6 +139,62 @@ function saveReinvestment() {
             notify({ message: 'Reinvestimento registrado no caixa NFC.' });
         },
         onError: errors => reportError(errors, 'Não foi possível registrar o reinvestimento.'),
+    });
+}
+
+const damageAmount = ref('');
+const damageForm = useForm({
+    operation_id: crypto.randomUUID(), target: 'production',
+    production_id: '', company_id: '', sale_id: '', plate_id: '',
+    quantity: 1, occurred_on: props.today, reason: '', estimated_loss_cents: null,
+});
+const damageCompanies = computed(() => props.companies.filter(company => company.sales.some(sale => sale.plates.length)));
+const damageSales = computed(() => damageCompanies.value.find(company => String(company.id) === String(damageForm.company_id))?.sales ?? []);
+const damagePlates = computed(() => damageSales.value.find(sale => sale.id === damageForm.sale_id)?.plates.filter(plate => !plate.defective) ?? []);
+function openDamage() {
+    if (!props.permissions.create || busy.value) return;
+    damageForm.reset(); damageForm.clearErrors();
+    damageForm.operation_id = crypto.randomUUID();
+    damageForm.occurred_on = props.today;
+    damageAmount.value = '';
+    dialog.value = { kind: 'damage' };
+}
+function saveDamage() {
+    if (busy.value || damageForm.processing) return;
+    const raw = damageAmount.value.trim().replace(',', '.');
+    if (raw && !/^\d+(?:\.\d{1,2})?$/.test(raw)) {
+        notify({ type: 'error', message: 'Informe um prejuízo válido, com até duas casas decimais.' });
+        return;
+    }
+    const [whole, fraction = ''] = raw ? raw.split('.') : ['0', ''];
+    const cents = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+    if (!Number.isSafeInteger(cents) || cents > 999999999) {
+        notify({ type: 'error', message: 'Valor de prejuízo fora do limite permitido.' });
+        return;
+    }
+    damageForm.transform(data => ({
+        ...data, quantity: data.target === 'plate' ? 1 : Number(data.quantity),
+        production_id: data.target === 'production' ? Number(data.production_id) : null,
+        company_id: data.target === 'plate' ? Number(data.company_id) : null,
+        sale_id: data.target === 'plate' ? data.sale_id : null,
+        plate_id: data.target === 'plate' ? data.plate_id : null,
+        estimated_loss_cents: raw ? cents : null,
+    })).post(nfcRoute('nfc.damages.store'), {
+        preserveScroll: true,
+        onStart: () => { busy.value = true; },
+        onFinish: () => { busy.value = false; },
+        onSuccess: () => { dialog.value = null; notify({ message: 'Avaria registrada.' }); },
+        onError: errors => reportError(errors, 'Não foi possível registrar a avaria.'),
+    });
+}
+function deleteDamage(entry) {
+    if (!props.permissions.delete || busy.value || !confirm('Excluir esta avaria da fabricação?')) return;
+    router.delete(nfcRoute('nfc.damages.destroy', { damage: entry.id }), {
+        preserveScroll: true,
+        onStart: () => { busy.value = true; },
+        onFinish: () => { busy.value = false; },
+        onSuccess: () => notify({ message: 'Avaria excluída.' }),
+        onError: errors => reportError(errors, 'Não foi possível excluir a avaria.'),
     });
 }
 
@@ -394,6 +451,7 @@ const titles = {
     reset: 'Zerar cadastros NFC',
     report: 'Exportar relatório PDF',
     reinvestment: 'Registrar reinvestimento',
+    damage: 'Registrar avaria',
     notice: 'Novo aviso',
     payment: 'Registrar pagamento',
     plate: 'Editar plaquinha',
@@ -412,7 +470,7 @@ const title = computed(() => {
 });
 
 const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído', revoked: 'Revogado' };
-const historyKind = { manufacturer: 'Fabricante', company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial', reinvestment: 'Reinvestimento', share_link: 'Link compartilhado' };
+const historyKind = { manufacturer: 'Fabricante', company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial', reinvestment: 'Reinvestimento', damage: 'Avaria', share_link: 'Link compartilhado' };
 const datetime = text => new Date(text).toLocaleString('pt-BR');
 const deleteDescriptions = {
     company: 'A empresa, suas unidades, vendas, pagamentos e plaquinhas deixarão de aparecer no painel.',
@@ -596,6 +654,29 @@ watch(dialog, async (current, previous) => {
                                     <dd class="max-w-[12rem] break-words text-right text-base font-semibold tabular-nums" :class="metric.tone">{{ metric.value }}</dd>
                                 </div>
                             </dl>
+                        </div>
+                    </section>
+                    <section class="nfc-panel min-w-0 overflow-hidden lg:col-span-2" aria-label="Avarias das plaquinhas">
+                        <header class="nfc-rule flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+                            <div>
+                                <h2 class="text-sm font-semibold">Avarias e defeitos</h2>
+                                <p class="nfc-muted text-xs">Registre problemas na fabricação ou em uma plaquinha já vendida. A perda é estimativa, não retirada de caixa.</p>
+                            </div>
+                            <button v-if="permissions.create" type="button" class="nfc-button nfc-primary w-full sm:w-auto" @click="openDamage"><Plus :size="16" aria-hidden="true" /> Adicionar avaria</button>
+                        </header>
+                        <div class="p-4">
+                            <p class="text-sm">Defeituosas: <strong>{{ summary.defective ?? 0 }}</strong> · Possível prejuízo: <strong>{{ money(summary.estimated_loss_cents ?? 0) }}</strong></p>
+                            <ul v-if="damages.length" class="nfc-scrollbar mt-3 max-h-52 space-y-2 overflow-y-auto">
+                                <li v-for="entry in damages" :key="entry.id" class="nfc-panel flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
+                                    <div class="min-w-0 flex-1">
+                                        <p class="font-medium">{{ entry.quantity }} com defeito · Lote #{{ entry.production_id }}</p>
+                                        <p class="nfc-muted break-words text-xs">{{ date(entry.occurred_on) }} · {{ entry.reason }}</p>
+                                    </div>
+                                    <span class="tabular-nums">{{ entry.estimated_loss_cents == null ? 'Não estimado' : money(entry.estimated_loss_cents) }}</span>
+                                    <button v-if="permissions.delete" type="button" class="nfc-button nfc-icon-button nfc-danger" :aria-label="'Excluir avaria do lote ' + entry.production_id" @click="deleteDamage(entry)"><Trash2 :size="16" aria-hidden="true" /></button>
+                                </li>
+                            </ul>
+                            <p v-else class="nfc-muted mt-2 text-xs">Nenhuma avaria de fabricação cadastrada. Defeitos de plaquinhas vendidas aparecem na empresa correspondente.</p>
                         </div>
                     </section>
                     <section class="nfc-panel min-w-0 overflow-hidden lg:col-span-2" aria-label="Caixa e reinvestimentos NFC">
@@ -823,6 +904,58 @@ watch(dialog, async (current, previous) => {
                         <button type="button" class="nfc-button nfc-danger" :disabled="busy" @click="confirmDestroy">{{ busy ? 'Processando…' : confirmDeleteLabel }}</button>
                     </div>
                 </div>
+                <form v-else-if="dialog.kind === 'damage'" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveDamage">
+                    <label class="nfc-field">Onde ocorreu a avaria?
+                        <select v-model="damageForm.target" class="nfc-control" :disabled="busy">
+                            <option value="production">Em um lote de fabricação</option>
+                            <option value="plate">Em uma plaquinha já cadastrada</option>
+                        </select>
+                    </label>
+                    <label v-if="damageForm.target === 'production'" class="nfc-field">Lote de fabricação
+                        <select v-model="damageForm.production_id" class="nfc-control" required :disabled="busy">
+                            <option value="" disabled>Selecione o lote</option>
+                            <option v-for="item in production" :key="item.id" :value="item.id">Lote #{{ item.id }} · {{ item.quantity }} unidades</option>
+                        </select>
+                    </label>
+                    <template v-else>
+                        <label class="nfc-field">Empresa
+                            <select v-model="damageForm.company_id" class="nfc-control" required :disabled="busy" @change="damageForm.sale_id = ''; damageForm.plate_id = ''">
+                                <option value="" disabled>Selecione a empresa</option>
+                                <option v-for="item in damageCompanies" :key="item.id" :value="item.id">{{ item.name }}</option>
+                            </select>
+                        </label>
+                        <label class="nfc-field">Venda
+                            <select v-model="damageForm.sale_id" class="nfc-control" required :disabled="busy" @change="damageForm.plate_id = ''">
+                                <option value="" disabled>Selecione a venda</option>
+                                <option v-for="item in damageSales" :key="item.id" :value="item.id">{{ date(item.sold_on) }} · {{ item.plates.length }} plaquinhas</option>
+                            </select>
+                        </label>
+                        <label class="nfc-field">Plaquinha
+                            <select v-model="damageForm.plate_id" class="nfc-control" required :disabled="busy">
+                                <option value="" disabled>Selecione a plaquinha</option>
+                                <option v-for="item in damagePlates" :key="item.id" :value="item.id">{{ item.label || (item.type === 'custom' ? 'Personalizada' : 'Normal') }}</option>
+                            </select>
+                        </label>
+                    </template>
+                    <label v-if="damageForm.target === 'production'" class="nfc-field">Quantidade com defeito
+                        <input v-model.number="damageForm.quantity" type="number" min="1" max="10000" class="nfc-control" required :disabled="busy" />
+                    </label>
+                    <label class="nfc-field">Data da avaria
+                        <input v-model="damageForm.occurred_on" type="date" :max="today" class="nfc-control" required :disabled="busy" />
+                    </label>
+                    <label class="nfc-field">Descrição do defeito
+                        <input v-model.trim="damageForm.reason" maxlength="160" class="nfc-control" required placeholder="Ex.: NFC não funciona, arte danificada" :disabled="busy" />
+                    </label>
+                    <label class="nfc-field">Possível prejuízo total (R$, opcional)
+                        <input v-model.trim="damageAmount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" class="nfc-control" placeholder="Ex.: 15,00" :disabled="busy" />
+                    </label>
+                    <p class="nfc-muted text-xs">Não altera automaticamente o caixa ou os custos já lançados. Informe apenas a perda estimada, sem duplicar custos.</p>
+                    <p v-for="(error, field) in damageForm.errors" :key="field" class="text-xs text-[var(--fs-danger)]" role="alert">{{ error }}</p>
+                    <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
+                        <button type="button" class="nfc-button" :disabled="busy" @click="closeDialog">Cancelar</button>
+                        <button type="submit" class="nfc-button nfc-primary" :disabled="busy || damageForm.processing">{{ busy ? 'Registrando…' : 'Registrar avaria' }}</button>
+                    </div>
+                </form>
                 <form v-else-if="dialog.kind === 'reinvestment' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveReinvestment">
                     <p class="nfc-muted text-sm">Registre o dinheiro que saiu do caixa das vendas para fabricar novas plaquinhas. Não é aporte nem um segundo custo de fabricação.</p>
                     <label class="nfc-field">Valor retirado (R$)
