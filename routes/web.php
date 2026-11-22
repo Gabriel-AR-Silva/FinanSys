@@ -71,6 +71,7 @@ Route::prefix('plaquinhas-nfc/compartilhado/{token}')->name('nfc.share.')->middl
     Route::post('/fabricantes/{manufacturer}/imagens', [NfcManufacturerController::class, 'upload'])->whereNumber('manufacturer')->name('manufacturers.images.store');
     Route::get('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'showImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.show');
     Route::delete('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'deleteImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.destroy');
+    Route::post('/avarias', 'storeDamage')->name('damages.store');
     Route::post('/producao', 'storeProduction')->name('production.store');
     Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
     Route::post('/avisos', 'storeNotice')->name('notices.store');
@@ -80,6 +81,7 @@ Route::prefix('plaquinhas-nfc/compartilhado/{token}')->name('nfc.share.')->middl
     Route::delete('/empresas/{company}/vendas/{sale}', 'deleteSale')->whereNumber('company')->whereUuid('sale')->name('sales.destroy');
     Route::delete('/empresas/{company}/vendas/{sale}/pagamentos/{payment}', 'deletePayment')->whereNumber('company')->whereUuid(['sale', 'payment'])->name('payments.destroy');
     Route::delete('/empresas/{company}/vendas/{sale}/plaquinhas/{plate}', 'deletePlate')->whereNumber('company')->whereUuid(['sale', 'plate'])->name('plates.destroy');
+    Route::delete('/avarias/{damage}', 'deleteDamage')->whereNumber('damage')->name('damages.destroy');
     Route::delete('/producao/{production}', 'deleteProduction')->whereNumber('production')->name('production.destroy');
     Route::delete('/avisos/{notice}', 'deleteNotice')->whereNumber('notice')->name('notices.destroy');
 });
@@ -109,7 +111,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/fabricantes/{manufacturer}/imagens', [NfcManufacturerController::class, 'upload'])->whereNumber('manufacturer')->name('manufacturers.images.store');
         Route::get('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'showImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.show');
         Route::delete('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'deleteImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.destroy');
-        Route::post('/producao', 'storeProduction')->name('production.store');
+        Route::post('/avarias', 'storeDamage')->name('damages.store');
+    Route::post('/producao', 'storeProduction')->name('production.store');
         Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
         Route::post('/reinvestimentos', 'storeReinvestment')->name('reinvestments.store');
         Route::delete('/reinvestimentos/{reinvestment}', 'deleteReinvestment')->whereNumber('reinvestment')->name('reinvestments.destroy');
@@ -120,7 +123,8 @@ Route::middleware('auth')->group(function () {
         Route::delete('/empresas/{company}/vendas/{sale}', 'deleteSale')->whereNumber('company')->whereUuid('sale')->name('sales.destroy');
         Route::delete('/empresas/{company}/vendas/{sale}/pagamentos/{payment}', 'deletePayment')->whereNumber('company')->whereUuid(['sale', 'payment'])->name('payments.destroy');
         Route::delete('/empresas/{company}/vendas/{sale}/plaquinhas/{plate}', 'deletePlate')->whereNumber('company')->whereUuid(['sale', 'plate'])->name('plates.destroy');
-        Route::delete('/producao/{production}', 'deleteProduction')->whereNumber('production')->name('production.destroy');
+        Route::delete('/avarias/{damage}', 'deleteDamage')->whereNumber('damage')->name('damages.destroy');
+    Route::delete('/producao/{production}', 'deleteProduction')->whereNumber('production')->name('production.destroy');
         Route::delete('/avisos/{notice}', 'deleteNotice')->whereNumber('notice')->name('notices.destroy');
     });
 
