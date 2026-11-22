@@ -15,6 +15,7 @@ import './nfc.css';
 const props = defineProps({
     schema_pending: { type: Boolean, default: false },
     shared: { type: Boolean, default: false },
+    read_only: { type: Boolean, default: false },
     share_token: { type: String, default: null },
     share_links: { type: Array, default: () => [] },
     share_links_enabled: { type: Boolean, default: false },
@@ -60,6 +61,7 @@ const dialog = ref(null);
 const dialogHeading = ref(null);
 const busy = ref(false);
 const shareBusy = ref(false);
+const shareScope = ref('view');
 const copied = ref(false);
 const feedback = ref(null);
 let feedbackTimer = null;
@@ -84,7 +86,7 @@ const nfcRoute = (name, params = {}) => props.shared
 
 function createShare() {
     if (shareBusy.value || props.shared || !props.share_links_enabled || !authenticatedUser.value) return;
-    router.post(route('nfc.share-links.store'), {}, {
+    router.post(route('nfc.share-links.store'), { scope: shareScope.value }, {
         preserveScroll: true,
         onStart: () => { shareBusy.value = true; },
         onFinish: () => { shareBusy.value = false; },
@@ -260,6 +262,7 @@ const deleteDescriptions = {
 };
 const confirmDeleteLabel = computed(() => dialog.value?.deleteKind === 'share-link' ? 'Revogar link' : 'Excluir registro');
 function destroy(kind, context = {}) {
+    if (props.read_only) return;
     if (busy.value || shareBusy.value || !Object.hasOwn(deleteDescriptions, kind)) return;
     dialog.value = { kind: 'confirm-delete', deleteKind: kind, deleteContext: context, previous: dialog.value };
 }
@@ -298,6 +301,7 @@ function showCompany(companyId, saleId = null) {
 }
 
 function edit(kind, context = {}) {
+    if (props.read_only) return;
     dialog.value = { kind, ...context, previous: dialog.value };
 }
 
@@ -356,7 +360,7 @@ watch(dialog, async (current, previous) => {
 
         <div class="flex min-w-0 flex-col gap-6 sm:gap-8">
             <header class="flex flex-wrap items-center justify-between gap-3">
-                <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC</h1>
+                <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC <span v-if="read_only" class="nfc-muted block text-xs font-medium">Acesso somente para consulta</span></h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
                     <button v-if="!shared && share_links_enabled && authenticatedUser" type="button" class="nfc-button" @click="dialog = { kind: 'share' }">Compartilhar</button>
                     <button type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
@@ -424,7 +428,7 @@ watch(dialog, async (current, previous) => {
             <section v-if="!schema_pending" v-show="activeRegistryTab === 'companies'" id="nfc-panel-companies" role="tabpanel" aria-labelledby="nfc-tab-companies" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex min-w-0 items-center justify-between gap-2">
                     <h2 id="nfc-companies" class="flex min-w-0 items-center gap-2 text-lg font-semibold"><Building2 :size="19" aria-hidden="true" /> Empresas</h2>
-                    <button type="button" class="nfc-button nfc-primary shrink-0" @click="edit('company-form')">
+                    <button v-if="!read_only" type="button" class="nfc-button nfc-primary shrink-0" @click="edit('company-form')">
                         <Plus :size="16" aria-hidden="true" /> Nova empresa
                     </button>
                 </div>
@@ -484,8 +488,8 @@ watch(dialog, async (current, previous) => {
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 id="nfc-production" class="flex items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricação</h2>
                     <div class="flex flex-wrap gap-2">
-                        <button v-if="!hasInitialBatch" type="button" class="nfc-button" @click="edit('batch', { initial: true })">Registrar lote inicial</button>
-                        <button type="button" class="nfc-button" @click="edit('batch')"><Plus :size="17" aria-hidden="true" /> Novo lote</button>
+                        <button v-if="!read_only && !hasInitialBatch" type="button" class="nfc-button" @click="edit('batch', { initial: true })">Registrar lote inicial</button>
+                        <button v-if="!read_only" type="button" class="nfc-button" @click="edit('batch')"><Plus :size="17" aria-hidden="true" /> Novo lote</button>
                     </div>
                 </div>
                 <label class="nfc-field max-w-xl">Buscar lote, data, status, empresa ou unidade
@@ -501,8 +505,8 @@ watch(dialog, async (current, previous) => {
                         </div>
                         <span class="nfc-muted text-sm tabular-nums">{{ item.cost_cents === null ? 'Custo a informar' : money(item.cost_cents) }}</span>
                         <div class="flex flex-wrap gap-2">
-                            <button type="button" class="nfc-button" :aria-label="`Editar lote #${item.id}`" @click="edit('batch', { batchId: item.id })">Editar</button>
-                            <button type="button" class="nfc-button nfc-danger" @click="destroy('batch', { batchId: item.id })">Excluir</button>
+                            <button v-if="!read_only" type="button" class="nfc-button" :aria-label="`Editar lote #${item.id}`" @click="edit('batch', { batchId: item.id })">Editar</button>
+                            <button v-if="!read_only" type="button" class="nfc-button nfc-danger" @click="destroy('batch', { batchId: item.id })">Excluir</button>
                         </div>
                     </li>
                 </ul>
@@ -511,7 +515,7 @@ watch(dialog, async (current, previous) => {
             <section v-if="!schema_pending" v-show="activeRegistryTab === 'manufacturers'" id="nfc-panel-manufacturers" role="tabpanel" aria-labelledby="nfc-tab-manufacturers" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex min-w-0 items-center justify-between gap-2">
                     <h2 class="flex min-w-0 items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricantes</h2>
-                    <button type="button" class="nfc-button nfc-primary shrink-0" @click="edit('manufacturer-form')"><Plus :size="16" aria-hidden="true" /> Novo fabricante</button>
+                    <button v-if="!read_only" type="button" class="nfc-button nfc-primary shrink-0" @click="edit('manufacturer-form')"><Plus :size="16" aria-hidden="true" /> Novo fabricante</button>
                 </div>
                 <label class="nfc-field max-w-xl">Buscar fabricante, contato ou unidade
                     <input v-model.trim="manufacturerSearch" type="search" class="nfc-control" placeholder="Digite para filtrar os fabricantes..." aria-label="Buscar fabricantes" />
@@ -541,8 +545,8 @@ watch(dialog, async (current, previous) => {
                     <button type="button" class="nfc-button nfc-icon-button shrink-0" aria-label="Fechar" :disabled="busy" @click="closeDialog"><X :size="18" aria-hidden="true" /></button>
                 </header>
 
-                <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
-                <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
+                <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :read-only="read_only" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
+                <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :read-only="read_only" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
                 <div v-else-if="dialog.kind === 'confirm-delete'" class="flex min-w-0 flex-col gap-4">
                     <p class="text-sm leading-6">{{ deleteDescriptions[dialog.deleteKind] }}</p>
                     <p class="nfc-muted text-sm">Esta ação pode afetar indicadores ou registros vinculados. Confira antes de continuar.</p>
@@ -552,7 +556,10 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </div>
                 <div v-else-if="dialog.kind === 'share' && !shared && share_links_enabled && authenticatedUser" class="flex min-w-0 flex-col gap-4">
-                    <p class="nfc-muted text-sm">Links individuais válidos por sete dias. Quem possuir um link poderá consultar e alterar somente os dados do módulo NFC, incluindo exclusões. Revogue assim que não precisar mais.</p>
+                    <p class="nfc-muted text-sm">Links válidos por sete dias. Selecione consulta para compartilhar sem permitir mudanças; edição permite alterações e exclusões no módulo NFC.</p>
+                    <label class="nfc-field">Permissão do link
+                        <select v-model="shareScope" class="nfc-control" :disabled="shareBusy"><option value="view">Somente consulta</option><option value="edit">Consulta e edição (inclui exclusões)</option></select>
+                    </label>
                     <button type="button" class="nfc-button nfc-primary self-start" :disabled="shareBusy" @click="createShare">Gerar novo link</button>
                     <div v-if="created_share_url" class="nfc-panel flex min-w-0 flex-col gap-2 p-3">
                         <label class="nfc-field">Link gerado (copie agora)
@@ -564,7 +571,7 @@ watch(dialog, async (current, previous) => {
                     <h3 class="font-semibold">Links emitidos</h3>
                     <ul class="flex flex-col gap-2">
                         <li v-for="link in share_links" :key="link.id" class="nfc-panel flex flex-wrap items-center justify-between gap-3 p-3 text-sm">
-                            <div><p class="font-semibold">Link #{{ link.id }}</p>
+                            <div><p class="font-semibold">Link #{{ link.id }} · {{ link.scope === 'view' ? 'Consulta' : 'Edição' }}</p>
                                 <p class="nfc-muted text-xs">Expira: {{ datetime(link.expires_at) }}</p>
                                 <span v-if="link.revoked_at" class="nfc-badge nfc-neutral">Revogado</span>
                                 <span v-else-if="new Date(link.expires_at) <= new Date()" class="nfc-badge nfc-warning">Expirado</span>
@@ -599,7 +606,7 @@ watch(dialog, async (current, previous) => {
                     </ul>
                     <p v-if="!history.length" class="nfc-muted text-sm">Nenhuma alteração registrada.</p>
                 </div>
-                <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :warranty-notices="warranty_notices" :nfc-route="nfcRoute" @create="edit('notice')" @open-company="showCompany" @request-delete="notice => destroy('notice', { noticeId: notice.id })" @busy="busy = $event" @feedback="notify" />
+                <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :read-only="read_only" :warranty-notices="warranty_notices" :nfc-route="nfcRoute" @create="edit('notice')" @open-company="showCompany" @request-delete="notice => destroy('notice', { noticeId: notice.id })" @busy="busy = $event" @feedback="notify" />
                 <Editor
                     v-else
                     :key="dialog.kind"

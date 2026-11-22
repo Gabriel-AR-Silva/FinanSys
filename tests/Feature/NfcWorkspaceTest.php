@@ -284,7 +284,7 @@ class NfcWorkspaceTest extends TestCase
     public function test_shared_nfc_link_can_manage_notices_without_an_authenticated_session(): void
     {
         $owner = User::factory()->create();
-        $this->actingAs($owner)->post(route('nfc.share-links.store'))
+        $this->actingAs($owner)->post(route('nfc.share-links.store'), ['scope' => 'edit'])
             ->assertRedirect(route('nfc.index'));
 
         $url = session('nfc_share_url');
@@ -426,7 +426,7 @@ class NfcWorkspaceTest extends TestCase
         $otherCompany = $this->createCompany($other, 'Outra empresa');
         $owner = User::factory()->create();
         $company = $this->createCompany($owner);
-        $this->post(route('nfc.share-links.store'))->assertRedirect(route('nfc.index'));
+        $this->post(route('nfc.share-links.store'), ['scope' => 'edit'])->assertRedirect(route('nfc.index'));
         $url = session('nfc_share_url');
         $this->assertNotNull($url);
         preg_match('~/compartilhado/([^/?]+)~', $url, $matches);
@@ -469,10 +469,31 @@ class NfcWorkspaceTest extends TestCase
         $this->get(route('nfc.share.index', ['token' => str_repeat('a', 64)]))->assertNotFound();
     }
 
-    public function test_expired_nfc_share_token_is_rejected(): void
+    public function test_view_share_link_cannot_mutate_nfc_records(): void
     {
         $owner = User::factory()->create();
         $this->actingAs($owner)->post(route('nfc.share-links.store'))
+            ->assertRedirect(route('nfc.index'));
+        $url = session('nfc_share_url');
+        preg_match('~/compartilhado/([^/?]+)~', $url, $matches);
+        $token = $matches[1];
+
+        Auth::logout();
+        $this->get($url)->assertOk();
+        $this->post(route('nfc.share.companies.store', ['token' => $token]), [
+            'operation_id' => (string) Str::uuid(),
+            'name' => 'Bloqueado',
+            'interested' => true,
+        ])->assertForbidden();
+        $this->delete(route('nfc.share.companies.destroy', ['token' => $token, 'company' => 1]))
+            ->assertForbidden();
+        $this->assertDatabaseMissing('nfc_records', ['kind' => NfcRecord::COMPANY, 'user_id' => $owner->id]);
+    }
+
+    public function test_expired_nfc_share_token_is_rejected(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->post(route('nfc.share-links.store'), ['scope' => 'edit'])
             ->assertRedirect(route('nfc.index'));
         $url = session('nfc_share_url');
         NfcAccessLink::query()->where('user_id', $owner->id)->firstOrFail()
