@@ -7,6 +7,8 @@ use App\Models\NfcAccessLink;
 use App\Models\NfcRecord;
 use App\Models\User;
 use App\Queries\NfcDashboardQuery;
+use App\Queries\NfcReportQuery;
+use App\Support\NfcReportPdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -49,6 +51,29 @@ class NfcController extends Controller
                 ->latest()->limit(20)
                 ->get($scopesAvailable ? ['id', 'expires_at', 'revoked_at', 'created_at', 'scope'] : ['id', 'expires_at', 'revoked_at', 'created_at'])
                 ->toArray(),
+        ]);
+    }
+
+    public function exportReport(Request $request, NfcDashboardQuery $dashboard, NfcReportQuery $query, NfcReportPdf $pdf): \Illuminate\Http\Response
+    {
+        abort_if($request->attributes->has('nfc_share_owner'), 403);
+        $user = $request->user();
+        abort_unless($user instanceof User, 403);
+
+        $data = $request->validate([
+            'from' => ['required', 'date_format:Y-m-d'],
+            'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'metrics' => ['required', 'array', 'list', 'min:1', 'max:9'],
+            'metrics.*' => ['required', 'distinct', Rule::in(NfcReportQuery::METRICS)],
+            'chart' => ['sometimes', 'boolean'],
+        ]);
+        $report = $query->calculate($dashboard->forUser($user, false), $data['from'], $data['to']);
+
+        return response($pdf->render($report, $data['metrics'], $data['from'], $data['to'], $request->boolean('chart')), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="nfc-relatorio-'.$data['from'].'-'.$data['to'].'.pdf"',
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 
