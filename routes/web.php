@@ -71,8 +71,8 @@ Route::prefix('plaquinhas-nfc/compartilhado/{token}')->name('nfc.share.')->middl
     Route::post('/fabricantes/{manufacturer}/imagens', [NfcManufacturerController::class, 'upload'])->whereNumber('manufacturer')->name('manufacturers.images.store');
     Route::get('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'showImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.show');
     Route::delete('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'deleteImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.destroy');
-    Route::post('/avarias', 'storeDamage')->name('damages.store');
-    Route::post('/producao', 'storeProduction')->name('production.store');
+        Route::post('/avarias', 'storeDamage')->name('damages.store');
+        Route::post('/producao', 'storeProduction')->name('production.store');
     Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
     Route::post('/avisos', 'storeNotice')->name('notices.store');
     Route::patch('/avisos/{notice}/resolver', 'resolveNotice')->whereNumber('notice')->name('notices.resolve');
@@ -112,7 +112,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'showImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.show');
         Route::delete('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'deleteImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.destroy');
         Route::post('/avarias', 'storeDamage')->name('damages.store');
-    Route::post('/producao', 'storeProduction')->name('production.store');
+        Route::post('/producao', 'storeProduction')->name('production.store');
         Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
         Route::post('/reinvestimentos', 'storeReinvestment')->name('reinvestments.store');
         Route::delete('/reinvestimentos/{reinvestment}', 'deleteReinvestment')->whereNumber('reinvestment')->name('reinvestments.destroy');
