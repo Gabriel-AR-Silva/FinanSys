@@ -1026,7 +1026,7 @@ watch(dialog, async (current, previous) => {
                 <form v-else-if="dialog.kind === 'expense' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveExpense">
                     <p class="nfc-muted text-sm">Registre gastos efetivamente pagos com o dinheiro recebido, como fita dupla face, tesoura e reposições por avaria.</p>
                     <label class="nfc-field">Tipo de despesa
-                        <select v-model="expenseForm.category" class="nfc-control" :disabled="busy" @change="if (expenseForm.category !== 'rework') expenseForm.damage_id = ''">
+                        <select v-model="expenseForm.category" class="nfc-control" :disabled="busy" @change="expenseForm.category !== 'rework' && (expenseForm.damage_id = '')">
                             <option v-for="(label, key) in expenseCategories" :key="key" :value="key">{{ label }}</option>
                         </select>
                     </label>
@@ -1110,8 +1110,8 @@ watch(dialog, async (current, previous) => {
                         </div>
                     </fieldset>
                     <label class="flex items-center gap-2 text-sm"><input v-model="reportChart" type="checkbox" /> Incluir gráficos comparativos quando aplicável</label>
-                    <label class="flex min-h-11 items-center gap-2 text-sm"><input v-model="reportReinvestments" type="checkbox" /> Incluir demonstrativo de reinvestimentos no PDF</label>
-                    <p class="nfc-muted text-xs">A margem compara vendas e custos de fabricação no intervalo; não representa lucro contábil. O saldo a receber é o saldo atual das vendas do período. Quando selecionado, o demonstrativo de reinvestimentos usa as retiradas e os recebimentos com data no período.</p>
+                    <label class="flex min-h-11 items-center gap-2 text-sm"><input v-model="reportReinvestments" type="checkbox" /> Incluir demonstrativo de caixa, despesas e reinvestimentos no PDF</label>
+                    <p class="nfc-muted text-xs">A margem compara vendas e custos de fabricação no intervalo; não representa lucro contábil. O saldo a receber é o saldo atual das vendas do período. Quando selecionado, o demonstrativo de caixa usa recebimentos, reinvestimentos e despesas com data no período.</p>
                     <p v-if="hiddenValues" class="nfc-warning rounded-lg p-3 text-sm">O PDF inclui os valores reais dos indicadores selecionados, mesmo com o olho fechado.</p>
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
                         <button type="button" class="nfc-button" @click="closeDialog">Fechar</button>
@@ -1120,7 +1120,7 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </div>
                 <form v-else-if="dialog.kind === 'reset' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="resetWorkspace">
-                    <p class="text-sm leading-6">Esta ação excluirá permanentemente todas as empresas, unidades, fabricantes, lotes, vendas, plaquinhas, pagamentos, reinvestimentos, avisos, imagens e histórico da sua área NFC.</p>
+                    <p class="text-sm leading-6">Esta ação excluirá permanentemente todas as empresas, unidades, fabricantes, lotes, vendas, plaquinhas, pagamentos, reinvestimentos, despesas, avarias, avisos, imagens e histórico da sua área NFC.</p>
                     <p class="nfc-muted text-sm">Os links de acesso e os dados dos demais módulos do FinanSys serão preservados. Esta ação não pode ser desfeita.</p>
                     <label class="nfc-field">Digite ZERAR para confirmar
                         <input v-model="resetConfirmation" class="nfc-control" type="text" autocomplete="off" :disabled="busy" />
