@@ -55,11 +55,7 @@ class NfcDashboardQuery
                     array_values(array_filter($company['units'], fn (array $unit): bool => in_array($unit['production_id'] ?? null, $batchIds, true))),
                 ))->values();
                 $unitKeys = $linkedUnits->map(fn (array $unit): string => $unit['company_id'].':'.$unit['unit_id'])->all();
-                $expenses = $records->where('kind', NfcRecord::EXPENSE)
-            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
-            ->sortByDesc('spent_on')->values();
-
-        $sales = $companies->flatMap(fn (array $company): array => array_values(array_filter(
+                $sales = $companies->flatMap(fn (array $company): array => array_values(array_filter(
                     $company['sales'],
                     fn (array $sale): bool => in_array($company['id'].':'.$sale['unit_id'], $unitKeys, true),
                 )));
@@ -102,6 +98,10 @@ class NfcDashboardQuery
             ->values();
 
         $reinvestments = $records->where('kind', NfcRecord::REINVESTMENT)
+            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
+            ->sortByDesc('spent_on')->values();
+
+        $expenses = $records->where('kind', NfcRecord::EXPENSE)
             ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
             ->sortByDesc('spent_on')->values();
 
