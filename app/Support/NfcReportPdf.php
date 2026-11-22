@@ -109,17 +109,16 @@ class NfcReportPdf
         }
 
         if ($chart) {
-            $rect(50, 154, 241, 300, '1 1 1', true);
-            $rect(303, 154, 242, 300, '1 1 1', true);
-            $text(64, 429, 'COMPOSIÇÃO', 11, true);
-            $text(317, 429, 'EVOLUÇÃO NO PERÍODO', 11, true);
+            // Não renderizar painéis quando não há composição ou evolução útil.
             $pieces = [];
-            $caption = 'Sem distribuição disponível';
-            if (in_array('sold', $metrics, true)) {
-                $pieces = ['Normais' => $report['soldTypes']['standard'] ?? 0, 'Personalizadas' => $report['soldTypes']['custom'] ?? 0];
+            $caption = '';
+            $soldTypes = $report['soldTypes'] ?? [];
+            $saleSplit = $report['salePaymentSplit'] ?? [];
+            if (in_array('sold', $metrics, true) && array_sum($soldTypes) > 0) {
+                $pieces = ['Normais' => $soldTypes['standard'] ?? 0, 'Personalizadas' => $soldTypes['custom'] ?? 0];
                 $caption = 'Tipos de plaquinhas vendidas';
-            } elseif (in_array('sales', $metrics, true) || in_array('pending', $metrics, true)) {
-                $pieces = ['Pago até hoje' => $report['salePaymentSplit']['paid'] ?? 0, 'A receber' => $report['salePaymentSplit']['pending'] ?? 0];
+            } elseif ((in_array('sales', $metrics, true) || in_array('pending', $metrics, true)) && array_sum($saleSplit) > 0) {
+                $pieces = ['Pago até hoje' => $saleSplit['paid'] ?? 0, 'A receber' => $saleSplit['pending'] ?? 0];
                 $caption = 'Vendas do período: pagos e pendentes';
             } elseif (in_array('received', $metrics, true)) {
                 $names = ['pix' => 'Pix', 'cash' => 'Dinheiro', 'credit' => 'Crédito', 'debit' => 'Débito'];
@@ -129,62 +128,77 @@ class NfcReportPdf
                 }
                 $caption = 'Recebimentos por forma de pagamento';
             }
-            $text(64, 407, mb_strimwidth($caption, 0, 39, '...', 'UTF-8'), 9, false, 'muted');
             $pieces = array_filter($pieces, fn ($n): bool => $n > 0);
             $sum = array_sum($pieces);
-            if ($sum > 0) {
+            $hasDonut = $sum > 0;
+
+            $timeline = $report['timeline'] ?? [];
+            $series = [];
+            foreach ($metrics as $key) {
+                if ($key === 'result' && ($values[$key] ?? null) === null) {
+                    continue;
+                }
+                $hasEvolution = false;
+                foreach ($timeline as $point) {
+                    if (abs((float) ($point[$key] ?? 0)) > 0) {
+                        $hasEvolution = true;
+                        break;
+                    }
+                }
+                if ($hasEvolution === false || (count($series) > 0 && in_array($series[0], $monetary, true) !== in_array($key, $monetary, true))) {
+                    continue;
+                }
+                $series[] = $key;
+                if (count($series) === 2) {
+                    break;
+                }
+            }
+            $hasLine = count($series) > 0;
+
+            if ($hasDonut) {
+                $donutWidth = $hasLine ? 241 : 495;
+                $donutCenter = $hasLine ? 170 : 290;
+                $rect(50, 154, $donutWidth, 300, '1 1 1', true);
+                $text(64, 429, 'COMPOSIÇÃO', 11, true);
+                $text(64, 407, mb_strimwidth($caption, 0, 50, '...', 'UTF-8'), 9, false, 'muted');
                 $start = M_PI / 2;
                 $pieColors = ['blue', 'teal', 'violet', 'orange'];
                 $i = 0;
                 foreach ($pieces as $amount) {
                     $end = $start + 2 * M_PI * $amount / $sum;
-                    $arc(170, 315, 72, 45, $start, $end, $pieColors[$i % count($pieColors)]);
+                    $arc($donutCenter, 315, 72, 45, $start, $end, $pieColors[$i % count($pieColors)]);
                     $start = $end;
                     $i++;
                 }
-                $text(148, 313, number_format($sum / (in_array('sold', $metrics, true) ? 1 : 100), 0, ',', '.'), 16, true);
-                $text(158, 297, in_array('sold', $metrics, true) ? 'un.' : 'R$', 10, false, 'muted');
+                $text($donutCenter - 22, 313, number_format($sum / (in_array('sold', $metrics, true) && array_sum($soldTypes) > 0 ? 1 : 100), 0, ',', '.'), 16, true);
+                $text($donutCenter - 12, 297, in_array('sold', $metrics, true) && array_sum($soldTypes) > 0 ? 'un.' : 'R$', 10, false, 'muted');
                 $i = 0;
                 $legendY = 216;
                 foreach ($pieces as $label => $amount) {
                     $rect(64, $legendY - 2, 8, 8, $pieColors[$i % count($pieColors)]);
-                    $text(77, $legendY, mb_strimwidth((string) $label, 0, 23, '...', 'UTF-8'), 9);
-                    $text(244, $legendY, number_format($amount / $sum * 100, 0, ',', '.').'%', 9, true, 'muted');
+                    $text(77, $legendY, mb_strimwidth((string) $label, 0, 28, '...', 'UTF-8'), 9);
+                    $text($hasLine ? 244 : 460, $legendY, number_format($amount / $sum * 100, 0, ',', '.').'%', 9, true, 'muted');
                     $legendY -= 18;
                     if (++$i === 3) {
                         break;
                     }
                 }
-            } else {
-                $arc(170, 315, 70, 48, 0, 2 * M_PI, 'border');
-                $text(144, 313, 'Sem dados', 10, true, 'muted');
-                $text(64, 211, 'Não há composição nesse período.', 9, false, 'muted');
             }
 
-            $series = [];
-            foreach (['sales', 'received', 'pending', 'cost', 'loss', 'result', 'sold', 'manufactured', 'defective'] as $key) {
-                if (in_array($key, $metrics, true) === false || ($key === 'result' && $values[$key] === null)) {
-                    continue;
-                }
-                if (count($series) >= 2) {
-                    break;
-                }
-                if ($series && in_array($series[0], $monetary, true) !== in_array($key, $monetary, true)) {
-                    continue;
-                }
-                $series[] = $key;
-            }
-            $timeline = $report['timeline'] ?? [];
-            if ($series && $timeline) {
+            if ($hasLine) {
+                $lineX = $hasDonut ? 303 : 50;
+                $lineWidth = $hasDonut ? 242 : 495;
+                $rect($lineX, 154, $lineWidth, 300, '1 1 1', true);
+                $text($lineX + 14, 429, 'EVOLUÇÃO NO PERÍODO', 11, true);
                 $max = 1.0;
                 foreach ($timeline as $point) {
                     foreach ($series as $key) {
                         $max = max($max, abs((float) ($point[$key] ?? 0)));
                     }
                 }
-                $plotX = 325;
+                $plotX = $lineX + 22;
                 $plotY = 235;
-                $plotW = 195;
+                $plotW = $hasDonut ? 195 : 440;
                 $plotH = 137;
                 for ($i = 0; $i < 4; $i++) {
                     $gridY = $plotY + $plotH * $i / 3;
@@ -192,9 +206,9 @@ class NfcReportPdf
                 }
                 foreach ($series as $seriesIndex => $key) {
                     $color = ['blue', 'teal'][$seriesIndex];
-                    $legendX = 325 + 111 * $seriesIndex;
+                    $legendX = $plotX + ($hasDonut ? 111 : 198) * $seriesIndex;
                     $rect($legendX, 396, 8, 8, $color);
-                    $text($legendX + 12, 398, mb_strimwidth(self::LABELS[$key], 0, 18, '...', 'UTF-8'), 8);
+                    $text($legendX + 12, 398, mb_strimwidth(self::LABELS[$key], 0, $hasDonut ? 18 : 30, '...', 'UTF-8'), 8);
                     $previous = null;
                     foreach ($timeline as $pointIndex => $point) {
                         $x = $plotX + $plotW * $pointIndex / max(1, count($timeline) - 1);
@@ -206,57 +220,58 @@ class NfcReportPdf
                         $previous = [$x, $y];
                     }
                 }
-                $text(325, 218, $timeline[0]['label'], 9, false, 'muted');
-                $text(484, 218, $timeline[count($timeline) - 1]['label'], 9, false, 'muted');
-                $text(318, 182, 'Até 8 pontos no período selecionado.', 8, false, 'muted');
-            } else {
-                $text(318, 320, 'Sem dados temporais aplicáveis.', 9, false, 'muted');
+                $text($plotX, 218, $timeline[0]['label'], 9, false, 'muted');
+                $text($plotX + $plotW - 35, 218, $timeline[count($timeline) - 1]['label'], 9, false, 'muted');
+                $text($lineX + 14, 182, 'Até 8 pontos no período selecionado.', 8, false, 'muted');
             }
-            $text(50, 112, 'VISÃO GERENCIAL', 10, true);
-            $text(50, 93, 'Os valores respeitam os filtros escolhidos. Consulte as notas nas páginas seguintes.', 9, false, 'muted');
-        } else {
-            $rect(50, 264, 495, 152, 'surface', true);
-            $text(67, 378, 'RESUMO SEM GRÁFICOS', 15, true);
-            $text(67, 350, 'A opção de gráficos está desativada nesta exportação.', 10, false, 'muted');
+            if ($hasDonut || $hasLine) {
+                $text(50, 112, 'VISÃO GERENCIAL', 10, true);
+                $text(50, 93, 'Os valores respeitam os filtros escolhidos. Consulte as notas nas páginas seguintes.', 9, false, 'muted');
+            }
         }
         $pages[] = $draw;
         $draw = [];
 
         if ($chart) {
-            $header('Comparativos  /  colunas verticais');
-            $drawColumns = function (array $keys, string $title, int $top, int $height) use ($rect, $stroke, $text, $values, $monetary, $compact): void {
-                $bottom = $top - $height;
-                $rect(50, $bottom, 495, $height, '1 1 1', true);
-                $text(65, $top - 28, $title, 11, true);
-                if (count($keys) === 0) {
-                    $text(65, $top - 67, 'Nenhum indicador selecionado para este grupo.', 9, false, 'muted');
-
-                    return;
-                }
-                $baseline = $bottom + 68;
-                $plotMax = $top - 57;
-                $stroke(65, $baseline, 532, $baseline, 'muted');
-                $max = max(1, ...array_map(fn (string $key): float => abs((float) ($values[$key] ?? 0)), $keys));
-                $slot = 456 / count($keys);
-                foreach ($keys as $i => $key) {
-                    $value = $values[$key] ?? null;
-                    $center = 73 + ($i + 0.5) * $slot;
-                    $heightValue = $value === null ? 0 : ($plotMax - $baseline) * abs((float) $value) / $max;
-                    $barWidth = min(36, $slot * 0.58);
-                    $barHeight = $value !== null && $value < 0 ? $heightValue * 0.50 : $heightValue;
-                    $barY = $value !== null && $value < 0 ? $baseline - $barHeight : $baseline;
-                    if ($barHeight > 0) {
+            // Gráficos com zero ou valor indisponível não ocupam páginas.
+            $hasValue = fn (string $key): bool => ($values[$key] ?? null) !== null && abs((float) $values[$key]) > 0;
+            $financeKeys = array_values(array_filter(array_intersect($monetary, $metrics), $hasValue));
+            $operationalKeys = array_values(array_filter(array_intersect(['sold', 'manufactured', 'defective'], $metrics), $hasValue));
+            if (count($financeKeys) > 0 || count($operationalKeys) > 0) {
+                $header('Comparativos  /  colunas verticais');
+                $drawColumns = function (array $keys, string $title, int $top, int $height) use ($rect, $stroke, $text, $values, $monetary, $compact): void {
+                    $bottom = $top - $height;
+                    $rect(50, $bottom, 495, $height, '1 1 1', true);
+                    $text(65, $top - 28, $title, 11, true);
+                    $baseline = $bottom + 68;
+                    $plotMax = $top - 57;
+                    $stroke(65, $baseline, 532, $baseline, 'muted');
+                    $max = max(1, ...array_map(fn (string $key): float => abs((float) $values[$key]), $keys));
+                    $slot = 456 / count($keys);
+                    foreach ($keys as $i => $key) {
+                        $value = $values[$key];
+                        $center = 73 + ($i + 0.5) * $slot;
+                        $heightValue = ($plotMax - $baseline) * abs((float) $value) / $max;
+                        $barWidth = min(36, $slot * 0.58);
+                        $barHeight = $value < 0 ? $heightValue * 0.50 : $heightValue;
+                        $barY = $value < 0 ? $baseline - $barHeight : $baseline;
                         $rect($center - $barWidth / 2, $barY, $barWidth, $barHeight, $value < 0 ? 'red' : 'blue');
+                        $short = ['sales' => 'Vendido', 'received' => 'Recebido', 'pending' => 'A receber', 'cost' => 'Custo', 'loss' => 'Perdas', 'result' => 'Diferença', 'sold' => 'Vendidas', 'manufactured' => 'Fabricadas', 'defective' => 'Defeitos'][$key];
+                        $text($center - $slot * 0.38, $bottom + 43, $short, 8, false, 'muted');
+                        $text($center - $slot * 0.38, $bottom + 26, $compact($value, in_array($key, $monetary, true)), 8, true);
                     }
-                    $short = ['sales' => 'Vendido', 'received' => 'Recebido', 'pending' => 'A receber', 'cost' => 'Custo', 'loss' => 'Perdas', 'result' => 'Diferença', 'sold' => 'Vendidas', 'manufactured' => 'Fabricadas', 'defective' => 'Defeitos'][$key];
-                    $text($center - $slot * 0.38, $bottom + 43, $short, 8, false, 'muted');
-                    $text($center - $slot * 0.38, $bottom + 26, $compact($value, in_array($key, $monetary, true)), 8, true);
+                };
+                if (count($financeKeys) > 0 && count($operationalKeys) > 0) {
+                    $drawColumns($financeKeys, 'VALORES FINANCEIROS  /  R$', 676, 295);
+                    $drawColumns($operationalKeys, 'INDICADORES OPERACIONAIS  /  UNIDADES', 366, 295);
+                } elseif (count($financeKeys) > 0) {
+                    $drawColumns($financeKeys, 'VALORES FINANCEIROS  /  R$', 676, 430);
+                } else {
+                    $drawColumns($operationalKeys, 'INDICADORES OPERACIONAIS  /  UNIDADES', 676, 430);
                 }
-            };
-            $drawColumns(array_values(array_intersect($monetary, $metrics)), 'VALORES FINANCEIROS  /  R$', 676, 295);
-            $drawColumns(array_values(array_intersect(['sold', 'manufactured', 'defective'], $metrics)), 'INDICADORES OPERACIONAIS  /  UNIDADES', 366, 295);
-            $pages[] = $draw;
-            $draw = [];
+                $pages[] = $draw;
+                $draw = [];
+            }
         }
 
         $header('Detalhamento  /  notas do relatório');
