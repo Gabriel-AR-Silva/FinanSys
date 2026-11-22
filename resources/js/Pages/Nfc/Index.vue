@@ -9,6 +9,7 @@ import CompanyDetails from './CompanyDetails.vue';
 import ManufacturerDetails from './ManufacturerDetails.vue';
 import Editor from './Editor.vue';
 import Notices from './Notices.vue';
+import PerformanceChart from './PerformanceChart.vue';
 import { date, money } from './format';
 import './nfc.css';
 
@@ -399,6 +400,8 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </section>
             </div>
+
+            <PerformanceChart v-if="!schema_pending" :companies="companies" :production="production" :today="today" />
 
             <div v-if="!schema_pending" role="tablist" aria-label="Empresas, fabricação e fabricantes NFC"
                 class="nfc-rule flex w-full min-w-0 flex-wrap gap-1 border-b pb-1">
