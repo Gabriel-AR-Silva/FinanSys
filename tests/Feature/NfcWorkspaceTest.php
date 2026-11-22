@@ -605,6 +605,42 @@ class NfcWorkspaceTest extends TestCase
         $this->get($url)->assertNotFound();
     }
 
+    public function test_report_pdf_filters_metrics_dates_and_owner_and_is_not_available_to_shared_links(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-22T15:00:00Z'));
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $this->createSale($company, [
+            'sold_on' => '2026-11-10',
+            'payments' => [['method' => 'pix', 'amount_cents' => 4000, 'received_on' => '2026-11-12']],
+        ]);
+        $this->createSale($company, [
+            'sold_on' => '2026-10-10',
+            'payments' => [['method' => 'cash', 'amount_cents' => 7000, 'received_on' => '2026-10-12']],
+        ]);
+        $other = $this->createCompany(User::factory()->create());
+        $this->createSale($other, [
+            'sold_on' => '2026-11-10',
+            'payments' => [['method' => 'pix', 'amount_cents' => 9000, 'received_on' => '2026-11-12']],
+        ]);
+
+        $params = ['from' => '2026-11-01', 'to' => '2026-11-22', 'metrics' => ['received'], 'chart' => 0];
+        $url = route('nfc.report.export', $params);
+        $response = $this->actingAs($owner)->get($url)->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+        $this->assertStringContainsString('R$ 40,00', $response->getContent());
+        $this->assertStringNotContainsString('R$ 70,00', $response->getContent());
+        $this->assertStringNotContainsString('R$ 90,00', $response->getContent());
+        $this->assertStringNotContainsString('Valor vendido', $response->getContent());
+        $this->getJson(route('nfc.report.export', array_replace($params, ['metrics' => ['invalid']])))->assertUnprocessable();
+
+        $this->post(route('nfc.share-links.store'), ['scope' => 'cud'])->assertRedirect();
+        $shared = session('nfc_share_url');
+        Auth::logout();
+        $this->get($url)->assertRedirect(route('login'));
+        $this->get($shared.'/relatorio.pdf?'.http_build_query($params))->assertNotFound();
+    }
+
     private function createCompany(User $user, string $name = 'Pontasso'): NfcRecord
     {
         $operationId = (string) Str::uuid();
