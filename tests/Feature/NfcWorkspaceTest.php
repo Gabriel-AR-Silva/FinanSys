@@ -211,6 +211,110 @@ class NfcWorkspaceTest extends TestCase
             ->where('summary.outstanding_cents', 0));
     }
 
+    public function test_reinvestment_tracks_received_cash_without_double_counting_production_cost(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-22T15:00:00Z'));
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $this->createSale($company, [
+            'sold_on' => '2026-11-10',
+            'payments' => [['method' => 'pix', 'amount_cents' => 10000, 'received_on' => '2026-11-12']],
+        ]);
+        $operationId = (string) Str::uuid();
+        $payload = [
+            'operation_id' => $operationId,
+            'spent_on' => '2026-11-20',
+            'amount_cents' => 4000,
+            'description' => 'Repor plaquinhas personalizadas',
+        ];
+
+        $this->post(route('nfc.reinvestments.store'), $payload)->assertRedirect(route('nfc.index'));
+        $this->post(route('nfc.reinvestments.store'), $payload)->assertRedirect(route('nfc.index'));
+        $this->post(route('nfc.reinvestments.store'), array_replace($payload, [
+            'amount_cents' => 5000,
+        ]))->assertSessionHasErrors('operation_id');
+        $this->post(route('nfc.reinvestments.store'), array_replace($payload, [
+            'operation_id' => (string) Str::uuid(),
+            'amount_cents' => 7000,
+        ]))->assertSessionHasErrors('amount_cents');
+
+        $reinvestment = NfcRecord::query()->whereBelongsTo($owner)
+            ->where('kind', NfcRecord::REINVESTMENT)->firstOrFail();
+        $this->assertSame(1, NfcRecord::query()->whereBelongsTo($owner)->where('kind', NfcRecord::REINVESTMENT)->count());
+
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('summary.received_cents', 10000)
+            ->where('summary.reinvested_cents', 4000)
+            ->where('summary.cash_available_cents', 6000)
+            ->has('reinvestments', 1)
+            ->where('reinvestments.0.description', 'Repor plaquinhas personalizadas'));
+
+        $report = app(\App\Queries\NfcReportQuery::class)->calculate(
+            app(\App\Queries\NfcDashboardQuery::class)->forUser($owner, false),
+            '2026-11-01',
+            '2026-11-22',
+        );
+        $this->assertSame(['received_cents' => 10000, 'reinvested_cents' => 4000, 'net_cents' => 6000], $report['cash']);
+        $this->assertSame(10000, $report['values']['sales']);
+        $this->assertSame(10000, $report['values']['result']);
+
+        $pdf = $this->get(route('nfc.report.export', [
+            'from' => '2026-11-01',
+            'to' => '2026-11-22',
+            'metrics' => ['sales', 'received', 'result'],
+            'chart' => 0,
+        ]))->assertOk()->getContent();
+        $this->assertStringContainsString('Retirado para reinvestimento', $pdf);
+        $this->assertStringContainsString('R$ 40,00', $pdf);
+        $this->assertStringContainsString('R$ 60,00', $pdf);
+
+        $other = User::factory()->create();
+        $this->actingAs($other)->delete(route('nfc.reinvestments.destroy', [
+            'reinvestment' => $reinvestment->id,
+        ]))->assertNotFound();
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('summary.reinvested_cents', 0));
+
+        $this->actingAs($owner)->delete(route('nfc.reinvestments.destroy', [
+            'reinvestment' => $reinvestment->id,
+        ]))->assertRedirect(route('nfc.index'));
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('summary.reinvested_cents', 0)
+            ->where('summary.cash_available_cents', 10000)
+            ->has('reinvestments', 0));
+    }
+
+    public function test_reinvestment_requires_received_cash_and_is_not_available_from_shared_links(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-22T15:00:00Z'));
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->post(route('nfc.reinvestments.store'), [
+            'operation_id' => (string) Str::uuid(),
+            'spent_on' => '2026-11-22',
+            'amount_cents' => 1200,
+            'description' => 'Compra de material',
+        ])->assertSessionHasErrors('amount_cents');
+
+        $this->post(route('nfc.share-links.store'), ['scope' => 'cud'])->assertRedirect();
+        $sharedUrl = session('nfc_share_url');
+        preg_match('~/compartilhado/([^/?]+)~', $sharedUrl, $matches);
+        Auth::logout();
+
+        $this->post(route('nfc.reinvestments.store'), [
+            'operation_id' => (string) Str::uuid(),
+            'spent_on' => '2026-11-22',
+            'amount_cents' => 100,
+            'description' => 'Sem sessão',
+        ])->assertRedirect(route('login'));
+        $this->post('/plaquinhas-nfc/compartilhado/'.$matches[1].'/reinvestimentos', [
+            'amount_cents' => 100,
+        ])->assertNotFound();
+
+        $this->actingAs($owner)->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('summary.reinvested_cents', 0)
+            ->where('summary.cash_available_cents', 0));
+    }
+
     public function test_warranty_clamps_to_month_end_and_reminds_for_seven_days_through_expiry(): void
     {
         $this->travelTo(new DateTimeImmutable('2026-04-22T15:00:00Z'));
