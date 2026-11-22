@@ -27,7 +27,6 @@ class NfcWorkspaceTest extends TestCase
         $this->withoutVite();
     }
 
-
     public function test_operating_expense_reduces_available_cash_without_changing_production_cost(): void
     {
         $owner = User::factory()->create();
