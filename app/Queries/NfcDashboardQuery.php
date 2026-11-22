@@ -93,7 +93,15 @@ class NfcDashboardQuery
                 ];
             })->values();
 
+        $damages = $records->where('kind', NfcRecord::DAMAGE)
+            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
+            ->values();
+
         $reinvestments = $records->where('kind', NfcRecord::REINVESTMENT)
+            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
+            ->sortByDesc('spent_on')->values();
+
+        $expenses = $records->where('kind', NfcRecord::EXPENSE)
             ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
             ->sortByDesc('spent_on')->values();
 
@@ -110,20 +118,23 @@ class NfcDashboardQuery
                 'sold' => $plates->count(),
                 'sold_standard' => $plates->where('type', 'standard')->count(),
                 'sold_custom' => $plates->where('type', 'custom')->count(),
-                'defective' => $plates->where('defective', true)->count(),
-                'estimated_loss_cents' => $plates->where('defective', true)->sum('estimated_loss_cents'),
-                'unestimated_defects' => $plates->where('defective', true)->whereNull('estimated_loss_cents')->count(),
+                'defective' => $plates->where('defective', true)->count() + $damages->sum('quantity'),
+                'estimated_loss_cents' => $plates->where('defective', true)->sum('estimated_loss_cents') + $damages->sum('estimated_loss_cents'),
+                'unestimated_defects' => $plates->where('defective', true)->whereNull('estimated_loss_cents')->count() + $damages->whereNull('estimated_loss_cents')->sum('quantity'),
                 'paid_plates' => $sales->where('payment_status', 'paid')->sum(fn (array $sale): int => count($sale['plates'])),
                 'production_cost_cents' => $production->sum('cost_cents'),
                 'unknown_cost_batches' => $production->whereNull('cost_cents')->count(),
                 'received_cents' => $sales->sum('paid_cents'),
                 'reinvested_cents' => $reinvestments->sum('amount_cents'),
-                'cash_available_cents' => $sales->sum('paid_cents') - $reinvestments->sum('amount_cents'),
+                'expenses_cents' => $expenses->sum('amount_cents'),
+                'cash_available_cents' => $sales->sum('paid_cents') - $reinvestments->sum('amount_cents') - $expenses->sum('amount_cents'),
                 'outstanding_cents' => $sales->sum('balance_cents'),
             ],
             'companies' => $companies->all(),
             'production' => $production->all(),
             'reinvestments' => $reinvestments->all(),
+            'damages' => $damages->all(),
+            'expenses' => $expenses->all(),
             'manufacturers' => $manufacturers->all(),
             'notices' => $this->notices($records->where('kind', NfcRecord::NOTICE), $companies->keyBy('id')),
             'warranty_notices' => $this->warrantyNotices($companies, $today),

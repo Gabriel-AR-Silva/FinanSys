@@ -203,6 +203,32 @@ class NfcController extends Controller
         return $this->redirectToDashboard($request);
     }
 
+    public function storeDamage(Request $request, ManageNfcRecords $records): RedirectResponse
+    {
+        $data = $request->validate([
+            'operation_id' => self::OPERATION_RULES,
+            'target' => ['required', Rule::in(['production', 'plate'])],
+            'production_id' => ['required_if:target,production', 'nullable', 'integer', 'min:1'],
+            'company_id' => ['required_if:target,plate', 'nullable', 'integer', 'min:1'],
+            'sale_id' => ['required_if:target,plate', 'nullable', 'uuid'],
+            'plate_id' => ['required_if:target,plate', 'nullable', 'uuid'],
+            'quantity' => ['required', 'integer', 'min:1', 'max:10000'],
+            'occurred_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'reason' => ['required', 'string', 'max:160'],
+            'estimated_loss_cents' => ['nullable', 'integer', 'min:0', 'max:999999999'],
+        ]);
+        $records->storeDamage($this->owner($request), $data);
+
+        return $this->redirectToDashboard($request);
+    }
+
+    public function deleteDamage(Request $request, ManageNfcRecords $records, int $damage): RedirectResponse
+    {
+        $records->deleteRecord($this->owner($request), $damage, NfcRecord::DAMAGE);
+
+        return $this->redirectToDashboard($request);
+    }
+
     public function storeProduction(Request $request, ManageNfcRecords $records): RedirectResponse
     {
         $data = $request->validate([
@@ -247,6 +273,35 @@ class NfcController extends Controller
         $user = $request->user();
         abort_unless($user instanceof User, 403);
         $records->deleteRecord($user, $reinvestment, NfcRecord::REINVESTMENT);
+
+        return to_route('nfc.index', status: 303);
+    }
+
+    public function storeExpense(Request $request, ManageNfcRecords $records): RedirectResponse
+    {
+        abort_if($request->attributes->has('nfc_share_owner'), 403);
+        $user = $request->user();
+        abort_unless($user instanceof User, 403);
+        $data = $request->validate([
+            'operation_id' => self::OPERATION_RULES,
+            'spent_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.$this->today()],
+            'amount_cents' => self::AMOUNT_RULES,
+            'description' => ['required', 'string', 'max:160'],
+            'category' => ['required', Rule::in(['materials', 'tools', 'rework', 'other'])],
+            'production_id' => ['nullable', 'integer', 'min:1'],
+            'damage_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $records->storeExpense($user, $data);
+
+        return to_route('nfc.index', status: 303);
+    }
+
+    public function deleteExpense(Request $request, ManageNfcRecords $records, int $expense): RedirectResponse
+    {
+        abort_if($request->attributes->has('nfc_share_owner'), 403);
+        $user = $request->user();
+        abort_unless($user instanceof User, 403);
+        $records->deleteRecord($user, $expense, NfcRecord::EXPENSE);
 
         return to_route('nfc.index', status: 303);
     }
