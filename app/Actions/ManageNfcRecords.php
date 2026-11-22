@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Models\NfcAccessLink;
 use App\Models\NfcRecord;
+use App\Queries\NfcDashboardQuery;
 use App\Models\User;
 use Closure;
 use Illuminate\Support\Arr;
@@ -279,6 +280,44 @@ class ManageNfcRecords
                 'manufacturer_id' => $this->validatedManufacturerId($user, array_key_exists('manufacturer_id', $data) ? $data['manufacturer_id'] : ($payload['manufacturer_id'] ?? null)),
             ],
         );
+    }
+
+    public function storeReinvestment(User $user, array $data): void
+    {
+        DB::transaction(function () use ($user, $data): void {
+            // Serializa retiradas concorrentes do mesmo proprietário.
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+
+            $payload = [
+                'spent_on' => $data['spent_on'],
+                'amount_cents' => (int) $data['amount_cents'],
+                'description' => trim($data['description']),
+                'production_id' => $this->validatedProductionId($user, $data['production_id'] ?? null),
+            ];
+            $operationId = strtolower($data['operation_id']);
+            $existing = NfcRecord::query()->whereBelongsTo($user)
+                ->where('kind', NfcRecord::REINVESTMENT)
+                ->where('record_key', $operationId)->first();
+
+            if ($existing !== null) {
+                if ($existing->payload !== $payload) {
+                    throw ValidationException::withMessages([
+                        'operation_id' => 'Este reinvestimento já foi registrado com outros dados.',
+                    ]);
+                }
+
+                return;
+            }
+
+            $summary = app(NfcDashboardQuery::class)->forUser($user, false)['summary'];
+            if ($payload['amount_cents'] > $summary['cash_available_cents']) {
+                throw ValidationException::withMessages([
+                    'amount_cents' => 'O reinvestimento não pode ultrapassar o dinheiro recebido ainda disponível no caixa.',
+                ]);
+            }
+
+            $this->createRecord($user, NfcRecord::REINVESTMENT, $operationId, $payload);
+        }, 3);
     }
 
     public function storeNotice(User $user, array $data): void
