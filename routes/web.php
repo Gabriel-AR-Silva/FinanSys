@@ -114,6 +114,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/avarias', 'storeDamage')->name('damages.store');
         Route::post('/producao', 'storeProduction')->name('production.store');
         Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
+        Route::post('/despesas', 'storeExpense')->name('expenses.store');
+        Route::delete('/despesas/{expense}', 'deleteExpense')->whereNumber('expense')->name('expenses.destroy');
         Route::post('/reinvestimentos', 'storeReinvestment')->name('reinvestments.store');
         Route::delete('/reinvestimentos/{reinvestment}', 'deleteReinvestment')->whereNumber('reinvestment')->name('reinvestments.destroy');
         Route::post('/avisos', 'storeNotice')->name('notices.store');
