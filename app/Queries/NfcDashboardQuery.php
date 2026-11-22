@@ -87,11 +87,17 @@ class NfcDashboardQuery
                         'estimated_loss_cents' => $plates->where('defective', true)->sum('estimated_loss_cents'),
                         'sales_total_cents' => $sales->sum('total_cents'),
                         'received_cents' => $sales->sum('paid_cents'),
+                'reinvested_cents' => $reinvestments->sum('amount_cents'),
+                'cash_available_cents' => $sales->sum('paid_cents') - $reinvestments->sum('amount_cents'),
                         'outstanding_cents' => $sales->sum('balance_cents'),
                         'pending_sales' => $sales->filter(fn (array $sale): bool => $sale['balance_cents'] > 0)->count(),
                     ],
                 ];
             })->values();
+
+        $reinvestments = $records->where('kind', NfcRecord::REINVESTMENT)
+            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
+            ->sortByDesc('spent_on')->values();
 
         $sales = $companies->flatMap(fn (array $company): array => $company['sales']);
         $plates = $sales->flatMap(fn (array $sale): array => $sale['plates']);
@@ -117,6 +123,7 @@ class NfcDashboardQuery
             ],
             'companies' => $companies->all(),
             'production' => $production->all(),
+            'reinvestments' => $reinvestments->all(),
             'manufacturers' => $manufacturers->all(),
             'notices' => $this->notices($records->where('kind', NfcRecord::NOTICE), $companies->keyBy('id')),
             'warranty_notices' => $this->warrantyNotices($companies, $today),
