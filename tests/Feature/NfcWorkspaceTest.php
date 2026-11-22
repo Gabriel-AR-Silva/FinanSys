@@ -220,12 +220,23 @@ class NfcWorkspaceTest extends TestCase
             'sold_on' => '2026-11-10',
             'payments' => [['method' => 'pix', 'amount_cents' => 10000, 'received_on' => '2026-11-12']],
         ]);
+        $this->post(route('nfc.production.store'), [
+            'operation_id' => (string) Str::uuid(),
+            'initial' => false,
+            'quantity' => 10,
+            'produced_on' => '2026-11-19',
+            'cost_cents' => 4000,
+        ])->assertRedirect(route('nfc.index'));
+        $batch = NfcRecord::query()->whereBelongsTo($owner)
+            ->where('kind', NfcRecord::PRODUCTION)->firstOrFail();
+
         $operationId = (string) Str::uuid();
         $payload = [
             'operation_id' => $operationId,
             'spent_on' => '2026-11-20',
             'amount_cents' => 4000,
             'description' => 'Repor plaquinhas personalizadas',
+            'production_id' => $batch->id,
         ];
 
         $this->post(route('nfc.reinvestments.store'), $payload)->assertRedirect(route('nfc.index'));
@@ -256,7 +267,8 @@ class NfcWorkspaceTest extends TestCase
         );
         $this->assertSame(['received_cents' => 10000, 'reinvested_cents' => 4000, 'net_cents' => 6000], $report['cash']);
         $this->assertSame(10000, $report['values']['sales']);
-        $this->assertSame(10000, $report['values']['result']);
+        $this->assertSame(4000, $report['values']['cost']);
+        $this->assertSame(6000, $report['values']['result']);
 
         $pdf = $this->get(route('nfc.report.export', [
             'from' => '2026-11-01',
