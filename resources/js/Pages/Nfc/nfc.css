@@ -311,3 +311,88 @@
         padding-right: 0.625rem;
     }
 }
+
+
+/* Notice board: readable, touch-friendly states in light and dark themes. */
+.nfc-notice-heading-icon {
+    background-color: var(--fs-info-soft);
+    color: var(--fs-info);
+}
+
+.nfc-notice-tabs {
+    border: 1px solid var(--fs-border-soft);
+    background-color: var(--fs-surface-muted);
+}
+
+.nfc-notice-tab {
+    color: var(--fs-text-secondary);
+    transition: background-color 150ms ease, color 150ms ease;
+}
+
+.nfc-notice-tab:hover {
+    background-color: var(--fs-control-hover);
+}
+
+.nfc-notice-tab-active,
+.nfc-notice-tab[aria-selected='true'] {
+    background-color: var(--fs-surface);
+    color: var(--fs-text);
+    box-shadow: 0 1px 3px var(--fs-border-soft);
+}
+
+.nfc-notice-tab:focus-visible,
+.nfc-notice-company:focus-visible {
+    outline: 2px solid var(--fs-info);
+    outline-offset: 2px;
+}
+
+.nfc-notice-item {
+    border: 1px solid var(--fs-border-soft);
+    background-color: var(--fs-surface);
+    color: var(--fs-text);
+}
+
+.nfc-notice-item:hover {
+    border-color: var(--fs-border);
+}
+
+.nfc-notice-important {
+    border-inline-start: 3px solid var(--fs-danger);
+    background-color: var(--fs-danger-soft);
+}
+
+.nfc-notice-resolved {
+    background-color: var(--fs-surface-subtle);
+}
+
+.nfc-notice-warranty-icon {
+    background-color: var(--fs-warning-soft);
+    color: var(--fs-warning);
+}
+
+.nfc-notice-company {
+    max-width: 100%;
+    border: 1px solid var(--fs-border-soft);
+    background-color: var(--fs-info-soft);
+    color: var(--fs-info);
+    overflow-wrap: anywhere;
+}
+
+.nfc-notice-company:hover {
+    border-color: var(--fs-info);
+}
+
+.nfc-notice-empty {
+    border: 1px dashed var(--fs-border);
+    background-color: var(--fs-surface-subtle);
+}
+
+.nfc-notice-empty svg {
+    color: var(--fs-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nfc-notice-tab {
+        transition: none;
+    }
+}
