@@ -9,13 +9,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class NfcShareLinkController extends Controller
 {
     public function store(Request $request, ManageNfcRecords $records): RedirectResponse
     {
         abort_unless(Schema::hasTable('nfc_access_links') && Schema::hasColumn('nfc_access_links', 'scope'), 503);
-        $data = $request->validate(['scope' => ['sometimes', 'in:view,edit']]);
+        $data = $request->validate(['scope' => ['sometimes', Rule::in(NfcAccessLink::SCOPES)]]);
         $scope = $data['scope'] ?? 'view';
         $token = Str::random(64);
         DB::transaction(function () use ($request, $records, $token, $scope): void {
@@ -32,6 +33,23 @@ class NfcShareLinkController extends Controller
             'nfc_share_url',
             route('nfc.share.index', ['token' => $token]),
         );
+    }
+
+    public function update(Request $request, ManageNfcRecords $records, int $link): RedirectResponse
+    {
+        abort_unless(Schema::hasTable('nfc_access_links') && Schema::hasColumn('nfc_access_links', 'scope'), 503);
+        $data = $request->validate(['scope' => ['required', Rule::in(NfcAccessLink::SCOPES)]]);
+        DB::transaction(function () use ($request, $records, $link, $data): void {
+            $record = NfcAccessLink::query()->whereBelongsTo($request->user())
+                ->whereNull('revoked_at')->where('expires_at', '>', now())
+                ->lockForUpdate()->findOrFail($link);
+            if ($record->scope !== $data['scope']) {
+                $record->update(['scope' => $data['scope']]);
+                $records->recordAccessEvent($request->user(), 'updated', $record);
+            }
+        }, 3);
+
+        return to_route('nfc.index');
     }
 
     public function destroy(Request $request, ManageNfcRecords $records, int $link): RedirectResponse

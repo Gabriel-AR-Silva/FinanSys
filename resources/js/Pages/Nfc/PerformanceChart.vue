@@ -1,12 +1,14 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { money } from './format';
+import { money as formatMoney } from './format';
 
 const props = defineProps({
+    hiddenValues: { type: Boolean, default: false },
     companies: { type: Array, required: true },
     production: { type: Array, required: true },
     today: { type: String, required: true },
 });
+const money = value => props.hiddenValues ? '••••••' : formatMoney(value);
 const mode = ref('finance');
 const chartType = ref('line');
 const period = ref(6);
@@ -102,6 +104,8 @@ function points(key) {
                 <label class="nfc-field text-xs">Período<select v-model.number="period" class="nfc-control"><option :value="3">3 meses</option><option :value="6">6 meses</option><option :value="12">12 meses</option></select></label>
             </div>
         </header>
+        <p v-if="hiddenValues && mode === 'finance'" class="nfc-muted text-sm">Gráfico financeiro oculto. Use o olho para mostrar os valores.</p>
+        <template v-else>
         <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Séries visíveis">
             <button v-for="series in definitions[mode]" :key="series.key" type="button" class="nfc-button text-xs" :aria-pressed="selected[mode].includes(series.key)" :disabled="selected[mode].includes(series.key) && selected[mode].length === 1" @click="toggle(series.key)">
                 <span class="h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: series.color, opacity: selected[mode].includes(series.key) ? 1 : 0.3 }" aria-hidden="true"></span>{{ series.label }}
@@ -152,5 +156,6 @@ function points(key) {
                 </table>
             </div>
         </details>
+        </template>
     </section>
 </template>

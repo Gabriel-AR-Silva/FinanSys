@@ -24,8 +24,16 @@ class ResolveNfcShareToken
 
         abort_if($link->user === null, 404);
         $scope = $link->scope ?? 'edit';
-        abort_unless(in_array($scope, ['view', 'edit'], true), 403);
-        abort_if($scope === 'view' && ! $request->isMethodSafe(), 403, 'Este link permite apenas consulta.');
+        abort_unless(in_array($scope, NfcAccessLink::SCOPES, true), 403);
+        $permissions = $link->permissions();
+        $operation = match ($request->method()) {
+            'POST' => 'create',
+            'PATCH', 'PUT' => 'update',
+            'DELETE' => 'delete',
+            default => null,
+        };
+        abort_unless($request->isMethodSafe() || ($operation !== null && $permissions[$operation]), 403, 'Este link não permite essa operação.');
+        $request->attributes->set('nfc_share_permissions', $permissions);
         $request->attributes->set('nfc_share_scope', $scope);
         $request->attributes->set('nfc_share_owner', $link->user);
         $request->attributes->set('nfc_share_link', $link);

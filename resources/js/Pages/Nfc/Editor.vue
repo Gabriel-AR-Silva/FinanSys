@@ -2,9 +2,11 @@
 import { useForm } from '@inertiajs/vue3';
 import { Plus, Trash2 } from '@lucide/vue';
 import { computed, ref } from 'vue';
-import { date, money, paymentMethods, plateTypes } from './format';
+import { date, money as formatMoney, paymentMethods, plateTypes } from './format';
 
 const props = defineProps({
+    permissions: { type: Object, default: () => ({ create: false, update: false, delete: false }) },
+    hiddenValues: { type: Boolean, default: false },
     kind: { type: String, required: true },
     context: { type: Object, required: true },
     today: { type: String, required: true },
@@ -19,6 +21,7 @@ const props = defineProps({
     production: { type: Array, required: true },
     nfcRoute: { type: Function, required: true },
 });
+const money = value => props.hiddenValues ? '••••••' : formatMoney(value);
 const emit = defineEmits(['cancel', 'saved', 'busy', 'feedback']);
 
 const decimalPattern = '[0-9]+([.,][0-9]{1,2})?';
@@ -93,7 +96,7 @@ const quickBatch = useForm({ operation_id: crypto.randomUUID(), initial: false, 
 const quickRecordBusy = computed(() => quickManufacturer.processing || quickBatch.processing);
 
 function createQuickRecord(kind) {
-    if (quickRecordBusy.value || form.processing || (kind === 'manufacturer' && !quickManufacturer.name.trim())) return;
+    if (!props.permissions.create || quickRecordBusy.value || form.processing || (kind === 'manufacturer' && !quickManufacturer.name.trim())) return;
     const isManufacturer = kind === 'manufacturer';
     const draft = isManufacturer ? quickManufacturer : quickBatch;
     const operationId = draft.operation_id;
@@ -123,7 +126,7 @@ function createQuickRecord(kind) {
 }
 const quickUnit = useForm({ operation_id: crypto.randomUUID(), name: '', production_id: null });
 function createQuickUnit() {
-    if (quickUnit.processing || form.processing || !props.company || !quickUnit.name.trim()) return;
+    if (!props.permissions.create || quickUnit.processing || form.processing || !props.company || !quickUnit.name.trim()) return;
     const unitId = quickUnit.operation_id;
     quickUnit.post(props.nfcRoute('nfc.units.store', { company: props.company.id }), {
         preserveScroll: true,
@@ -298,7 +301,7 @@ function submit() {
                     </option>
                 </select>
             </label>
-            <button type="button" class="nfc-button self-start" :aria-expanded="quickRecordKind === 'production'" :disabled="quickRecordBusy || form.processing" @click="quickRecordKind = quickRecordKind ? null : 'production'"><Plus :size="16" aria-hidden="true" /> Novo lote sem sair da unidade</button>
+            <button type="button" v-if="permissions.create" class="nfc-button self-start" :aria-expanded="quickRecordKind === 'production'" :disabled="quickRecordBusy || form.processing" @click="quickRecordKind = quickRecordKind ? null : 'production'"><Plus :size="16" aria-hidden="true" /> Novo lote sem sair da unidade</button>
             <div v-if="quickRecordKind === 'production'" class="nfc-panel flex flex-col gap-3 p-3">
                 <label class="nfc-field">Fabricante (opcional)
                     <select v-model="quickBatch.manufacturer_id" class="nfc-control" :disabled="quickRecordBusy">
@@ -314,7 +317,7 @@ function submit() {
                     <label class="nfc-field">Personalizadas<input v-model.number="quickBatch.customized_quantity" class="nfc-control" type="number" min="0" :max="quickBatch.quantity" :disabled="quickRecordBusy" /></label>
                 </div>
                 <label class="nfc-field">Data da fabricação<input v-model="quickBatch.produced_on" class="nfc-control" type="date" :max="today" :disabled="quickRecordBusy" /></label>
-                <label class="nfc-field">Custo (R$)<input v-model.trim="quickBatch.cost" class="nfc-control" inputmode="decimal" :disabled="quickRecordBusy" placeholder="A informar" /></label>
+                <label class="nfc-field">Custo (R$)<input v-model.trim="quickBatch.cost" class="nfc-control" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" :disabled="quickRecordBusy" placeholder="A informar" /></label>
                 <p v-for="error in Object.values(quickBatch.errors)" :key="error" class="text-xs text-[var(--fs-danger)]" role="alert">{{ error }}</p>
                 <div class="flex flex-wrap gap-2">
                     <button type="button" class="nfc-button nfc-primary" :disabled="quickRecordBusy || !quickBatch.quantity || quickBatch.quantity < 1 || (quickBatch.status === 'completed' && !quickBatch.produced_on) || (quickBatch.cost !== '' && asCents(quickBatch.cost) === null)" @click="createQuickRecord('production')">{{ quickRecordBusy ? 'Cadastrando…' : 'Cadastrar lote' }}</button>
@@ -329,7 +332,7 @@ function submit() {
                     <option v-for="item in company.units" :key="item.id" :value="item.id">{{ item.name }}</option>
                 </select>
             </label>
-            <button type="button" class="nfc-button self-start" :aria-expanded="quickUnitOpen" :disabled="form.processing || quickUnit.processing" @click="quickUnitOpen = !quickUnitOpen"><Plus :size="16" aria-hidden="true" /> Nova unidade sem sair da venda</button>
+            <button type="button" v-if="permissions.create" class="nfc-button self-start" :aria-expanded="quickUnitOpen" :disabled="form.processing || quickUnit.processing" @click="quickUnitOpen = !quickUnitOpen"><Plus :size="16" aria-hidden="true" /> Nova unidade sem sair da venda</button>
             <div v-if="quickUnitOpen" class="nfc-panel flex flex-col gap-2 p-3">
                 <label class="nfc-field">Nome da nova unidade
                     <input v-model.trim="quickUnit.name" class="nfc-control" maxlength="160" :disabled="quickUnit.processing" @keydown.enter.prevent="createQuickUnit" />
@@ -345,7 +348,7 @@ function submit() {
                     <input v-model="form.sold_on" class="nfc-control" type="date" :max="today" required />
                 </label>
                 <label class="nfc-field">Valor total (R$)
-                    <input v-model.trim="form.total" class="nfc-control" inputmode="decimal" :pattern="decimalPattern" placeholder="0,00" required />
+                    <input v-model.trim="form.total" class="nfc-control" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" :pattern="decimalPattern" placeholder="0,00" required />
                 </label>
             </div>
             <label class="nfc-field">Início da garantia (opcional)
@@ -374,7 +377,7 @@ function submit() {
                             </select>
                         </label>
                         <label class="nfc-field">Valor (R$)
-                            <input v-model.trim="payment.amount" class="nfc-control" inputmode="decimal" :pattern="decimalPattern" placeholder="0,00" required />
+                            <input v-model.trim="payment.amount" class="nfc-control" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" :pattern="decimalPattern" placeholder="0,00" required />
                         </label>
                         <label class="nfc-field col-span-full">Data do recebimento (opcional)
                             <input v-model="payment.received_on" class="nfc-control" type="date" :max="today" />
@@ -403,7 +406,7 @@ function submit() {
                 </select>
             </label>
             <label class="nfc-field">Valor (R$)
-                <input v-model.trim="form.amount" class="nfc-control" inputmode="decimal" :pattern="decimalPattern" placeholder="0,00" required />
+                <input v-model.trim="form.amount" class="nfc-control" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" :pattern="decimalPattern" placeholder="0,00" required />
             </label>
         </template>
 
@@ -423,7 +426,7 @@ function submit() {
                 <input v-model="form.defective" type="checkbox" class="nfc-check" /> Plaquinha com defeito
             </label>
             <label v-if="form.defective" class="nfc-field">Possível prejuízo (R$)
-                <input v-model.trim="form.estimated_loss" class="nfc-control" inputmode="decimal" :pattern="decimalPattern" placeholder="Ainda não estimado" />
+                <input v-model.trim="form.estimated_loss" class="nfc-control" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" :pattern="decimalPattern" placeholder="Ainda não estimado" />
             </label>
             <p v-if="form.defective" class="nfc-muted text-xs">Estimativa informativa: não altera o valor da venda nem os pagamentos recebidos.</p>
             <label class="nfc-field">Observação
@@ -438,7 +441,7 @@ function submit() {
                     <option v-for="item in manufacturers" :key="item.id" :value="item.id">{{ item.name }}</option>
                 </select>
             </label>
-            <button type="button" class="nfc-button self-start" :aria-expanded="quickRecordKind === 'manufacturer'" :disabled="quickRecordBusy || form.processing" @click="quickRecordKind = quickRecordKind ? null : 'manufacturer'"><Plus :size="16" aria-hidden="true" /> Novo fabricante sem sair do lote</button>
+            <button type="button" v-if="permissions.create" class="nfc-button self-start" :aria-expanded="quickRecordKind === 'manufacturer'" :disabled="quickRecordBusy || form.processing" @click="quickRecordKind = quickRecordKind ? null : 'manufacturer'"><Plus :size="16" aria-hidden="true" /> Novo fabricante sem sair do lote</button>
             <div v-if="quickRecordKind === 'manufacturer'" class="nfc-panel flex flex-col gap-3 p-3">
                 <label class="nfc-field">Nome do fabricante<input v-model.trim="quickManufacturer.name" class="nfc-control" maxlength="160" :disabled="quickRecordBusy" @keydown.enter.prevent="createQuickRecord('manufacturer')" /></label>
                 <label class="nfc-field">Telefone<input v-model.trim="quickManufacturer.phone" class="nfc-control" type="tel" maxlength="80" :disabled="quickRecordBusy" /></label>
@@ -467,7 +470,7 @@ function submit() {
                 </label>
             </div>
             <label class="nfc-field">Custo do lote (R$)
-                <input v-model.trim="form.cost" class="nfc-control" inputmode="decimal" :pattern="decimalPattern" placeholder="A informar" />
+                <input v-model.trim="form.cost" class="nfc-control" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" :pattern="decimalPattern" placeholder="A informar" />
             </label>
         </template>
 
