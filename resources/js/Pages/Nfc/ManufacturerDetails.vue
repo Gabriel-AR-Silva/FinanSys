@@ -5,6 +5,7 @@ import { computed, ref } from 'vue';
 import { date, money } from './format';
 
 const props = defineProps({
+    readOnly: { type: Boolean, default: false },
     manufacturer: { type: Object, required: true },
     nfcRoute: { type: Function, required: true },
 });
@@ -45,7 +46,7 @@ function upload(event) {
     const input = event.target;
     const files = Array.from(input.files || []);
     input.value = '';
-    if (!files.length || uploadForm.processing) return;
+    if (props.readOnly || !files.length || uploadForm.processing) return;
     if (files.length > availableSlots.value) {
         feedback('error', `Você pode adicionar apenas mais ${availableSlots.value} imagem(ns), até o limite de 10.`);
         return;
@@ -73,8 +74,8 @@ function upload(event) {
 <template>
     <div class="flex min-w-0 flex-col gap-4">
         <div class="flex flex-wrap gap-2">
-            <button type="button" class="nfc-button" @click="emit('edit', 'manufacturer-form', { manufacturerId: manufacturer.id })"><Pencil :size="16" aria-hidden="true" /> Editar fabricante</button>
-            <button type="button" class="nfc-button nfc-danger" @click="emit('destroy', 'manufacturer', { manufacturerId: manufacturer.id })"><Trash2 :size="16" aria-hidden="true" /> Excluir fabricante</button>
+            <button v-if="!readOnly" type="button" class="nfc-button" @click="emit('edit', 'manufacturer-form', { manufacturerId: manufacturer.id })"><Pencil :size="16" aria-hidden="true" /> Editar fabricante</button>
+            <button v-if="!readOnly" type="button" class="nfc-button nfc-danger" @click="emit('destroy', 'manufacturer', { manufacturerId: manufacturer.id })"><Trash2 :size="16" aria-hidden="true" /> Excluir fabricante</button>
         </div>
         <dl v-if="manufacturer.phone || manufacturer.notes" class="nfc-panel grid gap-3 p-3 text-sm sm:grid-cols-2">
             <div v-if="manufacturer.phone"><dt class="nfc-muted">Telefone / WhatsApp</dt><dd class="break-words font-medium">{{ manufacturer.phone }}</dd></div>
@@ -84,7 +85,7 @@ function upload(event) {
         <section class="nfc-panel flex min-w-0 flex-col gap-3 p-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <h3 class="font-semibold">Imagens do fabricante <span class="nfc-muted text-sm font-normal">({{ manufacturer.images.length }}/10)</span></h3>
-                <label v-if="availableSlots" class="nfc-button cursor-pointer" :aria-disabled="uploadForm.processing">
+                <label v-if="!readOnly && availableSlots" class="nfc-button cursor-pointer" :aria-disabled="uploadForm.processing">
                     <ImagePlus :size="16" aria-hidden="true" /> {{ uploadForm.processing ? 'Enviando…' : 'Adicionar imagens' }}
                     <input type="file" accept="image/jpeg,image/png,image/webp" multiple class="sr-only" :disabled="uploadForm.processing" @change="upload" />
                 </label>
@@ -99,7 +100,7 @@ function upload(event) {
                         <p class="truncate text-xs" :title="image.name">{{ image.name }}</p>
                         <div class="flex items-center justify-between gap-1">
                             <a class="nfc-button nfc-icon-button" :href="imageDownloadUrl(image)" :download="image.name" :aria-label="'Baixar ' + image.name" title="Baixar imagem"><Download :size="16" aria-hidden="true" /></a>
-                            <button type="button" class="nfc-button nfc-icon-button nfc-danger"  :disabled="uploadForm.processing" :aria-label="'Excluir ' + image.name" title="Excluir imagem" @click="emit('request-delete-image', image)"><Trash2 :size="16" aria-hidden="true" /></button>
+                            <button v-if="!readOnly" type="button" class="nfc-button nfc-icon-button nfc-danger"  :disabled="uploadForm.processing" :aria-label="'Excluir ' + image.name" title="Excluir imagem" @click="emit('request-delete-image', image)"><Trash2 :size="16" aria-hidden="true" /></button>
                         </div>
                     </figcaption>
                 </figure>

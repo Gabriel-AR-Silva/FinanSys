@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['user_id', 'token_hash', 'expires_at', 'revoked_at'])]
+#[Fillable(['user_id', 'token_hash', 'expires_at', 'revoked_at', 'scope'])]
 class NfcAccessLink extends Model
 {
     protected function casts(): array
