@@ -605,6 +605,28 @@ class NfcWorkspaceTest extends TestCase
         $this->get($url)->assertNotFound();
     }
 
+    public function test_pdf_custom_filename_and_graphs_include_single_metric_on_separate_page(): void
+    {
+        $owner = User::factory()->create();
+        $params = ['from' => '2026-11-01', 'to' => '2026-11-22', 'metrics' => ['received'], 'chart' => 1, 'name' => 'Vendas Novembro NFC'];
+        $response = $this->actingAs($owner)->get(route('nfc.report.export', $params))->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf')
+            ->assertHeader('Content-Disposition', 'attachment; filename="vendas-novembro-nfc.pdf"');
+
+        $content = $response->getContent();
+        $this->assertSame(2, preg_match_all('/\\/Type \\/Page\\b/', $content));
+        $this->assertStringContainsString('Valores monet', $content);
+        $this->assertStringContainsString('477 8 re f', $content);
+        $this->assertStringContainsString('Vendas Novembro NFC', $content);
+
+        $withoutGraph = $this->get(route('nfc.report.export', array_replace($params, ['chart' => 0])))
+            ->assertOk()->getContent();
+        $this->assertSame(1, preg_match_all('/\\/Type \\/Page\\b/', $withoutGraph));
+
+        $this->getJson(route('nfc.report.export', array_replace($params, ['name' => '../indevido'])))
+            ->assertUnprocessable();
+    }
+
     public function test_report_pdf_filters_metrics_dates_and_owner_and_is_not_available_to_shared_links(): void
     {
         $this->travelTo(new DateTimeImmutable('2026-11-22T15:00:00Z'));
