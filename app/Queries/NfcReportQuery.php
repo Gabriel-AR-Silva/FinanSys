@@ -129,6 +129,12 @@ class NfcReportQuery
             $reinvested += $amount;
             $reinvestmentRows[] = $reinvestment;
         }
+        $expenseTotal = 0;
+        foreach ($dashboard['expenses'] ?? [] as $expense) {
+            if ($inRange($expense['spent_on'] ?? null)) {
+                $expenseTotal += (int) $expense['amount_cents'];
+            }
+        }
         $values['result'] = $unknownCosts || $undatedBatches ? null : $values['sales'] - $values['cost'];
         foreach ($timeline as &$bucket) {
             $bucket['result'] = $values['result'] === null ? null : $bucket['sales'] - $bucket['cost'];
@@ -150,7 +156,8 @@ class NfcReportQuery
             'cash' => [
                 'received_cents' => $values['received'],
                 'reinvested_cents' => $reinvested,
-                'net_cents' => $values['received'] - $reinvested,
+                'expenses_cents' => $expenseTotal,
+                'net_cents' => $values['received'] - $reinvested - $expenseTotal,
             ],
             'reinvestmentRows' => $reinvestmentRows,
         ];
