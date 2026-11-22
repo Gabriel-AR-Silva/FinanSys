@@ -153,7 +153,7 @@ class NfcWorkspaceTest extends TestCase
             ->where('summary.outstanding_cents', 6000));
 
         $paymentRoute = route('nfc.payments.store', ['company' => $company->id, 'sale' => $sale['id']]);
-        $payment = ['operation_id' => (string) Str::uuid(), 'method' => 'pix', 'amount_cents' => 6000];
+        $payment = ['operation_id' => (string) Str::uuid(), 'method' => 'pix', 'amount_cents' => 6000, 'received_on' => '2026-11-11'];
 
         $this->post($paymentRoute, array_replace($payment, ['amount_cents' => 6001]))
             ->assertSessionHasErrors('amount_cents');
@@ -164,6 +164,7 @@ class NfcWorkspaceTest extends TestCase
             ->has('companies.0.sales.0.payments', 2)
             ->where('companies.0.sales.0.payments.0.method', 'cash')
             ->where('companies.0.sales.0.payments.1.method', 'pix')
+            ->where('companies.0.sales.0.payments.1.received_on', '2026-11-11')
             ->where('companies.0.sales.0.payment_status', 'paid')
             ->where('summary.paid_plates', 4)
             ->where('summary.received_cents', 10000)
@@ -195,6 +196,27 @@ class NfcWorkspaceTest extends TestCase
         $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
             ->where('companies.0.sales.0.warranty_status', 'expired')
             ->has('warranty_notices', 0));
+    }
+
+    public function test_warranty_can_start_after_the_sale_without_shortening_the_term(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-22T15:00:00Z'));
+        $company = $this->createCompany(User::factory()->create());
+        $sale = $this->createSale($company, [
+            'sold_on' => '2026-10-10',
+            'warranty_starts_on' => '2026-10-20',
+        ]);
+
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('companies.0.sales.0.warranty_started_on', '2026-10-20')
+            ->where('companies.0.sales.0.warranty_until', '2027-01-20'));
+
+        $this->patch(route('nfc.sales.update', ['company' => $company->id, 'sale' => $sale['id']]), [
+            'unit_id' => $sale['unit_id'],
+            'sold_on' => '2026-10-10',
+            'warranty_starts_on' => '2026-10-09',
+            'total_cents' => 10000,
+        ])->assertSessionHasErrors('warranty_starts_on');
     }
 
     public function test_manual_notices_can_stand_alone_or_link_to_a_plate_and_be_resolved(): void
@@ -284,7 +306,7 @@ class NfcWorkspaceTest extends TestCase
     public function test_shared_nfc_link_can_manage_notices_without_an_authenticated_session(): void
     {
         $owner = User::factory()->create();
-        $this->actingAs($owner)->post(route('nfc.share-links.store'))
+        $this->actingAs($owner)->post(route('nfc.share-links.store'), ['scope' => 'edit'])
             ->assertRedirect(route('nfc.index'));
 
         $url = session('nfc_share_url');
@@ -313,6 +335,9 @@ class NfcWorkspaceTest extends TestCase
 
         $this->get(route('nfc.share.index', ['token' => $token]))->assertInertia(fn (Assert $page) => $page
             ->has('notices', 0)
+            ->has('history', 0));
+
+        $this->actingAs($owner)->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
             ->where('history.0.event', 'deleted')
             ->where('history.0.target_id', $notice->id));
     }
@@ -426,7 +451,7 @@ class NfcWorkspaceTest extends TestCase
         $otherCompany = $this->createCompany($other, 'Outra empresa');
         $owner = User::factory()->create();
         $company = $this->createCompany($owner);
-        $this->post(route('nfc.share-links.store'))->assertRedirect(route('nfc.index'));
+        $this->post(route('nfc.share-links.store'), ['scope' => 'edit'])->assertRedirect(route('nfc.index'));
         $url = session('nfc_share_url');
         $this->assertNotNull($url);
         preg_match('~/compartilhado/([^/?]+)~', $url, $matches);
@@ -469,10 +494,33 @@ class NfcWorkspaceTest extends TestCase
         $this->get(route('nfc.share.index', ['token' => str_repeat('a', 64)]))->assertNotFound();
     }
 
-    public function test_expired_nfc_share_token_is_rejected(): void
+    public function test_view_share_link_cannot_mutate_nfc_records(): void
     {
         $owner = User::factory()->create();
         $this->actingAs($owner)->post(route('nfc.share-links.store'))
+            ->assertRedirect(route('nfc.index'));
+        $url = session('nfc_share_url');
+        preg_match('~/compartilhado/([^/?]+)~', $url, $matches);
+        $token = $matches[1];
+
+        Auth::logout();
+        $this->get($url)->assertInertia(fn (Assert $page) => $page
+            ->where('read_only', true)
+            ->has('history', 0));
+        $this->post(route('nfc.share.companies.store', ['token' => $token]), [
+            'operation_id' => (string) Str::uuid(),
+            'name' => 'Bloqueado',
+            'interested' => true,
+        ])->assertForbidden();
+        $this->delete(route('nfc.share.companies.destroy', ['token' => $token, 'company' => 1]))
+            ->assertForbidden();
+        $this->assertDatabaseMissing('nfc_records', ['kind' => NfcRecord::COMPANY, 'user_id' => $owner->id]);
+    }
+
+    public function test_expired_nfc_share_token_is_rejected(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->post(route('nfc.share-links.store'), ['scope' => 'edit'])
             ->assertRedirect(route('nfc.index'));
         $url = session('nfc_share_url');
         NfcAccessLink::query()->where('user_id', $owner->id)->firstOrFail()

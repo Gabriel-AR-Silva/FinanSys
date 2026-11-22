@@ -14,13 +14,16 @@ class NfcShareLinkController extends Controller
 {
     public function store(Request $request, ManageNfcRecords $records): RedirectResponse
     {
-        abort_unless(Schema::hasTable('nfc_access_links'), 503);
+        abort_unless(Schema::hasTable('nfc_access_links') && Schema::hasColumn('nfc_access_links', 'scope'), 503);
+        $data = $request->validate(['scope' => ['sometimes', 'in:view,edit']]);
+        $scope = $data['scope'] ?? 'view';
         $token = Str::random(64);
-        DB::transaction(function () use ($request, $records, $token): void {
+        DB::transaction(function () use ($request, $records, $token, $scope): void {
             $link = NfcAccessLink::query()->create([
                 'user_id' => $request->user()->id,
                 'token_hash' => hash('sha256', $token),
                 'expires_at' => now()->addDays(7),
+                'scope' => $scope,
             ]);
             $records->recordAccessEvent($request->user(), 'created', $link);
         }, 3);

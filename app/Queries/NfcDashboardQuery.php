@@ -9,10 +9,10 @@ use Illuminate\Support\Collection;
 
 class NfcDashboardQuery
 {
-    public function forUser(User $user): array
+    public function forUser(User $user, bool $includeHistory = true): array
     {
         $today = CarbonImmutable::today('America/Sao_Paulo');
-        $records = NfcRecord::query()->whereBelongsTo($user)->latest('id')->get()
+        $records = NfcRecord::query()->whereBelongsTo($user)->where('kind', '!=', NfcRecord::HISTORY)->latest('id')->get()
             ->filter(fn (NfcRecord $record): bool => empty($record->payload['deleted_at']));
         $companies = $records->where('kind', NfcRecord::COMPANY)
             ->map(fn (NfcRecord $record): array => $this->company($record, $today))
@@ -120,9 +120,10 @@ class NfcDashboardQuery
             'manufacturers' => $manufacturers->all(),
             'notices' => $this->notices($records->where('kind', NfcRecord::NOTICE), $companies->keyBy('id')),
             'warranty_notices' => $this->warrantyNotices($companies, $today),
-            'history' => $records->where('kind', NfcRecord::HISTORY)->take(150)->map(function (NfcRecord $record): array {
-                return ['id' => $record->id, ...$record->payload];
-            })->values()->all(),
+            'history' => $includeHistory ? NfcRecord::query()->whereBelongsTo($user)->where('kind', NfcRecord::HISTORY)
+                ->latest('id')->limit(150)->get()->map(function (NfcRecord $record): array {
+                    return ['id' => $record->id, ...$record->payload];
+                })->values()->all() : [],
         ];
     }
 
@@ -132,13 +133,15 @@ class NfcDashboardQuery
         $sales = collect($company['sales'])->map(function (array $sale) use ($today): array {
             $paid = array_sum(array_column($sale['payments'], 'amount_cents'));
             $balance = $sale['total_cents'] - $paid;
-            $warrantyUntil = CarbonImmutable::parse($sale['sold_on'], $today->timezone)->addMonthsNoOverflow(3);
+            $warrantyStart = $sale['warranty_starts_on'] ?? $sale['sold_on'];
+            $warrantyUntil = CarbonImmutable::parse($warrantyStart, $today->timezone)->addMonthsNoOverflow(3);
 
             return [
                 ...$sale,
                 'paid_cents' => $paid,
                 'balance_cents' => $balance,
                 'payment_status' => $balance === 0 ? 'paid' : ($paid > 0 ? 'partial' : 'pending'),
+                'warranty_started_on' => $warrantyStart,
                 'warranty_until' => $warrantyUntil->toDateString(),
                 'warranty_status' => $warrantyUntil->lt($today) ? 'expired' : 'active',
             ];

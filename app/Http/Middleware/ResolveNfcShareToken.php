@@ -23,6 +23,10 @@ class ResolveNfcShareToken
             ->firstOrFail();
 
         abort_if($link->user === null, 404);
+        $scope = $link->scope ?? 'edit';
+        abort_unless(in_array($scope, ['view', 'edit'], true), 403);
+        abort_if($scope === 'view' && ! $request->isMethodSafe(), 403, 'Este link permite apenas consulta.');
+        $request->attributes->set('nfc_share_scope', $scope);
         $request->attributes->set('nfc_share_owner', $link->user);
         $request->attributes->set('nfc_share_link', $link);
         $request->attributes->set('nfc_share_token', $token);
