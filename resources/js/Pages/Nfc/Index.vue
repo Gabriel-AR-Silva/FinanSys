@@ -3,7 +3,7 @@ import Modal from '@/Components/Modal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import NfcSharedLayout from '@/Layouts/NfcSharedLayout.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, Eye, EyeOff, X } from '@lucide/vue';
+import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, Eye, EyeOff, EllipsisVertical, Share2, Trash2, FileDown, X } from '@lucide/vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import CompanyDetails from './CompanyDetails.vue';
 import ManufacturerDetails from './ManufacturerDetails.vue';
@@ -85,6 +85,66 @@ const dialogHeading = ref(null);
 const busy = ref(false);
 const shareBusy = ref(false);
 const shareScope = ref('view');
+const settingsOpen = ref(false);
+const settingsButton = ref(null);
+const resetConfirmation = ref('');
+const reportFrom = ref('');
+const reportTo = ref('');
+const reportChart = ref(true);
+const reportOptions = [
+    { key: 'sales', label: 'Valor vendido' },
+    { key: 'received', label: 'Recebido' },
+    { key: 'pending', label: 'A receber' },
+    { key: 'cost', label: 'Custo de fabricação' },
+    { key: 'loss', label: 'Perdas estimadas' },
+    { key: 'result', label: 'Diferença e margem gerencial' },
+    { key: 'sold', label: 'Plaquinhas vendidas' },
+    { key: 'manufactured', label: 'Plaquinhas fabricadas' },
+    { key: 'defective', label: 'Plaquinhas defeituosas' },
+];
+const reportMetrics = ref(reportOptions.map(item => item.key));
+const reportValid = computed(() => !!reportFrom.value && !!reportTo.value && reportFrom.value <= reportTo.value && reportMetrics.value.length > 0);
+const reportUrl = computed(() => {
+    if (!reportValid.value || props.shared || !authenticatedUser.value || props.schema_pending) return '';
+    return route('nfc.report.export', { from: reportFrom.value, to: reportTo.value, metrics: reportMetrics.value, chart: reportChart.value ? 1 : 0 });
+});
+function openSettingsAction(kind) {
+    if (props.shared || !authenticatedUser.value || busy.value || shareBusy.value) return;
+    if (['reset', 'report'].includes(kind) && props.schema_pending) return;
+    if (kind === 'report' && !reportFrom.value) {
+        reportFrom.value = props.today.slice(0, 7) + '-01';
+        reportTo.value = props.today;
+    }
+    settingsOpen.value = false;
+    resetConfirmation.value = '';
+    dialog.value = { kind };
+}
+function closeSettings() {
+    if (!settingsOpen.value) return;
+    settingsOpen.value = false;
+    settingsButton.value?.focus();
+}
+function resetWorkspace() {
+    if (props.shared || !authenticatedUser.value || props.schema_pending || busy.value || resetConfirmation.value !== 'ZERAR') return;
+    router.delete(route('nfc.reset'), {
+        data: { confirmation: resetConfirmation.value },
+        preserveScroll: true,
+        onStart: () => { busy.value = true; },
+        onFinish: () => { busy.value = false; },
+        onSuccess: () => {
+            dialog.value = null;
+            resetConfirmation.value = '';
+            filter.value = 'all';
+            search.value = '';
+            productionSearch.value = '';
+            manufacturerSearch.value = '';
+            activeDashboardTab.value = 'finance';
+            activeRegistryTab.value = 'companies';
+            notify({ message: 'Cadastros NFC zerados. Links compartilhados preservados.' });
+        },
+        onError: errors => reportError(errors, 'Não foi possível zerar os cadastros.'),
+    });
+}
 const scopeOptions = [
     { value: 'view', label: 'Somente consulta' },
     { value: 'c', label: 'Consultar e cadastrar' },
@@ -281,6 +341,8 @@ const titles = {
     'confirm-delete': 'Confirmar ação',
     history: 'Histórico de alterações',
     share: 'Links de acesso NFC',
+    reset: 'Zerar cadastros NFC',
+    report: 'Exportar relatório PDF',
     notice: 'Novo aviso',
     payment: 'Registrar pagamento',
     plate: 'Editar plaquinha',
@@ -419,7 +481,14 @@ watch(dialog, async (current, previous) => {
             <header class="flex flex-wrap items-center justify-between gap-3">
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC <span v-if="read_only" class="nfc-muted block text-xs font-medium">Acesso somente para consulta</span></h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
-                    <button v-if="!shared && authenticatedUser" type="button" class="nfc-button" @click="dialog = { kind: 'share' }">Compartilhar</button>
+                    <div v-if="!shared && authenticatedUser" class="relative" @keydown.esc.stop="closeSettings" @focusout="event => { if (!event.currentTarget.contains(event.relatedTarget)) settingsOpen = false; }">
+                        <button ref="settingsButton" type="button" class="nfc-button nfc-icon-button" aria-label="Configurações NFC" :aria-expanded="settingsOpen" aria-controls="nfc-owner-settings" @click="settingsOpen = !settingsOpen"><EllipsisVertical :size="19" aria-hidden="true" /></button>
+                        <div v-if="settingsOpen" id="nfc-owner-settings" class="nfc-panel absolute right-0 top-full z-30 mt-2 flex w-48 flex-col gap-1 p-1 shadow-lg">
+                            <button type="button" class="nfc-button w-full justify-start" @click="openSettingsAction('share')"><Share2 :size="16" aria-hidden="true" /> Compartilhar</button>
+                            <button type="button" class="nfc-button w-full justify-start" :disabled="schema_pending" @click="openSettingsAction('report')"><FileDown :size="16" aria-hidden="true" /> Exportar PDF</button>
+                            <button type="button" class="nfc-button nfc-danger w-full justify-start" :disabled="schema_pending || busy || shareBusy" @click="openSettingsAction('reset')"><Trash2 :size="16" aria-hidden="true" /> Zerar</button>
+                        </div>
+                    </div>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="hiddenValues ? 'Mostrar valores' : 'Ocultar valores'" :aria-pressed="hiddenValues" @click="togglePrivacy"><EyeOff v-if="hiddenValues" :size="18" aria-hidden="true" /><Eye v-else :size="18" aria-hidden="true" /></button>
                     <button v-if="!shared" type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
@@ -657,6 +726,42 @@ watch(dialog, async (current, previous) => {
                         <button type="button" class="nfc-button nfc-danger" :disabled="busy" @click="confirmDestroy">{{ busy ? 'Processando…' : confirmDeleteLabel }}</button>
                     </div>
                 </div>
+                <div v-else-if="dialog.kind === 'report' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
+                    <p class="nfc-muted text-sm">Escolha o período e os indicadores. O arquivo contém somente dados do seu plugin NFC.</p>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="nfc-field">Data inicial<input v-model="reportFrom" type="date" class="nfc-control" :max="reportTo || undefined" /></label>
+                        <label class="nfc-field">Data final<input v-model="reportTo" type="date" class="nfc-control" :min="reportFrom || undefined" /></label>
+                    </div>
+                    <fieldset class="nfc-panel flex flex-col gap-3 p-3">
+                        <legend class="px-1 text-sm font-semibold">Indicadores do relatório</legend>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" class="nfc-button text-xs" @click="reportMetrics = reportOptions.map(item => item.key)">Selecionar todos</button>
+                            <button type="button" class="nfc-button text-xs" @click="reportMetrics = []">Limpar seleção</button>
+                        </div>
+                        <div class="grid gap-2 sm:grid-cols-2">
+                            <label v-for="item in reportOptions" :key="item.key" class="flex items-start gap-2 text-sm"><input v-model="reportMetrics" type="checkbox" :value="item.key" />{{ item.label }}</label>
+                        </div>
+                    </fieldset>
+                    <label class="flex items-center gap-2 text-sm"><input v-model="reportChart" type="checkbox" /> Incluir gráficos comparativos quando aplicável</label>
+                    <p class="nfc-muted text-xs">A margem compara vendas e custos de fabricação no intervalo; não representa lucro contábil. O saldo a receber é o saldo atual das vendas do período.</p>
+                    <p v-if="hiddenValues" class="nfc-warning rounded-lg p-3 text-sm">O PDF inclui os valores reais dos indicadores selecionados, mesmo com o olho fechado.</p>
+                    <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
+                        <button type="button" class="nfc-button" @click="closeDialog">Fechar</button>
+                        <a v-if="reportUrl" :href="reportUrl" class="nfc-button nfc-primary" download><FileDown :size="16" aria-hidden="true" /> Baixar PDF</a>
+                        <button v-else type="button" class="nfc-button nfc-primary" disabled>Baixar PDF</button>
+                    </div>
+                </div>
+                <form v-else-if="dialog.kind === 'reset' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="resetWorkspace">
+                    <p class="text-sm leading-6">Esta ação excluirá permanentemente todas as empresas, unidades, fabricantes, lotes, vendas, plaquinhas, pagamentos, avisos, imagens e histórico da sua área NFC.</p>
+                    <p class="nfc-muted text-sm">Os links de acesso e os dados dos demais módulos do FinanSys serão preservados. Esta ação não pode ser desfeita.</p>
+                    <label class="nfc-field">Digite ZERAR para confirmar
+                        <input v-model="resetConfirmation" class="nfc-control" type="text" autocomplete="off" :disabled="busy" />
+                    </label>
+                    <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
+                        <button type="button" class="nfc-button" :disabled="busy" @click="closeDialog">Cancelar</button>
+                        <button type="submit" class="nfc-button nfc-danger" :disabled="busy || schema_pending || resetConfirmation !== 'ZERAR'">{{ busy ? 'Zerando…' : 'Zerar todos os cadastros' }}</button>
+                    </div>
+                </form>
                 <div v-else-if="dialog.kind === 'share' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
                     <p v-if="!share_links_enabled" class="nfc-warning rounded-lg p-3 text-sm">Aplique a migration de permissões dos links NFC para habilitar a emissão e edição de links.</p>
                     <p class="nfc-muted text-sm">Links válidos por sete dias. Escolha as operações permitidas. Cada link mantém sua própria configuração.</p>
