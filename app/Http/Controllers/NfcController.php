@@ -222,6 +222,34 @@ class NfcController extends Controller
         return $this->redirectToDashboard($request);
     }
 
+    public function storeReinvestment(Request $request, ManageNfcRecords $records): RedirectResponse
+    {
+        abort_if($request->attributes->has('nfc_share_owner'), 403);
+        $user = $request->user();
+        abort_unless($user instanceof User, 403);
+
+        $data = $request->validate([
+            'operation_id' => self::OPERATION_RULES,
+            'spent_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.$this->today()],
+            'amount_cents' => self::AMOUNT_RULES,
+            'description' => ['required', 'string', 'max:160'],
+            'production_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $records->storeReinvestment($user, $data);
+
+        return to_route('nfc.index', status: 303);
+    }
+
+    public function deleteReinvestment(Request $request, ManageNfcRecords $records, int $reinvestment): RedirectResponse
+    {
+        abort_if($request->attributes->has('nfc_share_owner'), 403);
+        $user = $request->user();
+        abort_unless($user instanceof User, 403);
+        $records->deleteRecord($user, $reinvestment, NfcRecord::REINVESTMENT);
+
+        return to_route('nfc.index', status: 303);
+    }
+
     public function storeNotice(Request $request, ManageNfcRecords $records): RedirectResponse
     {
         $data = $request->validate([
