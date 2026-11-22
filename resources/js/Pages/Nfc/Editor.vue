@@ -1,7 +1,7 @@
 <script setup>
 import { useForm } from '@inertiajs/vue3';
 import { Plus, Trash2 } from '@lucide/vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { date, money, paymentMethods, plateTypes } from './format';
 
 const props = defineProps({
@@ -85,6 +85,32 @@ function fields() {
 }
 
 const form = useForm(fields());
+const quickUnitOpen = ref(false);
+const quickUnit = useForm({ operation_id: crypto.randomUUID(), name: '', production_id: null });
+function createQuickUnit() {
+    if (quickUnit.processing || form.processing || !props.company || !quickUnit.name.trim()) return;
+    const unitId = quickUnit.operation_id;
+    quickUnit.post(props.nfcRoute('nfc.units.store', { company: props.company.id }), {
+        preserveScroll: true,
+        preserveState: true,
+        onStart: () => emit('busy', true),
+        onFinish: () => emit('busy', false),
+        onError: errors => emit('feedback', { type: 'error', message: Object.values(errors).flat().find(Boolean) || 'Não foi possível cadastrar a unidade.' }),
+        onSuccess: page => {
+            const company = page.props.companies?.find(item => item.id === props.company.id);
+            if (!company?.units.some(unit => unit.id === unitId)) {
+                emit('feedback', { type: 'error', message: 'Não foi possível localizar a unidade cadastrada.' });
+                return;
+            }
+            form.unit_id = unitId;
+            form.clearErrors('unit_id');
+            quickUnit.reset();
+            quickUnit.operation_id = crypto.randomUUID();
+            quickUnitOpen.value = false;
+            emit('feedback', { type: 'success', message: 'Unidade cadastrada e selecionada.' });
+        },
+    });
+}
 const errors = computed(() => [...new Set(Object.values(form.errors).flat())]);
 const companyForNotice = computed(() => props.companies.find(company => company.id === form.company_id));
 const noticeSales = computed(() => companyForNotice.value?.sales.filter(sale => sale.plates.length) ?? []);
@@ -110,7 +136,7 @@ function salePayload({ total, payments, ...data }) {
 }
 
 function submit() {
-    if (form.processing) return;
+    if (form.processing || quickUnit.processing || quickUnitOpen.value) return;
     const { company, sale, unit, plate, batch, manufacturer } = props;
     const successMessages = {
         'manufacturer-form': manufacturer ? 'Fabricante atualizado.' : 'Fabricante cadastrado.',
@@ -245,9 +271,20 @@ function submit() {
                     <option v-for="item in company.units" :key="item.id" :value="item.id">{{ item.name }}</option>
                 </select>
             </label>
+            <button type="button" class="nfc-button self-start" :aria-expanded="quickUnitOpen" :disabled="form.processing || quickUnit.processing" @click="quickUnitOpen = !quickUnitOpen"><Plus :size="16" aria-hidden="true" /> Nova unidade sem sair da venda</button>
+            <div v-if="quickUnitOpen" class="nfc-panel flex flex-col gap-2 p-3">
+                <label class="nfc-field">Nome da nova unidade
+                    <input v-model.trim="quickUnit.name" class="nfc-control" maxlength="160" :disabled="quickUnit.processing" @keydown.enter.prevent="createQuickUnit" />
+                </label>
+                <p v-if="quickUnit.errors.name" class="text-xs text-[var(--fs-danger)]" role="alert">{{ quickUnit.errors.name }}</p>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" class="nfc-button nfc-primary" :disabled="quickUnit.processing || !quickUnit.name.trim()" @click="createQuickUnit">{{ quickUnit.processing ? 'Cadastrando…' : 'Cadastrar unidade' }}</button>
+                    <button type="button" class="nfc-button" :disabled="quickUnit.processing" @click="quickUnitOpen = false">Voltar à venda</button>
+                </div>
+            </div>
             <div class="grid min-w-0 gap-4 sm:grid-cols-2">
                 <label class="nfc-field">Data da venda
-                    <input v-model="form.sold_on" class="nfc-control" type="date" required />
+                    <input v-model="form.sold_on" class="nfc-control" type="date" :max="today" required />
                 </label>
                 <label class="nfc-field">Valor total (R$)
                     <input v-model.trim="form.total" class="nfc-control" inputmode="decimal" :pattern="decimalPattern" placeholder="0,00" required />
@@ -339,7 +376,7 @@ function submit() {
                 </select>
             </label>
             <label class="nfc-field">Data da fabricação
-                <input v-model="form.produced_on" class="nfc-control" type="date" :required="!initialBatch && form.status === 'completed'" />
+                <input v-model="form.produced_on" class="nfc-control" type="date" :max="today" :required="!initialBatch && form.status === 'completed'" />
             </label>
             <div class="grid min-w-0 gap-4 sm:grid-cols-2">
                 <label class="nfc-field">Quantidade fabricada
@@ -378,8 +415,8 @@ function submit() {
         </template>
 
         <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
-            <button type="button" class="nfc-button" :disabled="form.processing" @click="emit('cancel')">Cancelar</button>
-            <button type="submit" class="nfc-button nfc-primary" :disabled="form.processing">{{ form.processing ? 'Salvando…' : 'Salvar' }}</button>
+            <button type="button" class="nfc-button" :disabled="form.processing || quickUnit.processing" @click="emit('cancel')">Cancelar</button>
+            <button type="submit" class="nfc-button nfc-primary" :disabled="form.processing || quickUnit.processing || quickUnitOpen">{{ form.processing ? 'Salvando…' : 'Salvar' }}</button>
         </div>
     </form>
 </template>
