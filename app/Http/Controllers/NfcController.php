@@ -9,7 +9,9 @@ use App\Models\User;
 use App\Queries\NfcDashboardQuery;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -48,6 +50,24 @@ class NfcController extends Controller
                 ->get($scopesAvailable ? ['id', 'expires_at', 'revoked_at', 'created_at', 'scope'] : ['id', 'expires_at', 'revoked_at', 'created_at'])
                 ->toArray(),
         ]);
+    }
+
+    public function reset(Request $request): RedirectResponse
+    {
+        abort_if($request->attributes->has('nfc_share_owner'), 403);
+        $user = $request->user();
+        abort_unless($user instanceof User, 403);
+
+        $request->validate(['confirmation' => ['required', 'in:ZERAR']]);
+
+        DB::transaction(function () use ($user): void {
+            NfcRecord::query()->whereBelongsTo($user)->delete();
+        }, 3);
+
+        // Private images are no longer addressable after their records are removed.
+        Storage::disk('local')->deleteDirectory("nfc/manufacturers/{$user->id}");
+
+        return to_route('nfc.index', status: 303);
     }
 
     public function storeCompany(Request $request, ManageNfcRecords $records): RedirectResponse
