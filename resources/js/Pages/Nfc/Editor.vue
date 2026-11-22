@@ -317,6 +317,7 @@ function submit() {
                     <label class="nfc-field">Personalizadas<input v-model.number="quickBatch.customized_quantity" class="nfc-control" type="number" min="0" :max="quickBatch.quantity" :disabled="quickRecordBusy" /></label>
                 </div>
                 <label class="nfc-field">Data da fabricação (opcional)<input v-model="quickBatch.produced_on" class="nfc-control" type="date" :max="today" :disabled="quickRecordBusy" /></label>
+                <p v-if="!quickBatch.produced_on" class="text-sm text-[var(--fs-warning)]" role="status">Sem data, este lote não entra nos cálculos de fabricação por período do PDF, e a margem poderá ficar indisponível. Você pode salvar assim mesmo.</p>
                 <label class="nfc-field">Custo (R$)<input v-model.trim="quickBatch.cost" class="nfc-control" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" :disabled="quickRecordBusy" placeholder="A informar" /></label>
                 <p v-for="error in Object.values(quickBatch.errors)" :key="error" class="text-xs text-[var(--fs-danger)]" role="alert">{{ error }}</p>
                 <div class="flex flex-wrap gap-2">
@@ -461,6 +462,7 @@ function submit() {
             <label class="nfc-field">Data da fabricação (opcional)
                 <input v-model="form.produced_on" class="nfc-control" type="date" :max="today" />
             </label>
+            <p v-if="!form.produced_on" class="text-sm text-[var(--fs-warning)]" role="status">Sem data, este lote não entra nos cálculos de fabricação por período do PDF, e a margem poderá ficar indisponível. Você pode salvar assim mesmo.</p>
             <div class="grid min-w-0 gap-4 sm:grid-cols-2">
                 <label class="nfc-field">Quantidade fabricada
                     <input v-model.number="form.quantity" class="nfc-control" type="number" inputmode="numeric" min="1" step="1" required />
