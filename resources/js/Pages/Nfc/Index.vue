@@ -41,6 +41,26 @@ const filter = ref('all');
 const search = ref('');
 const productionSearch = ref('');
 const manufacturerSearch = ref('');
+const dashboardTabs = [
+    { key: 'finance', label: 'Financeiro' },
+    { key: 'evolution', label: 'Evolução do negócio' },
+    { key: 'registry', label: 'Cadastros' },
+];
+const activeDashboardTab = ref('finance');
+async function onDashboardTabKeydown(event, current) {
+    const order = dashboardTabs.map(tab => tab.key);
+    const index = order.indexOf(current);
+    let next = null;
+    if (event.key === 'ArrowRight') next = order[(index + 1) % order.length];
+    if (event.key === 'ArrowLeft') next = order[(index - 1 + order.length) % order.length];
+    if (event.key === 'Home') next = order[0];
+    if (event.key === 'End') next = order[order.length - 1];
+    if (next === null) return;
+    event.preventDefault();
+    activeDashboardTab.value = next;
+    await nextTick();
+    document.getElementById(`nfc-dashboard-tab-${next}`)?.focus();
+}
 const activeRegistryTab = ref('companies');
 const registryTabOrder = ['companies', 'production', 'manufacturers'];
 async function onRegistryTabKeydown(event, current) {
@@ -315,14 +335,17 @@ function saved(message = 'Registro salvo.') {
     if (dialog.value?.kind === 'company-form' && !company.value) {
         filter.value = 'all';
         search.value = '';
+        activeDashboardTab.value = 'registry';
         activeRegistryTab.value = 'companies';
     }
     if (dialog.value?.kind === 'manufacturer-form') {
         manufacturerSearch.value = '';
+        activeDashboardTab.value = 'registry';
         activeRegistryTab.value = 'manufacturers';
     }
     if (dialog.value?.kind === 'batch') {
         productionSearch.value = '';
+        activeDashboardTab.value = 'registry';
         activeRegistryTab.value = 'production';
     }
     busy.value = false;
@@ -374,7 +397,17 @@ watch(dialog, async (current, previous) => {
 
             <p v-if="schema_pending" class="nfc-panel nfc-warning p-4 text-sm" role="status">Aplique a migration de Plaquinhas NFC para liberar os cadastros.</p>
 
-            <div v-else class="grid min-w-0 gap-3 lg:grid-cols-2">
+            <template v-else>
+                <nav role="tablist" aria-label="Áreas do painel NFC" class="nfc-panel grid grid-cols-3 gap-1 p-1">
+                    <button v-for="tab in dashboardTabs" :id="'nfc-dashboard-tab-' + tab.key" :key="tab.key" type="button" role="tab"
+                        :aria-controls="'nfc-dashboard-panel-' + tab.key"
+                        :aria-selected="activeDashboardTab === tab.key" :tabindex="activeDashboardTab === tab.key ? 0 : -1"
+                        class="nfc-dashboard-tab min-h-12 min-w-0 rounded-xl border px-2 py-2 text-center text-xs font-semibold sm:text-sm"
+                        @keydown="onDashboardTabKeydown($event, tab.key)" @click="activeDashboardTab = tab.key">
+                        {{ tab.label }}
+                    </button>
+                </nav>
+                <section v-show="activeDashboardTab === 'finance'" id="nfc-dashboard-panel-finance" role="tabpanel" aria-labelledby="nfc-dashboard-tab-finance" tabindex="0" class="grid min-w-0 gap-3 lg:grid-cols-2">
                 <section v-for="(group, index) in metricGroups" :key="group.title"
                     class="nfc-panel min-w-0 p-4" :class="index === 0 ? 'lg:col-span-2' : ''"
                     :aria-labelledby="'nfc-metrics-' + index">
@@ -399,11 +432,12 @@ watch(dialog, async (current, previous) => {
                         <p v-if="financialSummary.revenue > 0" class="nfc-muted mt-2 text-xs">{{ financialSummary.outstandingPercent }}% a receber · custos e perdas são indicadores separados.</p>
                     </div>
                 </section>
-            </div>
-
-            <PerformanceChart v-if="!schema_pending" :companies="companies" :production="production" :today="today" />
-
-            <div v-if="!schema_pending" role="tablist" aria-label="Empresas, fabricação e fabricantes NFC"
+                </section>
+                <section v-show="activeDashboardTab === 'evolution'" id="nfc-dashboard-panel-evolution" role="tabpanel" aria-labelledby="nfc-dashboard-tab-evolution" tabindex="0" class="min-w-0">
+                    <PerformanceChart :companies="companies" :production="production" :today="today" />
+                </section>
+                <section v-show="activeDashboardTab === 'registry'" id="nfc-dashboard-panel-registry" role="tabpanel" aria-labelledby="nfc-dashboard-tab-registry" tabindex="0" class="flex min-w-0 flex-col gap-3">
+            <div role="tablist" aria-label="Tipos de cadastro"
                 class="nfc-rule flex w-full min-w-0 flex-wrap gap-1 border-b pb-1">
                 <button id="nfc-tab-companies" type="button" role="tab" aria-controls="nfc-panel-companies"
                     :aria-selected="activeRegistryTab === 'companies'" :tabindex="activeRegistryTab === 'companies' ? 0 : -1"
@@ -428,7 +462,7 @@ watch(dialog, async (current, previous) => {
                 </button>
             </div>
 
-            <section v-if="!schema_pending" v-show="activeRegistryTab === 'companies'" id="nfc-panel-companies" role="tabpanel" aria-labelledby="nfc-tab-companies" tabindex="0" class="flex min-w-0 flex-col gap-3">
+            <section v-show="activeRegistryTab === 'companies'" id="nfc-panel-companies" role="tabpanel" aria-labelledby="nfc-tab-companies" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex min-w-0 items-center justify-between gap-2">
                     <h2 id="nfc-companies" class="flex min-w-0 items-center gap-2 text-lg font-semibold"><Building2 :size="19" aria-hidden="true" /> Empresas</h2>
                     <button v-if="!read_only" type="button" class="nfc-button nfc-primary shrink-0" @click="edit('company-form')">
@@ -487,7 +521,7 @@ watch(dialog, async (current, previous) => {
                 <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ companies.length ? 'Nenhuma empresa neste filtro.' : 'Nenhuma empresa cadastrada.' }}</p>
             </section>
 
-            <section v-if="!schema_pending" v-show="activeRegistryTab === 'production'" id="nfc-panel-production" role="tabpanel" aria-labelledby="nfc-tab-production" tabindex="0" class="flex min-w-0 flex-col gap-3">
+            <section v-show="activeRegistryTab === 'production'" id="nfc-panel-production" role="tabpanel" aria-labelledby="nfc-tab-production" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 id="nfc-production" class="flex items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricação</h2>
                     <div class="flex flex-wrap gap-2">
@@ -515,7 +549,7 @@ watch(dialog, async (current, previous) => {
                 </ul>
                 <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ production.length ? 'Nenhum lote encontrado nesta busca.' : 'Nenhuma fabricação registrada.' }}</p>
             </section>
-            <section v-if="!schema_pending" v-show="activeRegistryTab === 'manufacturers'" id="nfc-panel-manufacturers" role="tabpanel" aria-labelledby="nfc-tab-manufacturers" tabindex="0" class="flex min-w-0 flex-col gap-3">
+            <section v-show="activeRegistryTab === 'manufacturers'" id="nfc-panel-manufacturers" role="tabpanel" aria-labelledby="nfc-tab-manufacturers" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex min-w-0 items-center justify-between gap-2">
                     <h2 class="flex min-w-0 items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricantes</h2>
                     <button v-if="!read_only" type="button" class="nfc-button nfc-primary shrink-0" @click="edit('manufacturer-form')"><Plus :size="16" aria-hidden="true" /> Novo fabricante</button>
@@ -538,6 +572,8 @@ watch(dialog, async (current, previous) => {
                 </ul>
                 <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ manufacturers.length ? 'Nenhum fabricante neste filtro.' : 'Nenhum fabricante cadastrado. Cadastre um para anexar imagens e vincular lotes.' }}</p>
             </section>
+                </section>
+            </template>
         </div>
 
         <Modal class="nfc-dialog" :show="dialog !== null" labelled-by="nfc-dialog-heading" :closeable="!busy" @close="closeDialog">
