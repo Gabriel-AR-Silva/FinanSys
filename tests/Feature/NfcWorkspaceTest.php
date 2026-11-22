@@ -335,6 +335,9 @@ class NfcWorkspaceTest extends TestCase
 
         $this->get(route('nfc.share.index', ['token' => $token]))->assertInertia(fn (Assert $page) => $page
             ->has('notices', 0)
+            ->has('history', 0));
+
+        $this->actingAs($owner)->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
             ->where('history.0.event', 'deleted')
             ->where('history.0.target_id', $notice->id));
     }

@@ -122,8 +122,8 @@ class NfcDashboardQuery
             'warranty_notices' => $this->warrantyNotices($companies, $today),
             'history' => $includeHistory ? NfcRecord::query()->whereBelongsTo($user)->where('kind', NfcRecord::HISTORY)
                 ->latest('id')->limit(150)->get()->map(function (NfcRecord $record): array {
-                return ['id' => $record->id, ...$record->payload];
-            })->values()->all() : [],
+                    return ['id' => $record->id, ...$record->payload];
+                })->values()->all() : [],
         ];
     }
 
