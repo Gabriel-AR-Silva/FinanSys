@@ -33,6 +33,7 @@ class NfcController extends Controller
             'share_token' => $shared ? (string) $request->attributes->get('nfc_share_token') : null,
             'created_share_url' => $shared ? null : $request->session()->get('nfc_share_url'),
             'share_links_enabled' => ! $shared && $linksAvailable,
+            'nfc_created_record' => $request->session()->get('nfc_created_record'),
             'share_links' => $shared || ! $linksAvailable ? [] : NfcAccessLink::query()
                 ->whereBelongsTo($request->user())
                 ->latest()->limit(20)
@@ -150,9 +151,9 @@ class NfcController extends Controller
             'initial' => ['required', 'boolean'],
         ]);
 
-        $records->storeProduction($this->owner($request), $data);
+        $record = $records->storeProduction($this->owner($request), $data);
 
-        return $this->redirectToDashboard($request);
+        return $this->redirectToDashboard($request)->with('nfc_created_record', ['kind' => 'production', 'id' => $record->id, 'operation_id' => $data['operation_id']]);
     }
 
     public function updateProduction(Request $request, ManageNfcRecords $records, int $production): RedirectResponse

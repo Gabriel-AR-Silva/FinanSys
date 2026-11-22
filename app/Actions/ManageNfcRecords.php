@@ -19,9 +19,9 @@ class ManageNfcRecords
 
     public const PLATE_TYPES = ['standard', 'custom'];
 
-    public function storeManufacturer(User $user, array $data): void
+    public function storeManufacturer(User $user, array $data): NfcRecord
     {
-        $this->createRecord($user, NfcRecord::MANUFACTURER, $data['operation_id'], [
+        return $this->createRecord($user, NfcRecord::MANUFACTURER, $data['operation_id'], [
             'name' => $data['name'],
             'phone' => $data['phone'] ?? null,
             'notes' => $data['notes'] ?? null,
@@ -247,7 +247,7 @@ class ManageNfcRecords
         });
     }
 
-    public function storeProduction(User $user, array $data): void
+    public function storeProduction(User $user, array $data): NfcRecord
     {
         $initial = (bool) $data['initial'];
         $payload = $this->productionFields($data);
@@ -264,6 +264,8 @@ class ManageNfcRecords
                 'quantity' => 'O lote inicial já foi registrado. Abra a fabricação para editar os dados.',
             ]);
         }
+
+        return $record;
     }
 
     public function updateProduction(User $user, int $production, array $data): void

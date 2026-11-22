@@ -18,9 +18,9 @@ class NfcManufacturerController extends Controller
     public function store(Request $request, ManageNfcRecords $records): RedirectResponse
     {
         $data = $request->validate($this->rules(true));
-        $records->storeManufacturer($this->owner($request), $data);
+        $record = $records->storeManufacturer($this->owner($request), $data);
 
-        return $this->backToNfc($request);
+        return $this->backToNfc($request)->with('nfc_created_record', ['kind' => 'manufacturer', 'id' => $record->id, 'operation_id' => $data['operation_id']]);
     }
 
     public function update(Request $request, ManageNfcRecords $records, int $manufacturer): RedirectResponse
