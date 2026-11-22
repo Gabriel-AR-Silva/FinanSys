@@ -177,32 +177,41 @@ const manufacturersShown = computed(() => {
 const noticeCount = computed(() => props.notices.filter(notice => !notice.resolved_at).length + props.warranty_notices.length);
 const hasInitialBatch = computed(() => props.production.some(batch => batch.initial));
 
-const metrics = computed(() => {
+const financialSummary = computed(() => {
     const totals = props.summary;
-    const costsPending = totals.unknown_cost_batches;
-
-    return [
-        { label: 'Arrecadado', value: money(totals.received_cents), tone: 'nfc-success' },
-        { label: 'A receber', value: money(totals.outstanding_cents), tone: 'nfc-warning' },
-        { label: 'Vendidas', value: totals.sold, detail: `${totals.sold_standard} normais · ${totals.sold_custom} personalizadas` },
-        { label: 'Interessadas', value: totals.interested },
-        { label: 'Fabricadas', value: totals.manufactured },
-        { label: 'Em fabricação', value: totals.in_production ?? 0, tone: 'nfc-warning' },
-        { label: 'Em customização', value: totals.in_customization },
-        { label: 'Plaquinhas pagas', value: totals.paid_plates },
-        { label: 'Com defeito', value: totals.defective ?? 0, tone: 'nfc-danger' },
-        { label: 'Possível prejuízo', value: money(totals.estimated_loss_cents ?? 0), tone: 'nfc-danger',
-            detail: totals.unestimated_defects ? (totals.unestimated_defects + ' defeito(s) sem valor estimado') : 'Estimativa, não baixa financeira' },
-        { label: 'Custo de fabricação', value: costsPending && costsPending === props.production.length ? '—' : money(totals.production_cost_cents), detail: costsPending ? `${costsPending} ${costsPending === 1 ? 'lote sem custo informado' : 'lotes sem custo informado'}` : null },
-    ];
+    const received = Number(totals.received_cents ?? 0);
+    const outstanding = Number(totals.outstanding_cents ?? 0);
+    const revenue = received + outstanding;
+    return {
+        received, outstanding, revenue,
+        receivedPercent: revenue > 0 ? Math.round(received / revenue * 100) : 0,
+        outstandingPercent: revenue > 0 ? 100 - Math.round(received / revenue * 100) : 0,
+    };
 });
-
-const metricPages = computed(() => {
-    const pages = [];
-    for (let index = 0; index < metrics.value.length; index += 3) {
-        pages.push(metrics.value.slice(index, index + 3));
-    }
-    return pages;
+const metricGroups = computed(() => {
+    const totals = props.summary;
+    const finance = financialSummary.value;
+    const costsPending = totals.unknown_cost_batches ?? 0;
+    return [
+        { title: 'Financeiro', metrics: [
+            { label: 'Recebido', value: money(finance.received), tone: 'text-[var(--fs-success)]' },
+            { label: 'A receber', value: money(finance.outstanding), tone: 'text-[var(--fs-warning)]' },
+            { label: 'Total vendido', value: money(finance.revenue) },
+            { label: 'Custo de fabricação', value: costsPending && costsPending === props.production.length ? '—' : money(totals.production_cost_cents ?? 0), detail: costsPending ? `${costsPending} lote(s) sem custo informado` : 'Custos informados dos lotes' },
+            { label: 'Perda estimada', value: money(totals.estimated_loss_cents ?? 0), tone: 'text-[var(--fs-danger)]', detail: totals.unestimated_defects ? `${totals.unestimated_defects} defeito(s) sem estimativa` : 'Não descontada automaticamente da receita' },
+        ] },
+        { title: 'Produção', metrics: [
+            { label: 'Fabricadas', value: totals.manufactured ?? 0 },
+            { label: 'Em fabricação', value: totals.in_production ?? 0 },
+            { label: 'Em customização', value: totals.in_customization ?? 0 },
+            { label: 'Com defeito', value: totals.defective ?? 0, tone: 'text-[var(--fs-danger)]' },
+        ] },
+        { title: 'Vendas e clientes', metrics: [
+            { label: 'Vendidas', value: totals.sold ?? 0, detail: `${totals.sold_standard ?? 0} normais · ${totals.sold_custom ?? 0} personalizadas` },
+            { label: 'Plaquinhas pagas', value: totals.paid_plates ?? 0, detail: 'Em vendas quitadas' },
+            { label: 'Empresas interessadas', value: totals.interested ?? 0 },
+        ] },
+    ];
 });
 
 const company = computed(() => props.companies.find(item => item.id === dialog.value?.companyId));
@@ -360,30 +369,31 @@ watch(dialog, async (current, previous) => {
 
             <p v-if="schema_pending" class="nfc-panel nfc-warning p-4 text-sm" role="status">Aplique a migration de Plaquinhas NFC para liberar os cadastros.</p>
 
-            <div v-else class="flex min-w-0 flex-col gap-1.5">
-                <dl class="nfc-scrollbar flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-2 sm:hidden"
-                    aria-label="Indicadores das plaquinhas NFC, em grupos de até três" tabindex="0">
-                    <div v-for="(pageMetrics, index) in metricPages" :key="index"
-                        class="grid w-full min-w-full shrink-0 snap-start grid-cols-3 items-stretch gap-1.5"
-                        role="group" :aria-label="`Indicadores ${index * 3 + 1} a ${index * 3 + pageMetrics.length}`">
-                        <div v-for="metric in pageMetrics" :key="metric.label" class="nfc-panel flex min-w-0 flex-col gap-1 px-2 py-2.5">
-                            <dt class="nfc-muted text-xs font-medium leading-tight">{{ metric.label }}</dt>
-                            <dd class="min-w-0 self-start text-base font-semibold leading-snug tabular-nums [overflow-wrap:anywhere]"
-                                :class="metric.tone && `${metric.tone} rounded-md px-1`">{{ metric.value }}</dd>
-                            <dd v-if="metric.detail" class="nfc-muted text-[11px] leading-tight [overflow-wrap:anywhere]">{{ metric.detail }}</dd>
+            <div v-else class="grid min-w-0 gap-3 lg:grid-cols-2">
+                <section v-for="(group, index) in metricGroups" :key="group.title"
+                    class="nfc-panel min-w-0 p-4" :class="index === 0 ? 'lg:col-span-2' : ''"
+                    :aria-labelledby="'nfc-metrics-' + index">
+                    <h2 :id="'nfc-metrics-' + index" class="mb-3 text-sm font-semibold">{{ group.title }}</h2>
+                    <dl class="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3" :class="index === 0 ? 'xl:grid-cols-5' : ''">
+                        <div v-for="metric in group.metrics" :key="metric.label" class="min-w-0">
+                            <dt class="nfc-muted text-xs font-medium">{{ metric.label }}</dt>
+                            <dd class="mt-1 break-words text-xl font-semibold tabular-nums" :class="metric.tone">{{ metric.value }}</dd>
+                            <dd v-if="metric.detail" class="nfc-muted mt-1 text-xs leading-snug">{{ metric.detail }}</dd>
                         </div>
+                    </dl>
+                    <div v-if="index === 0" class="nfc-rule mt-4 border-t pt-4">
+                        <div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <span class="font-semibold">Recebimento das vendas · acumulado</span>
+                            <span v-if="financialSummary.revenue > 0" class="tabular-nums text-[var(--fs-success)]">{{ financialSummary.receivedPercent }}% recebido</span>
+                        </div>
+                        <div v-if="financialSummary.revenue > 0" class="flex h-3 overflow-hidden rounded-full bg-[var(--fs-surface-subtle)]" aria-hidden="true">
+                            <div class="bg-[var(--fs-success)]" :style="{ width: financialSummary.receivedPercent + '%' }"></div>
+                            <div class="bg-[var(--fs-warning)]" :style="{ width: financialSummary.outstandingPercent + '%' }"></div>
+                        </div>
+                        <p v-else class="nfc-muted text-xs">Registre uma venda para acompanhar os recebimentos.</p>
+                        <p v-if="financialSummary.revenue > 0" class="nfc-muted mt-2 text-xs">{{ financialSummary.outstandingPercent }}% a receber · custos e perdas são indicadores separados.</p>
                     </div>
-                </dl>
-                <p v-if="metricPages.length > 1" class="nfc-muted text-[11px] sm:hidden">Deslize os indicadores para os lados.</p>
-                <dl aria-label="Indicadores das plaquinhas NFC"
-                    class="hidden min-w-0 grid-cols-2 gap-2 sm:grid md:grid-cols-4 md:gap-3">
-                    <div v-for="metric in metrics" :key="metric.label" class="nfc-panel flex min-w-0 flex-col gap-1 p-3">
-                        <dt class="nfc-muted text-xs font-medium leading-tight">{{ metric.label }}</dt>
-                        <dd class="min-w-0 self-start text-lg font-semibold leading-snug tabular-nums [overflow-wrap:anywhere]"
-                            :class="metric.tone && `${metric.tone} rounded-md px-1.5`">{{ metric.value }}</dd>
-                        <dd v-if="metric.detail" class="nfc-muted text-[11px] leading-snug">{{ metric.detail }}</dd>
-                    </div>
-                </dl>
+                </section>
             </div>
 
             <div v-if="!schema_pending" role="tablist" aria-label="Empresas, fabricação e fabricantes NFC"
