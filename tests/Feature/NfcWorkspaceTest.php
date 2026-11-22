@@ -605,7 +605,7 @@ class NfcWorkspaceTest extends TestCase
         $this->get($url)->assertNotFound();
     }
 
-    public function test_pdf_omits_empty_charts_and_preserves_graphs_with_real_data(): void
+    public function test_pdf_never_generates_the_blank_comparative_columns_page(): void
     {
         $owner = User::factory()->create();
         $params = ['from' => '2026-11-01', 'to' => '2026-11-22', 'metrics' => ['received'], 'chart' => 1, 'name' => 'Vendas Novembro NFC'];
@@ -615,6 +615,7 @@ class NfcWorkspaceTest extends TestCase
 
         $empty = $response->getContent();
         $this->assertSame(2, preg_match_all('/\/Type \/Page\b/', $empty));
+        $this->assertStringNotContainsString('Comparativos  /  colunas verticais', $empty);
         $this->assertStringNotContainsString('VALORES FINANCEIROS', $empty);
         $this->assertStringNotContainsString('INDICADORES OPERACIONAIS', $empty);
         $this->assertStringNotContainsString('COMPOSI', $empty);
@@ -627,25 +628,17 @@ class NfcWorkspaceTest extends TestCase
             'payments' => [['method' => 'pix', 'amount_cents' => 4000, 'received_on' => '2026-11-12']],
         ]);
 
-        $onlyFinancial = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => ['received']])))
-            ->assertOk()->getContent();
-        $this->assertSame(4, preg_match_all('/\/Type \/Page\b/', $onlyFinancial));
-        $this->assertStringContainsString('VALORES FINANCEIROS', $onlyFinancial);
-        $this->assertStringNotContainsString('INDICADORES OPERACIONAIS', $onlyFinancial);
-
-        $onlyOperational = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => ['sold']])))
-            ->assertOk()->getContent();
-        $this->assertSame(4, preg_match_all('/\/Type \/Page\b/', $onlyOperational));
-        $this->assertStringContainsString('INDICADORES OPERACIONAIS', $onlyOperational);
-        $this->assertStringNotContainsString('VALORES FINANCEIROS', $onlyOperational);
-        $this->assertStringContainsString('COMPOSI', $onlyOperational);
-        $this->assertStringContainsString('EVOLU', $onlyOperational);
-
-        $both = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => ['sales', 'sold']])))
-            ->assertOk()->getContent();
-        $this->assertSame(4, preg_match_all('/\/Type \/Page\b/', $both));
-        $this->assertStringContainsString('VALORES FINANCEIROS', $both);
-        $this->assertStringContainsString('INDICADORES OPERACIONAIS', $both);
+        foreach ([['received'], ['sold'], ['sales', 'sold']] as $metrics) {
+            $pdf = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => $metrics])))
+                ->assertOk()->getContent();
+            // Somente painel, detalhamento e tabela por empresa: nenhuma página de comparativos.
+            $this->assertSame(3, preg_match_all('/\/Type \/Page\b/', $pdf));
+            $this->assertStringNotContainsString('Comparativos  /  colunas verticais', $pdf);
+            $this->assertStringNotContainsString('VALORES FINANCEIROS', $pdf);
+            $this->assertStringNotContainsString('INDICADORES OPERACIONAIS', $pdf);
+            $this->assertStringContainsString('COMPOSI', $pdf);
+            $this->assertStringContainsString('EVOLU', $pdf);
+        }
 
         $withoutGraph = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => ['sold'], 'chart' => 0])))
             ->assertOk()->getContent();
