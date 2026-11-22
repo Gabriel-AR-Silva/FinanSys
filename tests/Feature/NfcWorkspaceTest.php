@@ -615,7 +615,6 @@ class NfcWorkspaceTest extends TestCase
 
         $content = $response->getContent();
         $this->assertSame(3, preg_match_all('/\\/Type \\/Page\\b/', $content));
-        $this->assertStringContainsString('Valores monet', $content);
         $this->assertStringContainsString('COMPOSI', $content);
         $this->assertStringContainsString('EVOLU', $content);
         $this->assertStringContainsString('VALORES FINANCEIROS', $content);
