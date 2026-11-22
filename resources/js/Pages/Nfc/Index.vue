@@ -159,6 +159,10 @@ function openDamage() {
     damageAmount.value = '';
     dialog.value = { kind: 'damage' };
 }
+function openDamageForBatch(batchId) {
+    openDamage();
+    if (dialog.value?.kind === 'damage') damageForm.production_id = batchId;
+}
 function saveDamage() {
     if (busy.value || damageForm.processing) return;
     const raw = damageAmount.value.trim().replace(',', '.');
@@ -826,6 +830,7 @@ watch(dialog, async (current, previous) => {
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 id="nfc-production" class="flex items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricação</h2>
                     <div class="flex flex-wrap gap-2">
+                        <button v-if="permissions.create" type="button" class="nfc-button nfc-primary" @click="openDamage"><Plus :size="17" aria-hidden="true" /> Adicionar avaria</button>
                         <button v-if="permissions.create && !hasInitialBatch" type="button" class="nfc-button" @click="edit('batch', { initial: true })">Registrar lote inicial</button>
                         <button v-if="permissions.create" type="button" class="nfc-button" @click="edit('batch')"><Plus :size="17" aria-hidden="true" /> Novo lote</button>
                     </div>
@@ -843,6 +848,7 @@ watch(dialog, async (current, previous) => {
                         </div>
                         <span class="nfc-muted text-sm tabular-nums">{{ item.cost_cents === null ? 'Custo a informar' : money(item.cost_cents) }}</span>
                         <div class="flex flex-wrap gap-2">
+                            <button v-if="permissions.create" type="button" class="nfc-button" @click="openDamageForBatch(item.id)">Registrar avaria</button>
                             <button v-if="permissions.update" type="button" class="nfc-button" :aria-label="`Editar lote #${item.id}`" @click="edit('batch', { batchId: item.id })">Editar</button>
                             <button v-if="permissions.delete" type="button" class="nfc-button nfc-danger" @click="destroy('batch', { batchId: item.id })">Excluir</button>
                         </div>
