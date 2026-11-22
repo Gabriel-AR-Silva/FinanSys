@@ -564,7 +564,12 @@ class ManageNfcRecords
 
     private function paymentFields(array $data, string $id): array
     {
-        return ['id' => $id, 'method' => $data['method'], 'amount_cents' => (int) $data['amount_cents']];
+        return [
+            'id' => $id,
+            'method' => $data['method'],
+            'amount_cents' => (int) $data['amount_cents'],
+            ...(! empty($data['received_on']) ? ['received_on' => $data['received_on']] : []),
+        ];
     }
 
     private function receivedCents(array $payments): int

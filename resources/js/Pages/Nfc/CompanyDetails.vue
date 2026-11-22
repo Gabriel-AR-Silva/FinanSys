@@ -93,7 +93,7 @@ function destroy(kind, context = {}) {
                         </p>
                         <ul v-if="sale.payments.length" class="flex flex-wrap gap-2" aria-label="Pagamentos">
                             <li v-for="payment in sale.payments" :key="payment.id" class="nfc-badge nfc-info flex items-center gap-2">
-                                {{ paymentMethods[payment.method] }} · {{ money(payment.amount_cents) }}
+                                {{ paymentMethods[payment.method] }} · {{ money(payment.amount_cents) }} · {{ payment.received_on ? date(payment.received_on) : 'Sem data' }}
                                 <button type="button" class="font-semibold underline" :aria-label="'Excluir pagamento de ' + money(payment.amount_cents)" @click="destroy('payment', { saleId: sale.id, paymentId: payment.id })">Excluir</button>
                             </li>
                         </ul>

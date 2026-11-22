@@ -94,9 +94,10 @@ class NfcController extends Controller
             'custom_quantity' => ['required', 'integer', 'min:0', 'max:1000'],
             'in_customization_quantity' => ['nullable', 'integer', 'min:0', 'max:1000'],
             'payments' => ['sometimes', 'array', 'list', 'max:100'],
-            'payments.*' => ['array:method,amount_cents'],
+            'payments.*' => ['array:method,amount_cents,received_on'],
             'payments.*.method' => ['required', Rule::in(ManageNfcRecords::PAYMENT_METHODS)],
             'payments.*.amount_cents' => self::AMOUNT_RULES,
+            'payments.*.received_on' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:'.$this->today()],
         ]);
 
         $records->storeSale($this->owner($request), $company, $data);
@@ -117,6 +118,7 @@ class NfcController extends Controller
             'operation_id' => self::OPERATION_RULES,
             'method' => ['required', Rule::in(ManageNfcRecords::PAYMENT_METHODS)],
             'amount_cents' => self::AMOUNT_RULES,
+            'received_on' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:'.$this->today()],
         ]);
 
         $records->storePayment($this->owner($request), $company, $sale, $data);

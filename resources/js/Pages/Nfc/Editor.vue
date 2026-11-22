@@ -61,7 +61,7 @@ function fields() {
                 total: inputMoney(sale?.total_cents),
             };
         case 'payment':
-            return { operation_id: crypto.randomUUID(), method: '', amount: inputMoney(sale.balance_cents) };
+            return { operation_id: crypto.randomUUID(), method: '', amount: inputMoney(sale.balance_cents), received_on: today };
         case 'plate':
             return {
                 type: plate.type, label: plate.label ?? '', notes: plate.notes ?? '',
@@ -124,13 +124,13 @@ const balance = computed(() => {
 let paymentRowKey = 0;
 
 function addPayment() {
-    form.payments.push({ key: ++paymentRowKey, method: '', amount: '' });
+    form.payments.push({ key: ++paymentRowKey, method: '', amount: '', received_on: form.sold_on || props.today });
 }
 
 function salePayload({ total, payments, ...data }) {
     const payload = { ...data, total_cents: asCents(total) };
     if (payments) {
-        payload.payments = payments.map(({ method, amount }) => ({ method, amount_cents: asCents(amount) }));
+        payload.payments = payments.map(({ method, amount, received_on }) => ({ method, amount_cents: asCents(amount), received_on: received_on || null }));
     }
     return payload;
 }
@@ -181,7 +181,7 @@ function submit() {
             else form.post(props.nfcRoute('nfc.sales.store', { company: company.id }), options);
             break;
         case 'payment':
-            form.transform(({ amount, ...data }) => ({ ...data, amount_cents: asCents(amount) }));
+            form.transform(({ amount, received_on, ...data }) => ({ ...data, amount_cents: asCents(amount), received_on: received_on || null }));
             form.post(props.nfcRoute('nfc.payments.store', { company: company.id, sale: sale.id }), options);
             break;
         case 'plate':
@@ -314,6 +314,9 @@ function submit() {
                         <label class="nfc-field">Valor (R$)
                             <input v-model.trim="payment.amount" class="nfc-control" inputmode="decimal" :pattern="decimalPattern" placeholder="0,00" required />
                         </label>
+                        <label class="nfc-field col-span-full">Data do recebimento (opcional)
+                            <input v-model="payment.received_on" class="nfc-control" type="date" :max="today" />
+                        </label>
                         <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Remover pagamento ${index + 1}`" @click="form.payments.splice(index, 1)"><Trash2 :size="16" aria-hidden="true" /></button>
                     </div>
                     <button type="button" class="nfc-button self-start" @click="addPayment"><Plus :size="16" aria-hidden="true" /> Adicionar pagamento</button>
@@ -327,6 +330,10 @@ function submit() {
 
         <template v-else-if="kind === 'payment'">
             <p class="nfc-muted text-sm">Saldo a receber {{ money(sale.balance_cents) }}</p>
+            <label class="nfc-field">Data do recebimento (opcional)
+                <input v-model="form.received_on" class="nfc-control" type="date" :max="today" />
+                <span class="nfc-muted text-xs font-normal">Deixe em branco se não souber a data real.</span>
+            </label>
             <label class="nfc-field">Forma de pagamento
                 <select v-model="form.method" class="nfc-control" required>
                     <option value="" disabled>Selecione</option>
