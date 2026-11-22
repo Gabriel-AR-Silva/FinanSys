@@ -732,7 +732,7 @@ watch(dialog, async (current, previous) => {
                     <label class="nfc-field">Nome do relatório / arquivo (opcional)
                         <input v-model.trim="reportName" type="text" class="nfc-control" maxlength="80" placeholder="Ex.: Vendas NFC - Novembro 2026" autocomplete="off" />
                         <span class="nfc-muted text-xs font-normal">Será usado como título do PDF e nome do arquivo baixado. Se ficar vazio, o nome será automático.</span>
-                        <span v-if="reportName && !/^[\\p{L}\\p{N}\\s._-]*$/u.test(reportName)" class="text-xs text-[var(--fs-danger)]">Use apenas letras, números, espaços, ponto, hífen ou sublinhado.</span>
+                        <span v-if="reportName && !/^[\p{L}\p{N}\s._-]*$/u.test(reportName)" class="text-xs text-[var(--fs-danger)]">Use apenas letras, números, espaços, ponto, hífen ou sublinhado.</span>
                     </label>
                     <div class="grid gap-3 sm:grid-cols-2">
                         <label class="nfc-field">Data inicial<input v-model="reportFrom" type="date" class="nfc-control" :max="reportTo || undefined" /></label>
