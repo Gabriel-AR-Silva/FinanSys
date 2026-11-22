@@ -153,7 +153,7 @@ class NfcWorkspaceTest extends TestCase
             ->where('summary.outstanding_cents', 6000));
 
         $paymentRoute = route('nfc.payments.store', ['company' => $company->id, 'sale' => $sale['id']]);
-        $payment = ['operation_id' => (string) Str::uuid(), 'method' => 'pix', 'amount_cents' => 6000];
+        $payment = ['operation_id' => (string) Str::uuid(), 'method' => 'pix', 'amount_cents' => 6000, 'received_on' => '2026-11-11'];
 
         $this->post($paymentRoute, array_replace($payment, ['amount_cents' => 6001]))
             ->assertSessionHasErrors('amount_cents');
@@ -164,6 +164,7 @@ class NfcWorkspaceTest extends TestCase
             ->has('companies.0.sales.0.payments', 2)
             ->where('companies.0.sales.0.payments.0.method', 'cash')
             ->where('companies.0.sales.0.payments.1.method', 'pix')
+            ->where('companies.0.sales.0.payments.1.received_on', '2026-11-11')
             ->where('companies.0.sales.0.payment_status', 'paid')
             ->where('summary.paid_plates', 4)
             ->where('summary.received_cents', 10000)
@@ -500,7 +501,9 @@ class NfcWorkspaceTest extends TestCase
         $token = $matches[1];
 
         Auth::logout();
-        $this->get($url)->assertOk();
+        $this->get($url)->assertInertia(fn (Assert $page) => $page
+            ->where('read_only', true)
+            ->has('history', 0));
         $this->post(route('nfc.share.companies.store', ['token' => $token]), [
             'operation_id' => (string) Str::uuid(),
             'name' => 'Bloqueado',

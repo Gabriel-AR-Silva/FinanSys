@@ -107,6 +107,7 @@ function points(key) {
                 <span class="h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: series.color, opacity: selected[mode].includes(series.key) ? 1 : 0.3 }" aria-hidden="true"></span>{{ series.label }}
             </button>
         </div>
+        <p v-if="mode === 'finance' && (report.undated.received || report.undated.cost || report.undated.unknownCosts)" class="nfc-muted text-xs">Há valores sem data ou custos desconhecidos; as séries mostram somente os registros datados e valores conhecidos. Consulte os detalhes abaixo.</p>
         <p v-if="!report.hasData" class="nfc-muted text-sm">Nenhum registro com data no período selecionado.</p>
         <div v-else class="nfc-scrollbar min-w-0 overflow-x-auto">
             <svg viewBox="0 0 900 256" class="block w-full min-w-[560px]" role="img" :aria-label="'Gráfico ' + (chartType === 'line' ? 'de linhas' : 'de barras') + ' mensais em ' + (mode === 'finance' ? 'reais' : 'unidades')">

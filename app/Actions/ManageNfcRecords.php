@@ -276,7 +276,7 @@ class ManageNfcRecords
             [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION],
             fn (array $payload): array => [
                 ...$this->productionFields([...$payload, ...$data]),
-                'manufacturer_id' => $this->validatedManufacturerId($user, $data['manufacturer_id'] ?? $payload['manufacturer_id'] ?? null),
+                'manufacturer_id' => $this->validatedManufacturerId($user, array_key_exists('manufacturer_id', $data) ? $data['manufacturer_id'] : ($payload['manufacturer_id'] ?? null)),
             ],
         );
     }

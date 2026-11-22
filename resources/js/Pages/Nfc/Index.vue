@@ -364,7 +364,7 @@ watch(dialog, async (current, previous) => {
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC <span v-if="read_only" class="nfc-muted block text-xs font-medium">Acesso somente para consulta</span></h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
                     <button v-if="!shared && share_links_enabled && authenticatedUser" type="button" class="nfc-button" @click="dialog = { kind: 'share' }">Compartilhar</button>
-                    <button type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
+                    <button v-if="!shared" type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
                         <Bell :size="18" aria-hidden="true" />
                         <span v-if="noticeCount" class="nfc-badge nfc-warning tabular-nums" aria-hidden="true">{{ noticeCount }}</span>
