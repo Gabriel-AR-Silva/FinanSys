@@ -87,6 +87,19 @@ class NfcReportQuery
                 $companies[] = $companyRow;
             }
         }
+        foreach ($dashboard['damages'] ?? [] as $damage) {
+            $bucket = $bucketFor($damage['occurred_on'] ?? null);
+            if ($bucket === null) {
+                continue;
+            }
+            $quantity = (int) $damage['quantity'];
+            $loss = (int) ($damage['estimated_loss_cents'] ?? 0);
+            $values['defective'] += $quantity;
+            $values['loss'] += $loss;
+            $timeline[$bucket]['defective'] += $quantity;
+            $timeline[$bucket]['loss'] += $loss;
+            $unknownLosses += $damage['estimated_loss_cents'] === null ? $quantity : 0;
+        }
         foreach ($dashboard['production'] as $batch) {
             if (empty($batch['produced_on'])) {
                 $undatedBatches++;
