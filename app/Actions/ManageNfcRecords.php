@@ -323,7 +323,7 @@ class ManageNfcRecords
             $stored['plates'][$index]['defective'] = true;
             $stored['plates'][$index]['estimated_loss_cents'] = $data['estimated_loss_cents'] ?? null;
             $description = trim($data['reason']);
-            $stored['plates'][$index]['notes'] = trim(($stored['plates'][$index]['notes'] ?? '')."\nAvaria em ".$data['occurred_on'].": ".$description);
+            $stored['plates'][$index]['notes'] = trim(($stored['plates'][$index]['notes'] ?? '').'\nAvaria em '.$data['occurred_on'].': '.$description);
 
             return $stored;
         });
