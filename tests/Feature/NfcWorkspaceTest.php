@@ -27,7 +27,6 @@ class NfcWorkspaceTest extends TestCase
         $this->withoutVite();
     }
 
-
     public function test_manufacturing_damage_updates_summary_and_can_be_removed(): void
     {
         $owner = User::factory()->create();
