@@ -320,7 +320,7 @@ function submit() {
                 <label class="nfc-field">Custo (R$)<input v-model.trim="quickBatch.cost" class="nfc-control" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" :disabled="quickRecordBusy" placeholder="A informar" /></label>
                 <p v-for="error in Object.values(quickBatch.errors)" :key="error" class="text-xs text-[var(--fs-danger)]" role="alert">{{ error }}</p>
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" class="nfc-button nfc-primary" :disabled="quickRecordBusy || !quickBatch.quantity || quickBatch.quantity < 1 || ((quickBatch.cost !== '' && asCents(quickBatch.cost) === null)" @click="createQuickRecord('production')">{{ quickRecordBusy ? 'Cadastrando…' : 'Cadastrar lote' }}</button>
+                    <button type="button" class="nfc-button nfc-primary" :disabled="quickRecordBusy || !quickBatch.quantity || quickBatch.quantity < 1 || (quickBatch.cost !== '' && asCents(quickBatch.cost) === null)" @click="createQuickRecord('production')">{{ quickRecordBusy ? 'Cadastrando…' : 'Cadastrar lote' }}</button>
                     <button type="button" class="nfc-button" :disabled="quickRecordBusy" @click="quickRecordKind = null">Voltar à unidade</button>
                 </div>
             </div>
