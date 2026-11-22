@@ -111,6 +111,8 @@ Route::middleware('auth')->group(function () {
         Route::delete('/fabricantes/{manufacturer}/imagens/{image}', [NfcManufacturerController::class, 'deleteImage'])->whereNumber('manufacturer')->whereUuid('image')->name('manufacturers.images.destroy');
         Route::post('/producao', 'storeProduction')->name('production.store');
         Route::patch('/producao/{production}', 'updateProduction')->whereNumber('production')->name('production.update');
+        Route::post('/reinvestimentos', 'storeReinvestment')->name('reinvestments.store');
+        Route::delete('/reinvestimentos/{reinvestment}', 'deleteReinvestment')->whereNumber('reinvestment')->name('reinvestments.destroy');
         Route::post('/avisos', 'storeNotice')->name('notices.store');
         Route::patch('/avisos/{notice}/resolver', 'resolveNotice')->whereNumber('notice')->name('notices.resolve');
         Route::delete('/empresas/{company}', 'deleteCompany')->whereNumber('company')->name('companies.destroy');

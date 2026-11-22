@@ -19,6 +19,8 @@ class NfcRecord extends Model
 
     public const NOTICE = 'notice';
 
+    public const REINVESTMENT = 'reinvestment';
+
     public const HISTORY = 'history';
 
     protected function casts(): array

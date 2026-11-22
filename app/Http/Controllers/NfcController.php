@@ -67,6 +67,7 @@ class NfcController extends Controller
             'metrics' => ['required', 'array', 'list', 'min:1', 'max:9'],
             'metrics.*' => ['required', 'distinct', Rule::in(NfcReportQuery::METRICS)],
             'chart' => ['sometimes', 'boolean'],
+            'reinvestments' => ['sometimes', 'boolean'],
             'name' => ['sometimes', 'nullable', 'string', 'max:80', 'regex:/^[\p{L}\p{N}\s._-]+$/u'],
         ]);
         $report = $query->calculate($dashboard->forUser($user, false), $data['from'], $data['to']);
@@ -75,7 +76,7 @@ class NfcController extends Controller
         $slug = $title === '' ? $fallback : Str::slug($title);
         $filename = Str::limit($slug ?: $fallback, 80, '');
 
-        return response($pdf->render($report, $data['metrics'], $data['from'], $data['to'], $request->boolean('chart'), $title), 200, [
+        return response($pdf->render($report, $data['metrics'], $data['from'], $data['to'], $request->boolean('chart'), $title, $request->boolean('reinvestments', true)), 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="'.$filename.'.pdf"',
             'Cache-Control' => 'private, no-store, max-age=0',
@@ -220,6 +221,34 @@ class NfcController extends Controller
         $records->updateProduction($this->owner($request), $production, $request->validate($this->productionRules()));
 
         return $this->redirectToDashboard($request);
+    }
+
+    public function storeReinvestment(Request $request, ManageNfcRecords $records): RedirectResponse
+    {
+        abort_if($request->attributes->has('nfc_share_owner'), 403);
+        $user = $request->user();
+        abort_unless($user instanceof User, 403);
+
+        $data = $request->validate([
+            'operation_id' => self::OPERATION_RULES,
+            'spent_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.$this->today()],
+            'amount_cents' => self::AMOUNT_RULES,
+            'description' => ['required', 'string', 'max:160'],
+            'production_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $records->storeReinvestment($user, $data);
+
+        return to_route('nfc.index', status: 303);
+    }
+
+    public function deleteReinvestment(Request $request, ManageNfcRecords $records, int $reinvestment): RedirectResponse
+    {
+        abort_if($request->attributes->has('nfc_share_owner'), 403);
+        $user = $request->user();
+        abort_unless($user instanceof User, 403);
+        $records->deleteRecord($user, $reinvestment, NfcRecord::REINVESTMENT);
+
+        return to_route('nfc.index', status: 303);
     }
 
     public function storeNotice(Request $request, ManageNfcRecords $records): RedirectResponse

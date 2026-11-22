@@ -93,6 +93,10 @@ class NfcDashboardQuery
                 ];
             })->values();
 
+        $reinvestments = $records->where('kind', NfcRecord::REINVESTMENT)
+            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
+            ->sortByDesc('spent_on')->values();
+
         $sales = $companies->flatMap(fn (array $company): array => $company['sales']);
         $plates = $sales->flatMap(fn (array $sale): array => $sale['plates']);
 
@@ -113,10 +117,13 @@ class NfcDashboardQuery
                 'production_cost_cents' => $production->sum('cost_cents'),
                 'unknown_cost_batches' => $production->whereNull('cost_cents')->count(),
                 'received_cents' => $sales->sum('paid_cents'),
+                'reinvested_cents' => $reinvestments->sum('amount_cents'),
+                'cash_available_cents' => $sales->sum('paid_cents') - $reinvestments->sum('amount_cents'),
                 'outstanding_cents' => $sales->sum('balance_cents'),
             ],
             'companies' => $companies->all(),
             'production' => $production->all(),
+            'reinvestments' => $reinvestments->all(),
             'manufacturers' => $manufacturers->all(),
             'notices' => $this->notices($records->where('kind', NfcRecord::NOTICE), $companies->keyBy('id')),
             'warranty_notices' => $this->warrantyNotices($companies, $today),

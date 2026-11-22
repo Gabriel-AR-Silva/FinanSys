@@ -105,6 +105,17 @@ class NfcReportQuery
                 $timeline[$batchBucket]['manufactured'] += $batch['quantity'];
             }
         }
+        $reinvested = 0;
+        $reinvestmentRows = [];
+        foreach ($dashboard['reinvestments'] ?? [] as $reinvestment) {
+            if (! $inRange($reinvestment['spent_on'] ?? null)) {
+                continue;
+            }
+
+            $amount = (int) $reinvestment['amount_cents'];
+            $reinvested += $amount;
+            $reinvestmentRows[] = $reinvestment;
+        }
         $values['result'] = $unknownCosts || $undatedBatches ? null : $values['sales'] - $values['cost'];
         foreach ($timeline as &$bucket) {
             $bucket['result'] = $values['result'] === null ? null : $bucket['sales'] - $bucket['cost'];
@@ -123,6 +134,12 @@ class NfcReportQuery
             'unknownLosses' => $unknownLosses,
             'undatedPayments' => $undatedPayments,
             'undatedBatches' => $undatedBatches,
+            'cash' => [
+                'received_cents' => $values['received'],
+                'reinvested_cents' => $reinvested,
+                'net_cents' => $values['received'] - $reinvested,
+            ],
+            'reinvestmentRows' => $reinvestmentRows,
         ];
     }
 }
