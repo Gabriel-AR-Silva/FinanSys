@@ -180,6 +180,29 @@ class NfcManufacturerTest extends TestCase
             ->assertSessionHasErrors('manufacturer');
     }
 
+    public function test_completed_batch_can_be_saved_without_fabrication_date(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner)->post(route('nfc.production.store'), [
+            'operation_id' => (string) Str::uuid(),
+            'initial' => false,
+            'produced_on' => null,
+            'quantity' => 12,
+            'customized_quantity' => 2,
+            'cost_cents' => null,
+            'status' => 'completed',
+        ])->assertRedirect(route('nfc.index'));
+
+        $batch = NfcRecord::query()->whereBelongsTo($owner)->where('kind', NfcRecord::PRODUCTION)->firstOrFail();
+        $this->assertNull($batch->payload['produced_on']);
+        $this->assertSame('completed', $batch->payload['status']);
+        $this->assertSame(12, $batch->payload['quantity']);
+
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('production.0.produced_on', null)
+            ->where('production.0.status', 'completed'));
+    }
+
     private function createManufacturer(User $owner): NfcRecord
     {
         $this->actingAs($owner)->post(route('nfc.manufacturers.store'), [
