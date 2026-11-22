@@ -3,7 +3,7 @@ import Modal from '@/Components/Modal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import NfcSharedLayout from '@/Layouts/NfcSharedLayout.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, Eye, EyeOff, EllipsisVertical, Share2, Trash2, X } from '@lucide/vue';
+import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, Eye, EyeOff, EllipsisVertical, Share2, Trash2, FileDown, X } from '@lucide/vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import CompanyDetails from './CompanyDetails.vue';
 import ManufacturerDetails from './ManufacturerDetails.vue';
@@ -88,9 +88,33 @@ const shareScope = ref('view');
 const settingsOpen = ref(false);
 const settingsButton = ref(null);
 const resetConfirmation = ref('');
+const reportFrom = ref('');
+const reportTo = ref('');
+const reportChart = ref(true);
+const reportOptions = [
+    { key: 'sales', label: 'Valor vendido' },
+    { key: 'received', label: 'Recebido' },
+    { key: 'pending', label: 'A receber' },
+    { key: 'cost', label: 'Custo de fabricação' },
+    { key: 'loss', label: 'Perdas estimadas' },
+    { key: 'result', label: 'Diferença e margem gerencial' },
+    { key: 'sold', label: 'Plaquinhas vendidas' },
+    { key: 'manufactured', label: 'Plaquinhas fabricadas' },
+    { key: 'defective', label: 'Plaquinhas defeituosas' },
+];
+const reportMetrics = ref(reportOptions.map(item => item.key));
+const reportValid = computed(() => !!reportFrom.value && !!reportTo.value && reportFrom.value <= reportTo.value && reportMetrics.value.length > 0);
+const reportUrl = computed(() => {
+    if (!reportValid.value || props.shared || !authenticatedUser.value || props.schema_pending) return '';
+    return route('nfc.report.export', { from: reportFrom.value, to: reportTo.value, metrics: reportMetrics.value, chart: reportChart.value ? 1 : 0 });
+});
 function openSettingsAction(kind) {
     if (props.shared || !authenticatedUser.value || busy.value || shareBusy.value) return;
-    if (kind === 'reset' && props.schema_pending) return;
+    if (['reset', 'report'].includes(kind) && props.schema_pending) return;
+    if (kind === 'report' && !reportFrom.value) {
+        reportFrom.value = props.today.slice(0, 7) + '-01';
+        reportTo.value = props.today;
+    }
     settingsOpen.value = false;
     resetConfirmation.value = '';
     dialog.value = { kind };
@@ -318,6 +342,7 @@ const titles = {
     history: 'Histórico de alterações',
     share: 'Links de acesso NFC',
     reset: 'Zerar cadastros NFC',
+    report: 'Exportar relatório PDF',
     notice: 'Novo aviso',
     payment: 'Registrar pagamento',
     plate: 'Editar plaquinha',
@@ -460,6 +485,7 @@ watch(dialog, async (current, previous) => {
                         <button ref="settingsButton" type="button" class="nfc-button nfc-icon-button" aria-label="Configurações NFC" :aria-expanded="settingsOpen" aria-controls="nfc-owner-settings" @click="settingsOpen = !settingsOpen"><EllipsisVertical :size="19" aria-hidden="true" /></button>
                         <div v-if="settingsOpen" id="nfc-owner-settings" class="nfc-panel absolute right-0 top-full z-30 mt-2 flex w-48 flex-col gap-1 p-1 shadow-lg">
                             <button type="button" class="nfc-button w-full justify-start" @click="openSettingsAction('share')"><Share2 :size="16" aria-hidden="true" /> Compartilhar</button>
+                            <button type="button" class="nfc-button w-full justify-start" :disabled="schema_pending" @click="openSettingsAction('report')"><FileDown :size="16" aria-hidden="true" /> Exportar PDF</button>
                             <button type="button" class="nfc-button nfc-danger w-full justify-start" :disabled="schema_pending || busy || shareBusy" @click="openSettingsAction('reset')"><Trash2 :size="16" aria-hidden="true" /> Zerar</button>
                         </div>
                     </div>
@@ -698,6 +724,31 @@ watch(dialog, async (current, previous) => {
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
                         <button type="button" class="nfc-button" :disabled="busy" @click="goBack">Cancelar</button>
                         <button type="button" class="nfc-button nfc-danger" :disabled="busy" @click="confirmDestroy">{{ busy ? 'Processando…' : confirmDeleteLabel }}</button>
+                    </div>
+                </div>
+                <div v-else-if="dialog.kind === 'report' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
+                    <p class="nfc-muted text-sm">Escolha o período e os indicadores. O arquivo contém somente dados do seu plugin NFC.</p>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="nfc-field">Data inicial<input v-model="reportFrom" type="date" class="nfc-control" :max="reportTo || undefined" /></label>
+                        <label class="nfc-field">Data final<input v-model="reportTo" type="date" class="nfc-control" :min="reportFrom || undefined" /></label>
+                    </div>
+                    <fieldset class="nfc-panel flex flex-col gap-3 p-3">
+                        <legend class="px-1 text-sm font-semibold">Indicadores do relatório</legend>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" class="nfc-button text-xs" @click="reportMetrics = reportOptions.map(item => item.key)">Selecionar todos</button>
+                            <button type="button" class="nfc-button text-xs" @click="reportMetrics = []">Limpar seleção</button>
+                        </div>
+                        <div class="grid gap-2 sm:grid-cols-2">
+                            <label v-for="item in reportOptions" :key="item.key" class="flex items-start gap-2 text-sm"><input v-model="reportMetrics" type="checkbox" :value="item.key" />{{ item.label }}</label>
+                        </div>
+                    </fieldset>
+                    <label class="flex items-center gap-2 text-sm"><input v-model="reportChart" type="checkbox" /> Incluir gráficos comparativos quando aplicável</label>
+                    <p class="nfc-muted text-xs">A margem compara vendas e custos de fabricação no intervalo; não representa lucro contábil. O saldo a receber é o saldo atual das vendas do período.</p>
+                    <p v-if="hiddenValues" class="nfc-warning rounded-lg p-3 text-sm">O PDF inclui os valores reais dos indicadores selecionados, mesmo com o olho fechado.</p>
+                    <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
+                        <button type="button" class="nfc-button" @click="closeDialog">Fechar</button>
+                        <a v-if="reportUrl" :href="reportUrl" class="nfc-button nfc-primary" download><FileDown :size="16" aria-hidden="true" /> Baixar PDF</a>
+                        <button v-else type="button" class="nfc-button nfc-primary" disabled>Baixar PDF</button>
                     </div>
                 </div>
                 <form v-else-if="dialog.kind === 'reset' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="resetWorkspace">
