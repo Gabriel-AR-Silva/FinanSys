@@ -187,17 +187,6 @@ function saveDamage() {
         onError: errors => reportError(errors, 'Não foi possível registrar a avaria.'),
     });
 }
-function deleteDamage(entry) {
-    if (!props.permissions.delete || busy.value || !confirm('Excluir esta avaria da fabricação?')) return;
-    router.delete(nfcRoute('nfc.damages.destroy', { damage: entry.id }), {
-        preserveScroll: true,
-        onStart: () => { busy.value = true; },
-        onFinish: () => { busy.value = false; },
-        onSuccess: () => notify({ message: 'Avaria excluída.' }),
-        onError: errors => reportError(errors, 'Não foi possível excluir a avaria.'),
-    });
-}
-
 const reportOptions = [
     { key: 'sales', label: 'Valor vendido' },
     { key: 'received', label: 'Recebido' },
@@ -483,6 +472,7 @@ const deleteDescriptions = {
     image: 'Esta imagem será removida permanentemente da galeria do fabricante.',
     notice: 'O aviso será excluído da lista de pendências.',
     reinvestment: 'Esta retirada será removida e o dinheiro voltará a aparecer no saldo disponível do caixa NFC.',
+    damage: 'Esta avaria será removida e os indicadores de defeitos serão recalculados.',
     'share-link': 'O link deixará de permitir acesso imediatamente, inclusive para quem já o recebeu.',
 };
 const confirmDeleteLabel = computed(() => dialog.value?.deleteKind === 'share-link' ? 'Revogar link' : 'Excluir registro');
@@ -505,6 +495,7 @@ function confirmDestroy() {
         image: ['nfc.manufacturers.images.destroy', { manufacturer: context.manufacturerId, image: context.imageId }],
         notice: ['nfc.notices.destroy', { notice: context.noticeId }],
         reinvestment: ['nfc.reinvestments.destroy', { reinvestment: context.reinvestmentId }],
+        damage: ['nfc.damages.destroy', { damage: context.damageId }],
         'share-link': ['nfc.share-links.destroy', { link: context.linkId }],
     };
     const target = routeNames[kind];
@@ -673,7 +664,7 @@ watch(dialog, async (current, previous) => {
                                         <p class="nfc-muted break-words text-xs">{{ date(entry.occurred_on) }} · {{ entry.reason }}</p>
                                     </div>
                                     <span class="tabular-nums">{{ entry.estimated_loss_cents == null ? 'Não estimado' : money(entry.estimated_loss_cents) }}</span>
-                                    <button v-if="permissions.delete" type="button" class="nfc-button nfc-icon-button nfc-danger" :aria-label="'Excluir avaria do lote ' + entry.production_id" @click="deleteDamage(entry)"><Trash2 :size="16" aria-hidden="true" /></button>
+                                    <button v-if="permissions.delete" type="button" class="nfc-button nfc-icon-button nfc-danger" :aria-label="'Excluir avaria do lote ' + entry.production_id" @click="destroy('damage', { damageId: entry.id })"><Trash2 :size="16" aria-hidden="true" /></button>
                                 </li>
                             </ul>
                             <p v-else class="nfc-muted mt-2 text-xs">Nenhuma avaria de fabricação cadastrada. Defeitos de plaquinhas vendidas aparecem na empresa correspondente.</p>
