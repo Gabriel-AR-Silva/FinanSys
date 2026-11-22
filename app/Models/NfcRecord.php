@@ -21,6 +21,8 @@ class NfcRecord extends Model
 
     public const REINVESTMENT = 'reinvestment';
 
+    public const EXPENSE = 'expense';
+
     public const DAMAGE = 'damage';
 
     public const HISTORY = 'history';
