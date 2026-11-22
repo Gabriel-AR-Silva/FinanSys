@@ -367,6 +367,48 @@ class ManageNfcRecords
         }, 3);
     }
 
+    public function storeExpense(User $user, array $data): void
+    {
+        DB::transaction(function () use ($user, $data): void {
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $productionId = $this->validatedProductionId($user, $data['production_id'] ?? null);
+            $damageId = isset($data['damage_id']) ? (int) $data['damage_id'] : null;
+            if ($damageId !== null) {
+                $damage = NfcRecord::query()->whereBelongsTo($user)->where('kind', NfcRecord::DAMAGE)
+                    ->whereKey($damageId)->first();
+                if (! $damage || ! empty($damage->payload['deleted_at'])) {
+                    throw ValidationException::withMessages(['damage_id' => 'Selecione uma avaria válida de fabricação.']);
+                }
+                if ($productionId !== null && $productionId !== ($damage->payload['production_id'] ?? null)) {
+                    throw ValidationException::withMessages(['production_id' => 'O lote não corresponde à avaria selecionada.']);
+                }
+            }
+            $payload = [
+                'spent_on' => $data['spent_on'],
+                'amount_cents' => (int) $data['amount_cents'],
+                'category' => $data['category'],
+                'description' => trim($data['description']),
+                'production_id' => $productionId,
+                'damage_id' => $damageId,
+            ];
+            $operationId = strtolower($data['operation_id']);
+            $existing = NfcRecord::query()->whereBelongsTo($user)->where('kind', NfcRecord::EXPENSE)
+                ->where('record_key', $operationId)->first();
+            if ($existing) {
+                if ($existing->payload !== $payload) {
+                    throw ValidationException::withMessages(['operation_id' => 'Esta despesa já foi registrada com dados diferentes.']);
+                }
+
+                return;
+            }
+            $available = app(NfcDashboardQuery::class)->forUser($user, false)['summary']['cash_available_cents'];
+            if ($payload['amount_cents'] > $available) {
+                throw ValidationException::withMessages(['amount_cents' => 'A despesa ultrapassa o saldo disponível do caixa.']);
+            }
+            $this->createRecord($user, NfcRecord::EXPENSE, $operationId, $payload);
+        }, 3);
+    }
+
     public function storeNotice(User $user, array $data): void
     {
         $companyId = isset($data['company_id']) ? (int) $data['company_id'] : null;
