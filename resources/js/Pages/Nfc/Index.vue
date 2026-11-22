@@ -3,7 +3,7 @@ import Modal from '@/Components/Modal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import NfcSharedLayout from '@/Layouts/NfcSharedLayout.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, Eye, EyeOff, X } from '@lucide/vue';
+import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, Eye, EyeOff, EllipsisVertical, Share2, Trash2, X } from '@lucide/vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import CompanyDetails from './CompanyDetails.vue';
 import ManufacturerDetails from './ManufacturerDetails.vue';
@@ -85,6 +85,42 @@ const dialogHeading = ref(null);
 const busy = ref(false);
 const shareBusy = ref(false);
 const shareScope = ref('view');
+const settingsOpen = ref(false);
+const settingsButton = ref(null);
+const resetConfirmation = ref('');
+function openSettingsAction(kind) {
+    if (props.shared || !authenticatedUser.value || busy.value || shareBusy.value) return;
+    if (kind === 'reset' && props.schema_pending) return;
+    settingsOpen.value = false;
+    resetConfirmation.value = '';
+    dialog.value = { kind };
+}
+function closeSettings() {
+    if (!settingsOpen.value) return;
+    settingsOpen.value = false;
+    settingsButton.value?.focus();
+}
+function resetWorkspace() {
+    if (props.shared || !authenticatedUser.value || props.schema_pending || busy.value || resetConfirmation.value !== 'ZERAR') return;
+    router.delete(route('nfc.reset'), {
+        data: { confirmation: resetConfirmation.value },
+        preserveScroll: true,
+        onStart: () => { busy.value = true; },
+        onFinish: () => { busy.value = false; },
+        onSuccess: () => {
+            dialog.value = null;
+            resetConfirmation.value = '';
+            filter.value = 'all';
+            search.value = '';
+            productionSearch.value = '';
+            manufacturerSearch.value = '';
+            activeDashboardTab.value = 'finance';
+            activeRegistryTab.value = 'companies';
+            notify({ message: 'Cadastros NFC zerados. Links compartilhados preservados.' });
+        },
+        onError: errors => reportError(errors, 'Não foi possível zerar os cadastros.'),
+    });
+}
 const scopeOptions = [
     { value: 'view', label: 'Somente consulta' },
     { value: 'c', label: 'Consultar e cadastrar' },
@@ -281,6 +317,7 @@ const titles = {
     'confirm-delete': 'Confirmar ação',
     history: 'Histórico de alterações',
     share: 'Links de acesso NFC',
+    reset: 'Zerar cadastros NFC',
     notice: 'Novo aviso',
     payment: 'Registrar pagamento',
     plate: 'Editar plaquinha',
@@ -419,7 +456,13 @@ watch(dialog, async (current, previous) => {
             <header class="flex flex-wrap items-center justify-between gap-3">
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC <span v-if="read_only" class="nfc-muted block text-xs font-medium">Acesso somente para consulta</span></h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
-                    <button v-if="!shared && authenticatedUser" type="button" class="nfc-button" @click="dialog = { kind: 'share' }">Compartilhar</button>
+                    <div v-if="!shared && authenticatedUser" class="relative" @keydown.esc.stop="closeSettings" @focusout="event => { if (!event.currentTarget.contains(event.relatedTarget)) settingsOpen = false; }">
+                        <button ref="settingsButton" type="button" class="nfc-button nfc-icon-button" aria-label="Configurações NFC" :aria-expanded="settingsOpen" aria-controls="nfc-owner-settings" @click="settingsOpen = !settingsOpen"><EllipsisVertical :size="19" aria-hidden="true" /></button>
+                        <div v-if="settingsOpen" id="nfc-owner-settings" class="nfc-panel absolute right-0 top-full z-30 mt-2 flex w-48 flex-col gap-1 p-1 shadow-lg">
+                            <button type="button" class="nfc-button w-full justify-start" @click="openSettingsAction('share')"><Share2 :size="16" aria-hidden="true" /> Compartilhar</button>
+                            <button type="button" class="nfc-button nfc-danger w-full justify-start" :disabled="schema_pending || busy || shareBusy" @click="openSettingsAction('reset')"><Trash2 :size="16" aria-hidden="true" /> Zerar</button>
+                        </div>
+                    </div>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="hiddenValues ? 'Mostrar valores' : 'Ocultar valores'" :aria-pressed="hiddenValues" @click="togglePrivacy"><EyeOff v-if="hiddenValues" :size="18" aria-hidden="true" /><Eye v-else :size="18" aria-hidden="true" /></button>
                     <button v-if="!shared" type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
@@ -657,6 +700,17 @@ watch(dialog, async (current, previous) => {
                         <button type="button" class="nfc-button nfc-danger" :disabled="busy" @click="confirmDestroy">{{ busy ? 'Processando…' : confirmDeleteLabel }}</button>
                     </div>
                 </div>
+                <form v-else-if="dialog.kind === 'reset' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="resetWorkspace">
+                    <p class="text-sm leading-6">Esta ação excluirá permanentemente todas as empresas, unidades, fabricantes, lotes, vendas, plaquinhas, pagamentos, avisos, imagens e histórico da sua área NFC.</p>
+                    <p class="nfc-muted text-sm">Os links de acesso e os dados dos demais módulos do FinanSys serão preservados. Esta ação não pode ser desfeita.</p>
+                    <label class="nfc-field">Digite ZERAR para confirmar
+                        <input v-model="resetConfirmation" class="nfc-control" type="text" autocomplete="off" :disabled="busy" />
+                    </label>
+                    <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
+                        <button type="button" class="nfc-button" :disabled="busy" @click="closeDialog">Cancelar</button>
+                        <button type="submit" class="nfc-button nfc-danger" :disabled="busy || schema_pending || resetConfirmation !== 'ZERAR'">{{ busy ? 'Zerando…' : 'Zerar todos os cadastros' }}</button>
+                    </div>
+                </form>
                 <div v-else-if="dialog.kind === 'share' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
                     <p v-if="!share_links_enabled" class="nfc-warning rounded-lg p-3 text-sm">Aplique a migration de permissões dos links NFC para habilitar a emissão e edição de links.</p>
                     <p class="nfc-muted text-sm">Links válidos por sete dias. Escolha as operações permitidas. Cada link mantém sua própria configuração.</p>
