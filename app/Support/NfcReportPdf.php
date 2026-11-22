@@ -16,7 +16,7 @@ class NfcReportPdf
         'defective' => 'Plaquinhas defeituosas',
     ];
 
-    public function render(array $report, array $metrics, string $from, string $to, bool $chart, ?string $name = null): string
+    public function render(array $report, array $metrics, string $from, string $to, bool $chart, ?string $name = null, bool $includeReinvestments = true): string
     {
         $metrics = array_values(array_intersect(array_keys(self::LABELS), $metrics));
         $values = $report['values'];
@@ -257,7 +257,7 @@ class NfcReportPdf
             $y -= 26;
         }
         $cash = $report['cash'] ?? [];
-        if (($cash['received_cents'] ?? 0) > 0 || ($cash['reinvested_cents'] ?? 0) > 0) {
+        if ($includeReinvestments && (($cash['received_cents'] ?? 0) > 0 || ($cash['reinvested_cents'] ?? 0) > 0)) {
             $y -= 17;
             $text(50, $y, 'MOVIMENTAÇÃO DO CAIXA NFC NO PERÍODO', 11, true);
             $y -= 23;
