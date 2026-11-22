@@ -373,7 +373,7 @@ class NfcWorkspaceTest extends TestCase
             '2026-11-01',
             '2026-11-22',
         );
-        $this->assertSame(['received_cents' => 10000, 'reinvested_cents' => 4000, 'net_cents' => 6000], $report['cash']);
+        $this->assertSame(['received_cents' => 10000, 'reinvested_cents' => 4000, 'expenses_cents' => 0, 'net_cents' => 6000], $report['cash']);
         $this->assertSame(10000, $report['values']['sales']);
         $this->assertSame(4000, $report['values']['cost']);
         $this->assertSame(6000, $report['values']['result']);
