@@ -163,7 +163,7 @@ class NfcReportPdf
 
             $series = [];
             foreach (['sales', 'received', 'pending', 'cost', 'loss', 'result', 'sold', 'manufactured', 'defective'] as $key) {
-                if (! in_array($key, $metrics, true) || ($key === 'result' && $values[$key] === null)) {
+                if (in_array($key, $metrics, true) === false || ($key === 'result' && $values[$key] === null)) {
                     continue;
                 }
                 if (count($series) >= 2) {
@@ -228,7 +228,7 @@ class NfcReportPdf
                 $bottom = $top - $height;
                 $rect(50, $bottom, 495, $height, '1 1 1', true);
                 $text(65, $top - 28, $title, 11, true);
-                if (! $keys) {
+                if (count($keys) === 0) {
                     $text(65, $top - 67, 'Nenhum indicador selecionado para este grupo.', 9, false, 'muted');
                     return;
                 }
