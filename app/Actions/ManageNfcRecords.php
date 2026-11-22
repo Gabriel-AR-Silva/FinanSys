@@ -4,8 +4,8 @@ namespace App\Actions;
 
 use App\Models\NfcAccessLink;
 use App\Models\NfcRecord;
-use App\Queries\NfcDashboardQuery;
 use App\Models\User;
+use App\Queries\NfcDashboardQuery;
 use Closure;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
