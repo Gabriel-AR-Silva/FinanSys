@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -66,12 +67,17 @@ class NfcController extends Controller
             'metrics' => ['required', 'array', 'list', 'min:1', 'max:9'],
             'metrics.*' => ['required', 'distinct', Rule::in(NfcReportQuery::METRICS)],
             'chart' => ['sometimes', 'boolean'],
+            'name' => ['sometimes', 'nullable', 'string', 'max:80', 'regex:/^[\p{L}\p{N}\s._-]+$/u'],
         ]);
         $report = $query->calculate($dashboard->forUser($user, false), $data['from'], $data['to']);
+        $title = trim($data['name'] ?? '');
+        $fallback = 'nfc-relatorio-'.$data['from'].'-'.$data['to'];
+        $slug = $title === '' ? $fallback : Str::slug($title);
+        $filename = Str::limit($slug ?: $fallback, 80, '');
 
-        return response($pdf->render($report, $data['metrics'], $data['from'], $data['to'], $request->boolean('chart')), 200, [
+        return response($pdf->render($report, $data['metrics'], $data['from'], $data['to'], $request->boolean('chart'), $title), 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="nfc-relatorio-'.$data['from'].'-'.$data['to'].'.pdf"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'.pdf"',
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
         ]);
