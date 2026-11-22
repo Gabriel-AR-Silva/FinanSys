@@ -89,6 +89,7 @@ const settingsOpen = ref(false);
 const settingsButton = ref(null);
 const resetConfirmation = ref('');
 const reportFrom = ref('');
+const reportName = ref('');
 const reportTo = ref('');
 const reportChart = ref(true);
 const reportOptions = [
@@ -103,10 +104,10 @@ const reportOptions = [
     { key: 'defective', label: 'Plaquinhas defeituosas' },
 ];
 const reportMetrics = ref(reportOptions.map(item => item.key));
-const reportValid = computed(() => !!reportFrom.value && !!reportTo.value && reportFrom.value <= reportTo.value && reportMetrics.value.length > 0);
+const reportValid = computed(() => !!reportFrom.value && !!reportTo.value && reportFrom.value <= reportTo.value && reportMetrics.value.length > 0 && reportName.value.length <= 80 && /^[\p{L}\p{N}\s._-]*$/u.test(reportName.value));
 const reportUrl = computed(() => {
     if (!reportValid.value || props.shared || !authenticatedUser.value || props.schema_pending) return '';
-    return route('nfc.report.export', { from: reportFrom.value, to: reportTo.value, metrics: reportMetrics.value, chart: reportChart.value ? 1 : 0 });
+    return route('nfc.report.export', { from: reportFrom.value, to: reportTo.value, metrics: reportMetrics.value, chart: reportChart.value ? 1 : 0, ...(reportName.value.trim() ? { name: reportName.value.trim() } : {}) });
 });
 function openSettingsAction(kind) {
     if (props.shared || !authenticatedUser.value || busy.value || shareBusy.value) return;
@@ -728,6 +729,11 @@ watch(dialog, async (current, previous) => {
                 </div>
                 <div v-else-if="dialog.kind === 'report' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
                     <p class="nfc-muted text-sm">Escolha o período e os indicadores. O arquivo contém somente dados do seu plugin NFC.</p>
+                    <label class="nfc-field">Nome do relatório / arquivo (opcional)
+                        <input v-model.trim="reportName" type="text" class="nfc-control" maxlength="80" placeholder="Ex.: Vendas NFC - Novembro 2026" autocomplete="off" />
+                        <span class="nfc-muted text-xs font-normal">Será usado como título do PDF e nome do arquivo baixado. Se ficar vazio, o nome será automático.</span>
+                        <span v-if="reportName && !/^[\\p{L}\\p{N}\\s._-]*$/u.test(reportName)" class="text-xs text-[var(--fs-danger)]">Use apenas letras, números, espaços, ponto, hífen ou sublinhado.</span>
+                    </label>
                     <div class="grid gap-3 sm:grid-cols-2">
                         <label class="nfc-field">Data inicial<input v-model="reportFrom" type="date" class="nfc-control" :max="reportTo || undefined" /></label>
                         <label class="nfc-field">Data final<input v-model="reportTo" type="date" class="nfc-control" :min="reportFrom || undefined" /></label>
