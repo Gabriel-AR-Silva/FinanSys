@@ -693,7 +693,7 @@ watch(dialog, async (current, previous) => {
                             <p class="font-semibold">{{ historyVerb[entry.event] || entry.event }} · {{ historyKind[entry.target_kind] || entry.target_kind }} #{{ entry.target_id }}</p>
                             <p v-if="entry.label" class="min-w-0 break-words">{{ entry.label }}</p>
                             <p class="nfc-muted text-xs">{{ entry.actor }} · {{ datetime(entry.occurred_at) }}</p>
-                            <details class="nfc-history-details mt-2 rounded-lg p-2">
+                            <details v-if="!hiddenValues" class="nfc-history-details mt-2 rounded-lg p-2">
                                 <summary class="cursor-pointer text-xs font-medium">Detalhes técnicos da alteração</summary>
                                 <dl class="mt-2 grid gap-2 sm:grid-cols-2">
                                     <div v-if="entry.before != null" class="min-w-0">
