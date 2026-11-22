@@ -256,10 +256,44 @@ class NfcReportPdf
                 $margin === null ? 'muted' : ($margin < 0 ? 'red' : 'green'));
             $y -= 26;
         }
+        $cash = $report['cash'] ?? [];
+        if (($cash['received_cents'] ?? 0) > 0 || ($cash['reinvested_cents'] ?? 0) > 0) {
+            $y -= 17;
+            $text(50, $y, 'MOVIMENTAÇÃO DO CAIXA NFC NO PERÍODO', 11, true);
+            $y -= 23;
+            $text(50, $y, 'Recebido nas vendas', 10);
+            $text(374, $y, $format($cash['received_cents'], 'received'), 10, true);
+            $y -= 21;
+            $text(50, $y, 'Retirado para reinvestimento', 10);
+            $text(374, $y, $format($cash['reinvested_cents'], 'received'), 10, true, 'red');
+            $y -= 21;
+            $text(50, $y, 'Movimento líquido do período', 10);
+            $text(374, $y, $format($cash['net_cents'], 'received'), 10, true,
+                $cash['net_cents'] < 0 ? 'red' : 'green');
+            $y -= 20;
+            $rows = $report['reinvestmentRows'] ?? [];
+            foreach (array_slice($rows, 0, 2) as $row) {
+                $label = $date($row['spent_on']).' · '.mb_strimwidth((string) $row['description'], 0, 38, '...', 'UTF-8');
+                $text(50, $y, $label, 9, false, 'muted');
+                $text(374, $y, $format($row['amount_cents'], 'received'), 9, false, 'muted');
+                $y -= 17;
+            }
+            if (count($rows) > 2) {
+                $text(50, $y, 'E mais '.(count($rows) - 2).' reinvestimento(s) no período.', 9, false, 'muted');
+                $y -= 17;
+            }
+        }
+
         $y -= 17;
         $text(50, $y, 'OBSERVAÇÕES E LIMITAÇÕES', 11, true);
         $y -= 23;
         $notes = [];
+        if (($cash['reinvested_cents'] ?? 0) > 0 || ($cash['received_cents'] ?? 0) > 0) {
+            $notes[] = 'Movimento líquido = recebido com data no período menos reinvestimentos. Não é lucro.';
+            if ($report['undatedPayments'] > 0) {
+                $notes[] = 'Pagamentos sem data não entram no movimento do período: '.$report['undatedPayments'].'.';
+            }
+        }
         if (in_array('pending', $metrics, true)) {
             $notes[] = 'A receber: saldo atual das vendas do período, não saldo histórico.';
         }
