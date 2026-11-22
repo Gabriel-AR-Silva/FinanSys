@@ -19,9 +19,9 @@ class ManageNfcRecords
 
     public const PLATE_TYPES = ['standard', 'custom'];
 
-    public function storeManufacturer(User $user, array $data): void
+    public function storeManufacturer(User $user, array $data): NfcRecord
     {
-        $this->createRecord($user, NfcRecord::MANUFACTURER, $data['operation_id'], [
+        return $this->createRecord($user, NfcRecord::MANUFACTURER, $data['operation_id'], [
             'name' => $data['name'],
             'phone' => $data['phone'] ?? null,
             'notes' => $data['notes'] ?? null,
@@ -247,7 +247,7 @@ class ManageNfcRecords
         });
     }
 
-    public function storeProduction(User $user, array $data): void
+    public function storeProduction(User $user, array $data): NfcRecord
     {
         $initial = (bool) $data['initial'];
         $payload = $this->productionFields($data);
@@ -264,6 +264,8 @@ class ManageNfcRecords
                 'quantity' => 'O lote inicial já foi registrado. Abra a fabricação para editar os dados.',
             ]);
         }
+
+        return $record;
     }
 
     public function updateProduction(User $user, int $production, array $data): void
@@ -274,7 +276,7 @@ class ManageNfcRecords
             [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION],
             fn (array $payload): array => [
                 ...$this->productionFields([...$payload, ...$data]),
-                'manufacturer_id' => $this->validatedManufacturerId($user, $data['manufacturer_id'] ?? $payload['manufacturer_id'] ?? null),
+                'manufacturer_id' => $this->validatedManufacturerId($user, array_key_exists('manufacturer_id', $data) ? $data['manufacturer_id'] : ($payload['manufacturer_id'] ?? null)),
             ],
         );
     }
@@ -492,6 +494,7 @@ class ManageNfcRecords
         return [
             'unit_id' => strtolower($data['unit_id']),
             'sold_on' => $data['sold_on'],
+            'warranty_starts_on' => $data['warranty_starts_on'] ?? null,
             'total_cents' => (int) $data['total_cents'],
         ];
     }
@@ -564,7 +567,12 @@ class ManageNfcRecords
 
     private function paymentFields(array $data, string $id): array
     {
-        return ['id' => $id, 'method' => $data['method'], 'amount_cents' => (int) $data['amount_cents']];
+        return [
+            'id' => $id,
+            'method' => $data['method'],
+            'amount_cents' => (int) $data['amount_cents'],
+            ...(! empty($data['received_on']) ? ['received_on' => $data['received_on']] : []),
+        ];
     }
 
     private function receivedCents(array $payments): int

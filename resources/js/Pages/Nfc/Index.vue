@@ -9,12 +9,14 @@ import CompanyDetails from './CompanyDetails.vue';
 import ManufacturerDetails from './ManufacturerDetails.vue';
 import Editor from './Editor.vue';
 import Notices from './Notices.vue';
+import PerformanceChart from './PerformanceChart.vue';
 import { date, money } from './format';
 import './nfc.css';
 
 const props = defineProps({
     schema_pending: { type: Boolean, default: false },
     shared: { type: Boolean, default: false },
+    read_only: { type: Boolean, default: false },
     share_token: { type: String, default: null },
     share_links: { type: Array, default: () => [] },
     share_links_enabled: { type: Boolean, default: false },
@@ -32,6 +34,7 @@ const props = defineProps({
 const filters = [
     { key: 'all', label: 'Todas' },
     { key: 'interested', label: 'Interessadas' },
+    { key: 'not_interested', label: 'Não interessadas' },
     { key: 'sold', label: 'Com vendas' },
 ];
 const filter = ref('all');
@@ -59,6 +62,7 @@ const dialog = ref(null);
 const dialogHeading = ref(null);
 const busy = ref(false);
 const shareBusy = ref(false);
+const shareScope = ref('view');
 const copied = ref(false);
 const feedback = ref(null);
 let feedbackTimer = null;
@@ -83,7 +87,7 @@ const nfcRoute = (name, params = {}) => props.shared
 
 function createShare() {
     if (shareBusy.value || props.shared || !props.share_links_enabled || !authenticatedUser.value) return;
-    router.post(route('nfc.share-links.store'), {}, {
+    router.post(route('nfc.share-links.store'), { scope: shareScope.value }, {
         preserveScroll: true,
         onStart: () => { shareBusy.value = true; },
         onFinish: () => { shareBusy.value = false; },
@@ -113,6 +117,7 @@ const companiesShown = computed(() => {
     const text = search.value.trim().toLocaleLowerCase('pt-BR');
     return props.companies.filter(company => {
         if (filter.value === 'interested' && !company.interested) return false;
+        if (filter.value === 'not_interested' && company.interested) return false;
         if (filter.value === 'sold' && !company.sold) return false;
         if (!text) return true;
         return [
@@ -175,32 +180,41 @@ const manufacturersShown = computed(() => {
 const noticeCount = computed(() => props.notices.filter(notice => !notice.resolved_at).length + props.warranty_notices.length);
 const hasInitialBatch = computed(() => props.production.some(batch => batch.initial));
 
-const metrics = computed(() => {
+const financialSummary = computed(() => {
     const totals = props.summary;
-    const costsPending = totals.unknown_cost_batches;
-
-    return [
-        { label: 'Arrecadado', value: money(totals.received_cents), tone: 'nfc-success' },
-        { label: 'A receber', value: money(totals.outstanding_cents), tone: 'nfc-warning' },
-        { label: 'Vendidas', value: totals.sold, detail: `${totals.sold_standard} normais · ${totals.sold_custom} personalizadas` },
-        { label: 'Interessadas', value: totals.interested },
-        { label: 'Fabricadas', value: totals.manufactured },
-        { label: 'Em fabricação', value: totals.in_production ?? 0, tone: 'nfc-warning' },
-        { label: 'Em customização', value: totals.in_customization },
-        { label: 'Plaquinhas pagas', value: totals.paid_plates },
-        { label: 'Com defeito', value: totals.defective ?? 0, tone: 'nfc-danger' },
-        { label: 'Possível prejuízo', value: money(totals.estimated_loss_cents ?? 0), tone: 'nfc-danger',
-            detail: totals.unestimated_defects ? (totals.unestimated_defects + ' defeito(s) sem valor estimado') : 'Estimativa, não baixa financeira' },
-        { label: 'Custo de fabricação', value: costsPending && costsPending === props.production.length ? '—' : money(totals.production_cost_cents), detail: costsPending ? `${costsPending} ${costsPending === 1 ? 'lote sem custo informado' : 'lotes sem custo informado'}` : null },
-    ];
+    const received = Number(totals.received_cents ?? 0);
+    const outstanding = Number(totals.outstanding_cents ?? 0);
+    const revenue = received + outstanding;
+    return {
+        received, outstanding, revenue,
+        receivedPercent: revenue > 0 ? Math.round(received / revenue * 100) : 0,
+        outstandingPercent: revenue > 0 ? 100 - Math.round(received / revenue * 100) : 0,
+    };
 });
-
-const metricPages = computed(() => {
-    const pages = [];
-    for (let index = 0; index < metrics.value.length; index += 3) {
-        pages.push(metrics.value.slice(index, index + 3));
-    }
-    return pages;
+const metricGroups = computed(() => {
+    const totals = props.summary;
+    const finance = financialSummary.value;
+    const costsPending = totals.unknown_cost_batches ?? 0;
+    return [
+        { title: 'Financeiro', metrics: [
+            { label: 'Recebido', value: money(finance.received), tone: 'text-[var(--fs-success)]' },
+            { label: 'A receber', value: money(finance.outstanding), tone: 'text-[var(--fs-warning)]' },
+            { label: 'Total vendido', value: money(finance.revenue) },
+            { label: 'Custo de fabricação', value: costsPending && costsPending === props.production.length ? '—' : money(totals.production_cost_cents ?? 0), detail: costsPending ? `${costsPending} lote(s) sem custo informado` : 'Custos informados dos lotes' },
+            { label: 'Perda estimada', value: money(totals.estimated_loss_cents ?? 0), tone: 'text-[var(--fs-danger)]', detail: totals.unestimated_defects ? `${totals.unestimated_defects} defeito(s) sem estimativa` : 'Não descontada automaticamente da receita' },
+        ] },
+        { title: 'Produção', metrics: [
+            { label: 'Fabricadas', value: totals.manufactured ?? 0 },
+            { label: 'Em fabricação', value: totals.in_production ?? 0 },
+            { label: 'Em customização', value: totals.in_customization ?? 0 },
+            { label: 'Com defeito', value: totals.defective ?? 0, tone: 'text-[var(--fs-danger)]' },
+        ] },
+        { title: 'Vendas e clientes', metrics: [
+            { label: 'Vendidas', value: totals.sold ?? 0, detail: `${totals.sold_standard ?? 0} normais · ${totals.sold_custom ?? 0} personalizadas` },
+            { label: 'Plaquinhas pagas', value: totals.paid_plates ?? 0, detail: 'Em vendas quitadas' },
+            { label: 'Empresas interessadas', value: totals.interested ?? 0 },
+        ] },
+    ];
 });
 
 const company = computed(() => props.companies.find(item => item.id === dialog.value?.companyId));
@@ -249,6 +263,7 @@ const deleteDescriptions = {
 };
 const confirmDeleteLabel = computed(() => dialog.value?.deleteKind === 'share-link' ? 'Revogar link' : 'Excluir registro');
 function destroy(kind, context = {}) {
+    if (props.read_only) return;
     if (busy.value || shareBusy.value || !Object.hasOwn(deleteDescriptions, kind)) return;
     dialog.value = { kind: 'confirm-delete', deleteKind: kind, deleteContext: context, previous: dialog.value };
 }
@@ -287,6 +302,7 @@ function showCompany(companyId, saleId = null) {
 }
 
 function edit(kind, context = {}) {
+    if (props.read_only) return;
     dialog.value = { kind, ...context, previous: dialog.value };
 }
 
@@ -345,10 +361,10 @@ watch(dialog, async (current, previous) => {
 
         <div class="flex min-w-0 flex-col gap-6 sm:gap-8">
             <header class="flex flex-wrap items-center justify-between gap-3">
-                <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC</h1>
+                <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC <span v-if="read_only" class="nfc-muted block text-xs font-medium">Acesso somente para consulta</span></h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
                     <button v-if="!shared && share_links_enabled && authenticatedUser" type="button" class="nfc-button" @click="dialog = { kind: 'share' }">Compartilhar</button>
-                    <button type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
+                    <button v-if="!shared" type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
                         <Bell :size="18" aria-hidden="true" />
                         <span v-if="noticeCount" class="nfc-badge nfc-warning tabular-nums" aria-hidden="true">{{ noticeCount }}</span>
@@ -358,52 +374,55 @@ watch(dialog, async (current, previous) => {
 
             <p v-if="schema_pending" class="nfc-panel nfc-warning p-4 text-sm" role="status">Aplique a migration de Plaquinhas NFC para liberar os cadastros.</p>
 
-            <div v-else class="flex min-w-0 flex-col gap-1.5">
-                <dl class="nfc-scrollbar flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-2 sm:hidden"
-                    aria-label="Indicadores das plaquinhas NFC, em grupos de até três" tabindex="0">
-                    <div v-for="(pageMetrics, index) in metricPages" :key="index"
-                        class="grid w-full min-w-full shrink-0 snap-start grid-cols-3 items-stretch gap-1.5"
-                        role="group" :aria-label="`Indicadores ${index * 3 + 1} a ${index * 3 + pageMetrics.length}`">
-                        <div v-for="metric in pageMetrics" :key="metric.label" class="nfc-panel flex min-w-0 flex-col gap-1 px-2 py-2.5">
-                            <dt class="nfc-muted text-xs font-medium leading-tight">{{ metric.label }}</dt>
-                            <dd class="min-w-0 self-start text-base font-semibold leading-snug tabular-nums [overflow-wrap:anywhere]"
-                                :class="metric.tone && `${metric.tone} rounded-md px-1`">{{ metric.value }}</dd>
-                            <dd v-if="metric.detail" class="nfc-muted text-[11px] leading-tight [overflow-wrap:anywhere]">{{ metric.detail }}</dd>
+            <div v-else class="grid min-w-0 gap-3 lg:grid-cols-2">
+                <section v-for="(group, index) in metricGroups" :key="group.title"
+                    class="nfc-panel min-w-0 p-4" :class="index === 0 ? 'lg:col-span-2' : ''"
+                    :aria-labelledby="'nfc-metrics-' + index">
+                    <h2 :id="'nfc-metrics-' + index" class="mb-3 text-sm font-semibold">{{ group.title }}</h2>
+                    <dl class="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3" :class="index === 0 ? 'xl:grid-cols-5' : ''">
+                        <div v-for="metric in group.metrics" :key="metric.label" class="min-w-0">
+                            <dt class="nfc-muted text-xs font-medium">{{ metric.label }}</dt>
+                            <dd class="mt-1 break-words text-xl font-semibold tabular-nums" :class="metric.tone">{{ metric.value }}</dd>
+                            <dd v-if="metric.detail" class="nfc-muted mt-1 text-xs leading-snug">{{ metric.detail }}</dd>
                         </div>
+                    </dl>
+                    <div v-if="index === 0" class="nfc-rule mt-4 border-t pt-4">
+                        <div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <span class="font-semibold">Recebimento das vendas · acumulado</span>
+                            <span v-if="financialSummary.revenue > 0" class="tabular-nums text-[var(--fs-success)]">{{ financialSummary.receivedPercent }}% recebido</span>
+                        </div>
+                        <div v-if="financialSummary.revenue > 0" class="flex h-3 overflow-hidden rounded-full bg-[var(--fs-surface-subtle)]" aria-hidden="true">
+                            <div class="bg-[var(--fs-success)]" :style="{ width: financialSummary.receivedPercent + '%' }"></div>
+                            <div class="bg-[var(--fs-warning)]" :style="{ width: financialSummary.outstandingPercent + '%' }"></div>
+                        </div>
+                        <p v-else class="nfc-muted text-xs">Registre uma venda para acompanhar os recebimentos.</p>
+                        <p v-if="financialSummary.revenue > 0" class="nfc-muted mt-2 text-xs">{{ financialSummary.outstandingPercent }}% a receber · custos e perdas são indicadores separados.</p>
                     </div>
-                </dl>
-                <p v-if="metricPages.length > 1" class="nfc-muted text-[11px] sm:hidden">Deslize os indicadores para os lados.</p>
-                <dl aria-label="Indicadores das plaquinhas NFC"
-                    class="hidden min-w-0 grid-cols-2 gap-2 sm:grid md:grid-cols-4 md:gap-3">
-                    <div v-for="metric in metrics" :key="metric.label" class="nfc-panel flex min-w-0 flex-col gap-1 p-3">
-                        <dt class="nfc-muted text-xs font-medium leading-tight">{{ metric.label }}</dt>
-                        <dd class="min-w-0 self-start text-lg font-semibold leading-snug tabular-nums [overflow-wrap:anywhere]"
-                            :class="metric.tone && `${metric.tone} rounded-md px-1.5`">{{ metric.value }}</dd>
-                        <dd v-if="metric.detail" class="nfc-muted text-[11px] leading-snug">{{ metric.detail }}</dd>
-                    </div>
-                </dl>
+                </section>
             </div>
 
+            <PerformanceChart v-if="!schema_pending" :companies="companies" :production="production" :today="today" />
+
             <div v-if="!schema_pending" role="tablist" aria-label="Empresas, fabricação e fabricantes NFC"
-                class="nfc-panel flex w-full min-w-0 flex-wrap gap-1 p-1 sm:w-fit">
+                class="nfc-rule flex w-full min-w-0 flex-wrap gap-1 border-b pb-1">
                 <button id="nfc-tab-companies" type="button" role="tab" aria-controls="nfc-panel-companies"
                     :aria-selected="activeRegistryTab === 'companies'" :tabindex="activeRegistryTab === 'companies' ? 0 : -1"
                     @keydown="onRegistryTabKeydown($event, 'companies')"
-                    class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'companies'">
+                    class="inline-flex min-h-11 min-w-0 flex-1 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b-[3px] px-2 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:flex-none sm:px-5" :class="activeRegistryTab === 'companies' ? 'border-[var(--fs-info)] text-[var(--fs-info)]' : 'border-transparent text-[var(--fs-text-secondary)] hover:bg-[var(--fs-surface-subtle)]'" @click="activeRegistryTab = 'companies'">
                     <Building2 :size="16" aria-hidden="true" /> Empresas
                     <span class="nfc-badge nfc-neutral tabular-nums">{{ companies.length }}</span>
                 </button>
                 <button id="nfc-tab-production" type="button" role="tab" aria-controls="nfc-panel-production"
                     :aria-selected="activeRegistryTab === 'production'" :tabindex="activeRegistryTab === 'production' ? 0 : -1"
                     @keydown="onRegistryTabKeydown($event, 'production')"
-                    class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'production'">
+                    class="inline-flex min-h-11 min-w-0 flex-1 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b-[3px] px-2 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:flex-none sm:px-5" :class="activeRegistryTab === 'production' ? 'border-[var(--fs-info)] text-[var(--fs-info)]' : 'border-transparent text-[var(--fs-text-secondary)] hover:bg-[var(--fs-surface-subtle)]'" @click="activeRegistryTab = 'production'">
                     <Factory :size="16" aria-hidden="true" /> Fabricação
                     <span class="nfc-badge nfc-neutral tabular-nums">{{ production.length }}</span>
                 </button>
                 <button id="nfc-tab-manufacturers" type="button" role="tab" aria-controls="nfc-panel-manufacturers"
                     :aria-selected="activeRegistryTab === 'manufacturers'" :tabindex="activeRegistryTab === 'manufacturers' ? 0 : -1"
                     @keydown="onRegistryTabKeydown($event, 'manufacturers')"
-                    class="nfc-button min-w-0 flex-1 sm:min-w-44" @click="activeRegistryTab = 'manufacturers'">
+                    class="inline-flex min-h-11 min-w-0 flex-1 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b-[3px] px-2 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:flex-none sm:px-5" :class="activeRegistryTab === 'manufacturers' ? 'border-[var(--fs-info)] text-[var(--fs-info)]' : 'border-transparent text-[var(--fs-text-secondary)] hover:bg-[var(--fs-surface-subtle)]'" @click="activeRegistryTab = 'manufacturers'">
                     <Factory :size="16" aria-hidden="true" /> Fabricantes
                     <span class="nfc-badge nfc-neutral tabular-nums">{{ manufacturers.length }}</span>
                 </button>
@@ -412,12 +431,13 @@ watch(dialog, async (current, previous) => {
             <section v-if="!schema_pending" v-show="activeRegistryTab === 'companies'" id="nfc-panel-companies" role="tabpanel" aria-labelledby="nfc-tab-companies" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex min-w-0 items-center justify-between gap-2">
                     <h2 id="nfc-companies" class="flex min-w-0 items-center gap-2 text-lg font-semibold"><Building2 :size="19" aria-hidden="true" /> Empresas</h2>
-                    <button type="button" class="nfc-button nfc-primary shrink-0" @click="edit('company-form')">
+                    <button v-if="!read_only" type="button" class="nfc-button nfc-primary shrink-0" @click="edit('company-form')">
                         <Plus :size="16" aria-hidden="true" /> Nova empresa
                     </button>
                 </div>
-                <div class="flex flex-wrap gap-1.5" aria-label="Filtrar empresas" role="group">
-                    <button v-for="option in filters" :key="option.key" type="button" class="nfc-button" :aria-pressed="filter === option.key" @click="filter = option.key">{{ option.label }}</button>
+                <div class="flex flex-wrap items-center gap-2" aria-label="Filtrar empresas" role="group">
+                    <span class="nfc-muted text-xs font-semibold">Filtrar empresas:</span>
+                    <button v-for="option in filters" :key="option.key" type="button" class="inline-flex min-h-10 items-center rounded-full border px-3 py-1.5 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" :class="filter === option.key ? 'border-[var(--fs-info)] bg-[var(--fs-info-soft)] text-[var(--fs-info)]' : 'border-[var(--fs-border-soft)] text-[var(--fs-text-secondary)] hover:bg-[var(--fs-surface-subtle)]'" :aria-pressed="filter === option.key" @click="filter = option.key">{{ option.label }}</button>
                 </div>
                 <label class="nfc-field max-w-xl">Buscar empresa, CPF/CNPJ, unidade, venda ou plaquinha
                     <input v-model.trim="search" type="search" class="nfc-control" placeholder="Digite para filtrar..." aria-label="Buscar no módulo NFC" />
@@ -471,8 +491,8 @@ watch(dialog, async (current, previous) => {
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 id="nfc-production" class="flex items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricação</h2>
                     <div class="flex flex-wrap gap-2">
-                        <button v-if="!hasInitialBatch" type="button" class="nfc-button" @click="edit('batch', { initial: true })">Registrar lote inicial</button>
-                        <button type="button" class="nfc-button" @click="edit('batch')"><Plus :size="17" aria-hidden="true" /> Novo lote</button>
+                        <button v-if="!read_only && !hasInitialBatch" type="button" class="nfc-button" @click="edit('batch', { initial: true })">Registrar lote inicial</button>
+                        <button v-if="!read_only" type="button" class="nfc-button" @click="edit('batch')"><Plus :size="17" aria-hidden="true" /> Novo lote</button>
                     </div>
                 </div>
                 <label class="nfc-field max-w-xl">Buscar lote, data, status, empresa ou unidade
@@ -488,8 +508,8 @@ watch(dialog, async (current, previous) => {
                         </div>
                         <span class="nfc-muted text-sm tabular-nums">{{ item.cost_cents === null ? 'Custo a informar' : money(item.cost_cents) }}</span>
                         <div class="flex flex-wrap gap-2">
-                            <button type="button" class="nfc-button" :aria-label="`Editar lote #${item.id}`" @click="edit('batch', { batchId: item.id })">Editar</button>
-                            <button type="button" class="nfc-button nfc-danger" @click="destroy('batch', { batchId: item.id })">Excluir</button>
+                            <button v-if="!read_only" type="button" class="nfc-button" :aria-label="`Editar lote #${item.id}`" @click="edit('batch', { batchId: item.id })">Editar</button>
+                            <button v-if="!read_only" type="button" class="nfc-button nfc-danger" @click="destroy('batch', { batchId: item.id })">Excluir</button>
                         </div>
                     </li>
                 </ul>
@@ -498,7 +518,7 @@ watch(dialog, async (current, previous) => {
             <section v-if="!schema_pending" v-show="activeRegistryTab === 'manufacturers'" id="nfc-panel-manufacturers" role="tabpanel" aria-labelledby="nfc-tab-manufacturers" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex min-w-0 items-center justify-between gap-2">
                     <h2 class="flex min-w-0 items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricantes</h2>
-                    <button type="button" class="nfc-button nfc-primary shrink-0" @click="edit('manufacturer-form')"><Plus :size="16" aria-hidden="true" /> Novo fabricante</button>
+                    <button v-if="!read_only" type="button" class="nfc-button nfc-primary shrink-0" @click="edit('manufacturer-form')"><Plus :size="16" aria-hidden="true" /> Novo fabricante</button>
                 </div>
                 <label class="nfc-field max-w-xl">Buscar fabricante, contato ou unidade
                     <input v-model.trim="manufacturerSearch" type="search" class="nfc-control" placeholder="Digite para filtrar os fabricantes..." aria-label="Buscar fabricantes" />
@@ -528,8 +548,8 @@ watch(dialog, async (current, previous) => {
                     <button type="button" class="nfc-button nfc-icon-button shrink-0" aria-label="Fechar" :disabled="busy" @click="closeDialog"><X :size="18" aria-hidden="true" /></button>
                 </header>
 
-                <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
-                <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
+                <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :read-only="read_only" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
+                <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :read-only="read_only" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
                 <div v-else-if="dialog.kind === 'confirm-delete'" class="flex min-w-0 flex-col gap-4">
                     <p class="text-sm leading-6">{{ deleteDescriptions[dialog.deleteKind] }}</p>
                     <p class="nfc-muted text-sm">Esta ação pode afetar indicadores ou registros vinculados. Confira antes de continuar.</p>
@@ -539,7 +559,10 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </div>
                 <div v-else-if="dialog.kind === 'share' && !shared && share_links_enabled && authenticatedUser" class="flex min-w-0 flex-col gap-4">
-                    <p class="nfc-muted text-sm">Links individuais válidos por sete dias. Quem possuir um link poderá consultar e alterar somente os dados do módulo NFC, incluindo exclusões. Revogue assim que não precisar mais.</p>
+                    <p class="nfc-muted text-sm">Links válidos por sete dias. Selecione consulta para compartilhar sem permitir mudanças; edição permite alterações e exclusões no módulo NFC.</p>
+                    <label class="nfc-field">Permissão do link
+                        <select v-model="shareScope" class="nfc-control" :disabled="shareBusy"><option value="view">Somente consulta</option><option value="edit">Consulta e edição (inclui exclusões)</option></select>
+                    </label>
                     <button type="button" class="nfc-button nfc-primary self-start" :disabled="shareBusy" @click="createShare">Gerar novo link</button>
                     <div v-if="created_share_url" class="nfc-panel flex min-w-0 flex-col gap-2 p-3">
                         <label class="nfc-field">Link gerado (copie agora)
@@ -551,7 +574,7 @@ watch(dialog, async (current, previous) => {
                     <h3 class="font-semibold">Links emitidos</h3>
                     <ul class="flex flex-col gap-2">
                         <li v-for="link in share_links" :key="link.id" class="nfc-panel flex flex-wrap items-center justify-between gap-3 p-3 text-sm">
-                            <div><p class="font-semibold">Link #{{ link.id }}</p>
+                            <div><p class="font-semibold">Link #{{ link.id }} · {{ link.scope === 'view' ? 'Consulta' : 'Edição' }}</p>
                                 <p class="nfc-muted text-xs">Expira: {{ datetime(link.expires_at) }}</p>
                                 <span v-if="link.revoked_at" class="nfc-badge nfc-neutral">Revogado</span>
                                 <span v-else-if="new Date(link.expires_at) <= new Date()" class="nfc-badge nfc-warning">Expirado</span>
@@ -586,7 +609,7 @@ watch(dialog, async (current, previous) => {
                     </ul>
                     <p v-if="!history.length" class="nfc-muted text-sm">Nenhuma alteração registrada.</p>
                 </div>
-                <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :warranty-notices="warranty_notices" :nfc-route="nfcRoute" @create="edit('notice')" @open-company="showCompany" @request-delete="notice => destroy('notice', { noticeId: notice.id })" @busy="busy = $event" @feedback="notify" />
+                <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :read-only="read_only" :warranty-notices="warranty_notices" :nfc-route="nfcRoute" @create="edit('notice')" @open-company="showCompany" @request-delete="notice => destroy('notice', { noticeId: notice.id })" @busy="busy = $event" @feedback="notify" />
                 <Editor
                     v-else
                     :key="dialog.kind"

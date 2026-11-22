@@ -26,17 +26,20 @@ class NfcController extends Controller
     {
         $shared = $request->attributes->has('nfc_share_owner');
         $linksAvailable = Schema::hasTable('nfc_access_links');
+        $scopesAvailable = $linksAvailable && Schema::hasColumn('nfc_access_links', 'scope');
 
         return Inertia::render('Nfc/Index', [
-            ...$query->forUser($this->owner($request)),
+            ...$query->forUser($this->owner($request), ! $shared),
             'shared' => $shared,
+            'read_only' => $shared && $request->attributes->get('nfc_share_scope') === 'view',
             'share_token' => $shared ? (string) $request->attributes->get('nfc_share_token') : null,
             'created_share_url' => $shared ? null : $request->session()->get('nfc_share_url'),
-            'share_links_enabled' => ! $shared && $linksAvailable,
+            'share_links_enabled' => ! $shared && $scopesAvailable,
+            'nfc_created_record' => $request->session()->get('nfc_created_record'),
             'share_links' => $shared || ! $linksAvailable ? [] : NfcAccessLink::query()
                 ->whereBelongsTo($request->user())
                 ->latest()->limit(20)
-                ->get(['id', 'expires_at', 'revoked_at', 'created_at'])
+                ->get($scopesAvailable ? ['id', 'expires_at', 'revoked_at', 'created_at', 'scope'] : ['id', 'expires_at', 'revoked_at', 'created_at'])
                 ->toArray(),
         ]);
     }
@@ -94,9 +97,10 @@ class NfcController extends Controller
             'custom_quantity' => ['required', 'integer', 'min:0', 'max:1000'],
             'in_customization_quantity' => ['nullable', 'integer', 'min:0', 'max:1000'],
             'payments' => ['sometimes', 'array', 'list', 'max:100'],
-            'payments.*' => ['array:method,amount_cents'],
+            'payments.*' => ['array:method,amount_cents,received_on'],
             'payments.*.method' => ['required', Rule::in(ManageNfcRecords::PAYMENT_METHODS)],
             'payments.*.amount_cents' => self::AMOUNT_RULES,
+            'payments.*.received_on' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:'.$this->today()],
         ]);
 
         $records->storeSale($this->owner($request), $company, $data);
@@ -117,6 +121,7 @@ class NfcController extends Controller
             'operation_id' => self::OPERATION_RULES,
             'method' => ['required', Rule::in(ManageNfcRecords::PAYMENT_METHODS)],
             'amount_cents' => self::AMOUNT_RULES,
+            'received_on' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:'.$this->today()],
         ]);
 
         $records->storePayment($this->owner($request), $company, $sale, $data);
@@ -148,9 +153,9 @@ class NfcController extends Controller
             'initial' => ['required', 'boolean'],
         ]);
 
-        $records->storeProduction($this->owner($request), $data);
+        $record = $records->storeProduction($this->owner($request), $data);
 
-        return $this->redirectToDashboard($request);
+        return $this->redirectToDashboard($request)->with('nfc_created_record', ['kind' => 'production', 'id' => $record->id, 'operation_id' => $data['operation_id']]);
     }
 
     public function updateProduction(Request $request, ManageNfcRecords $records, int $production): RedirectResponse
@@ -259,6 +264,7 @@ class NfcController extends Controller
         return [
             'unit_id' => ['required', 'uuid'],
             'sold_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.$this->today()],
+            'warranty_starts_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:sold_on', 'before_or_equal:'.$this->today()],
             'total_cents' => self::AMOUNT_RULES,
         ];
     }
