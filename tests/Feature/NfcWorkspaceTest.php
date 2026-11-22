@@ -27,6 +27,70 @@ class NfcWorkspaceTest extends TestCase
         $this->withoutVite();
     }
 
+
+    public function test_manufacturing_damage_updates_summary_and_can_be_removed(): void
+    {
+        $owner = User::factory()->create();
+        $batch = NfcRecord::query()->create([
+            'user_id' => $owner->id,
+            'kind' => NfcRecord::PRODUCTION,
+            'record_key' => (string) Str::uuid(),
+            'payload' => ['quantity' => 5, 'cost_cents' => 5000, 'status' => 'completed', 'produced_on' => '2026-11-20'],
+        ]);
+        $this->actingAs($owner)->post(route('nfc.damages.store'), [
+            'operation_id' => (string) Str::uuid(),
+            'target' => 'production',
+            'production_id' => $batch->id,
+            'quantity' => 2,
+            'occurred_on' => '2026-11-21',
+            'reason' => 'NFC danificado',
+            'estimated_loss_cents' => 2000,
+        ])->assertRedirect(route('nfc.index'));
+
+        $damage = NfcRecord::query()->whereBelongsTo($owner)->where('kind', NfcRecord::DAMAGE)->firstOrFail();
+        $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
+        $this->assertSame(2, $dashboard['summary']['defective']);
+        $this->assertSame(2000, $dashboard['summary']['estimated_loss_cents']);
+        $this->assertSame(5000, $dashboard['summary']['production_cost_cents']);
+        $this->assertSame(0, $dashboard['summary']['reinvested_cents']);
+        $report = app(NfcReportQuery::class)->calculate($dashboard, '2026-11-01', '2026-11-30');
+        $this->assertSame(2, $report['values']['defective']);
+        $this->assertSame(2000, $report['values']['loss']);
+
+        $this->post(route('nfc.damages.store'), [
+            'operation_id' => (string) Str::uuid(),
+            'target' => 'production',
+            'production_id' => $batch->id,
+            'quantity' => 4,
+            'occurred_on' => '2026-11-21',
+            'reason' => 'Mais avarias',
+        ])->assertSessionHasErrors('quantity');
+
+        $this->delete(route('nfc.damages.destroy', ['damage' => $damage->id]))->assertRedirect(route('nfc.index'));
+        $this->assertSame(0, app(NfcDashboardQuery::class)->forUser($owner)['summary']['defective']);
+    }
+
+    public function test_damage_cannot_be_attached_to_another_users_batch(): void
+    {
+        $owner = User::factory()->create();
+        $other = User::factory()->create();
+        $batch = NfcRecord::query()->create([
+            'user_id' => $other->id,
+            'kind' => NfcRecord::PRODUCTION,
+            'record_key' => (string) Str::uuid(),
+            'payload' => ['quantity' => 3, 'status' => 'completed'],
+        ]);
+        $this->actingAs($owner)->post(route('nfc.damages.store'), [
+            'operation_id' => (string) Str::uuid(),
+            'target' => 'production',
+            'production_id' => $batch->id,
+            'quantity' => 1,
+            'occurred_on' => '2026-11-21',
+            'reason' => 'Problema',
+        ])->assertSessionHasErrors('production_id');
+        $this->assertDatabaseMissing('nfc_records', ['user_id' => $owner->id, 'kind' => NfcRecord::DAMAGE]);
+    }
+
     public function test_reset_requires_owner_session_and_confirmation_and_only_clears_owners_nfc_records(): void
     {
         Storage::fake('local');
