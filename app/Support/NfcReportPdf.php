@@ -257,7 +257,7 @@ class NfcReportPdf
             $y -= 26;
         }
         $cash = $report['cash'] ?? [];
-        if ($includeReinvestments && (($cash['received_cents'] ?? 0) > 0 || ($cash['reinvested_cents'] ?? 0) > 0)) {
+        if ($includeReinvestments && (($cash['received_cents'] ?? 0) > 0 || ($cash['reinvested_cents'] ?? 0) > 0 || ($cash['expenses_cents'] ?? 0) > 0)) {
             $y -= 17;
             $text(50, $y, 'MOVIMENTAÇÃO DO CAIXA NFC NO PERÍODO', 11, true);
             $y -= 23;
@@ -266,6 +266,9 @@ class NfcReportPdf
             $y -= 21;
             $text(50, $y, 'Retirado para reinvestimento', 10);
             $text(374, $y, $format($cash['reinvested_cents'], 'received'), 10, true, 'red');
+            $y -= 21;
+            $text(50, $y, 'Outras despesas do caixa', 10);
+            $text(374, $y, $format($cash['expenses_cents'] ?? 0, 'received'), 10, true, 'red');
             $y -= 21;
             $text(50, $y, 'Movimento líquido do período', 10);
             $text(374, $y, $format($cash['net_cents'], 'received'), 10, true,
@@ -288,8 +291,8 @@ class NfcReportPdf
         $text(50, $y, 'OBSERVAÇÕES E LIMITAÇÕES', 11, true);
         $y -= 23;
         $notes = [];
-        if (($cash['reinvested_cents'] ?? 0) > 0 || ($cash['received_cents'] ?? 0) > 0) {
-            $notes[] = 'Movimento líquido = recebido com data no período menos reinvestimentos. Não é lucro.';
+        if (($cash['reinvested_cents'] ?? 0) > 0 || ($cash['received_cents'] ?? 0) > 0 || ($cash['expenses_cents'] ?? 0) > 0) {
+            $notes[] = 'Movimento líquido = recebimentos menos reinvestimentos e outras despesas. Não é lucro.';
             if ($report['undatedPayments'] > 0) {
                 $notes[] = 'Pagamentos sem data não entram no movimento do período: '.$report['undatedPayments'].'.';
             }
