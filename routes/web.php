@@ -126,7 +126,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('/empresas/{company}/vendas/{sale}/pagamentos/{payment}', 'deletePayment')->whereNumber('company')->whereUuid(['sale', 'payment'])->name('payments.destroy');
         Route::delete('/empresas/{company}/vendas/{sale}/plaquinhas/{plate}', 'deletePlate')->whereNumber('company')->whereUuid(['sale', 'plate'])->name('plates.destroy');
         Route::delete('/avarias/{damage}', 'deleteDamage')->whereNumber('damage')->name('damages.destroy');
-    Route::delete('/producao/{production}', 'deleteProduction')->whereNumber('production')->name('production.destroy');
+        Route::delete('/producao/{production}', 'deleteProduction')->whereNumber('production')->name('production.destroy');
         Route::delete('/avisos/{notice}', 'deleteNotice')->whereNumber('notice')->name('notices.destroy');
     });
 
