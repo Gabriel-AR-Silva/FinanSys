@@ -282,6 +282,33 @@ class NfcWorkspaceTest extends TestCase
         $this->assertStringContainsString('R$ 40,00', $pdf);
         $this->assertStringContainsString('R$ 60,00', $pdf);
 
+        $withoutReinvestments = $this->get(route('nfc.report.export', [
+            'from' => '2026-11-01',
+            'to' => '2026-11-22',
+            'metrics' => ['sales', 'received', 'result'],
+            'chart' => 0,
+            'reinvestments' => 0,
+        ]))->assertOk()->getContent();
+        $this->assertStringNotContainsString('Retirado para reinvestimento', $withoutReinvestments);
+        $this->assertStringNotContainsString('MOVIMENTAÇÃO DO CAIXA NFC', $withoutReinvestments);
+        $this->assertStringContainsString('R$ 60,00', $withoutReinvestments);
+
+        $withReinvestments = $this->get(route('nfc.report.export', [
+            'from' => '2026-11-01',
+            'to' => '2026-11-22',
+            'metrics' => ['received'],
+            'chart' => 0,
+            'reinvestments' => 1,
+        ]))->assertOk()->getContent();
+        $this->assertStringContainsString('Retirado para reinvestimento', $withReinvestments);
+
+        $this->getJson(route('nfc.report.export', [
+            'from' => '2026-11-01',
+            'to' => '2026-11-22',
+            'metrics' => ['sales'],
+            'reinvestments' => 'invalid',
+        ]))->assertUnprocessable();
+
         $other = User::factory()->create();
         $this->actingAs($other)->delete(route('nfc.reinvestments.destroy', [
             'reinvestment' => $reinvestment->id,
