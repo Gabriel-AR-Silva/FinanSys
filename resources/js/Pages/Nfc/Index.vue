@@ -93,6 +93,7 @@ const reportFrom = ref('');
 const reportName = ref('');
 const reportTo = ref('');
 const reportChart = ref(true);
+const reportReinvestments = ref(true);
 const reinvestmentAmount = ref('');
 const reinvestmentForm = useForm({
     operation_id: crypto.randomUUID(),
@@ -155,7 +156,7 @@ const reportMetrics = ref(reportOptions.map(item => item.key));
 const reportValid = computed(() => !!reportFrom.value && !!reportTo.value && reportFrom.value <= reportTo.value && reportMetrics.value.length > 0 && reportName.value.length <= 80 && /^[\p{L}\p{N}\s._-]*$/u.test(reportName.value));
 const reportUrl = computed(() => {
     if (!reportValid.value || props.shared || !authenticatedUser.value || props.schema_pending) return '';
-    return route('nfc.report.export', { from: reportFrom.value, to: reportTo.value, metrics: reportMetrics.value, chart: reportChart.value ? 1 : 0, ...(reportName.value.trim() ? { name: reportName.value.trim() } : {}) });
+    return route('nfc.report.export', { from: reportFrom.value, to: reportTo.value, metrics: reportMetrics.value, chart: reportChart.value ? 1 : 0, reinvestments: reportReinvestments.value ? 1 : 0, ...(reportName.value.trim() ? { name: reportName.value.trim() } : {}) });
 });
 function openSettingsAction(kind) {
     if (props.shared || !authenticatedUser.value || busy.value || shareBusy.value) return;
@@ -873,7 +874,8 @@ watch(dialog, async (current, previous) => {
                         </div>
                     </fieldset>
                     <label class="flex items-center gap-2 text-sm"><input v-model="reportChart" type="checkbox" /> Incluir gráficos comparativos quando aplicável</label>
-                    <p class="nfc-muted text-xs">A margem compara vendas e custos de fabricação no intervalo; não representa lucro contábil. O saldo a receber é o saldo atual das vendas do período. O demonstrativo do caixa inclui as retiradas para reinvestimento com data no período.</p>
+                    <label class="flex min-h-11 items-center gap-2 text-sm"><input v-model="reportReinvestments" type="checkbox" /> Incluir demonstrativo de reinvestimentos no PDF</label>
+                    <p class="nfc-muted text-xs">A margem compara vendas e custos de fabricação no intervalo; não representa lucro contábil. O saldo a receber é o saldo atual das vendas do período. Quando selecionado, o demonstrativo de reinvestimentos usa as retiradas e os recebimentos com data no período.</p>
                     <p v-if="hiddenValues" class="nfc-warning rounded-lg p-3 text-sm">O PDF inclui os valores reais dos indicadores selecionados, mesmo com o olho fechado.</p>
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
                         <button type="button" class="nfc-button" @click="closeDialog">Fechar</button>
