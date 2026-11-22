@@ -132,13 +132,15 @@ class NfcDashboardQuery
         $sales = collect($company['sales'])->map(function (array $sale) use ($today): array {
             $paid = array_sum(array_column($sale['payments'], 'amount_cents'));
             $balance = $sale['total_cents'] - $paid;
-            $warrantyUntil = CarbonImmutable::parse($sale['sold_on'], $today->timezone)->addMonthsNoOverflow(3);
+            $warrantyStart = $sale['warranty_starts_on'] ?? $sale['sold_on'];
+            $warrantyUntil = CarbonImmutable::parse($warrantyStart, $today->timezone)->addMonthsNoOverflow(3);
 
             return [
                 ...$sale,
                 'paid_cents' => $paid,
                 'balance_cents' => $balance,
                 'payment_status' => $balance === 0 ? 'paid' : ($paid > 0 ? 'partial' : 'pending'),
+                'warranty_started_on' => $warrantyStart,
                 'warranty_until' => $warrantyUntil->toDateString(),
                 'warranty_status' => $warrantyUntil->lt($today) ? 'expired' : 'active',
             ];

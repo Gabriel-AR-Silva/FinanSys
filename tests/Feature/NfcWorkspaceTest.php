@@ -197,6 +197,27 @@ class NfcWorkspaceTest extends TestCase
             ->has('warranty_notices', 0));
     }
 
+    public function test_warranty_can_start_after_the_sale_without_shortening_the_term(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-22T15:00:00Z'));
+        $company = $this->createCompany(User::factory()->create());
+        $sale = $this->createSale($company, [
+            'sold_on' => '2026-10-10',
+            'warranty_starts_on' => '2026-10-20',
+        ]);
+
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('companies.0.sales.0.warranty_started_on', '2026-10-20')
+            ->where('companies.0.sales.0.warranty_until', '2027-01-20'));
+
+        $this->patch(route('nfc.sales.update', ['company' => $company->id, 'sale' => $sale['id']]), [
+            'unit_id' => $sale['unit_id'],
+            'sold_on' => '2026-10-10',
+            'warranty_starts_on' => '2026-10-09',
+            'total_cents' => 10000,
+        ])->assertSessionHasErrors('warranty_starts_on');
+    }
+
     public function test_manual_notices_can_stand_alone_or_link_to_a_plate_and_be_resolved(): void
     {
         $this->travelTo(new DateTimeImmutable('2026-11-11T15:00:00Z'));

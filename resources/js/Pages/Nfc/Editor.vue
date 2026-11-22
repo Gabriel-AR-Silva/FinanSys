@@ -58,6 +58,7 @@ function fields() {
                 ...(!sale && { operation_id: crypto.randomUUID(), standard_quantity: 1, custom_quantity: 0, in_customization_quantity: 0, payments: [] }),
                 unit_id: sale?.unit_id ?? context.unitId ?? company?.units[0]?.id ?? '',
                 sold_on: sale?.sold_on ?? today,
+                warranty_starts_on: sale?.warranty_starts_on ?? '',
                 total: inputMoney(sale?.total_cents),
             };
         case 'payment':
@@ -161,8 +162,8 @@ function addPayment() {
     form.payments.push({ key: ++paymentRowKey, method: '', amount: '', received_on: form.sold_on || props.today });
 }
 
-function salePayload({ total, payments, ...data }) {
-    const payload = { ...data, total_cents: asCents(total) };
+function salePayload({ total, payments, warranty_starts_on, ...data }) {
+    const payload = { ...data, warranty_starts_on: warranty_starts_on || null, total_cents: asCents(total) };
     if (payments) {
         payload.payments = payments.map(({ method, amount, received_on }) => ({ method, amount_cents: asCents(amount), received_on: received_on || null }));
     }
@@ -347,6 +348,10 @@ function submit() {
                     <input v-model.trim="form.total" class="nfc-control" inputmode="decimal" :pattern="decimalPattern" placeholder="0,00" required />
                 </label>
             </div>
+            <label class="nfc-field">Início da garantia (opcional)
+                <input v-model="form.warranty_starts_on" class="nfc-control" type="date" :min="form.sold_on" :max="today" />
+                <span class="nfc-muted text-xs font-normal">Se não preencher, a garantia de três meses começa na data da venda. Informe uma data posterior quando necessário.</span>
+            </label>
             <template v-if="!sale">
                 <div class="grid min-w-0 gap-3 sm:grid-cols-3">
                     <label class="nfc-field">Normais

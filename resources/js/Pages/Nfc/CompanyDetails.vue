@@ -92,6 +92,7 @@ function destroy(kind, context = {}) {
                         <p class="self-start nfc-badge" :class="sale.warranty_status === 'active' ? 'nfc-warning' : 'nfc-info'">
                             {{ sale.warranty_status === 'active' ? 'Em garantia até' : 'Garantia encerrada em' }} {{ date(sale.warranty_until) }}
                         </p>
+                        <p v-if="sale.warranty_started_on && sale.warranty_started_on !== sale.sold_on" class="nfc-muted text-xs">Início da garantia: {{ date(sale.warranty_started_on) }}</p>
                         <ul v-if="sale.payments.length" class="flex flex-wrap gap-2" aria-label="Pagamentos">
                             <li v-for="payment in sale.payments" :key="payment.id" class="nfc-badge nfc-info flex items-center gap-2">
                                 {{ paymentMethods[payment.method] }} · {{ money(payment.amount_cents) }} · {{ payment.received_on ? date(payment.received_on) : 'Sem data' }}

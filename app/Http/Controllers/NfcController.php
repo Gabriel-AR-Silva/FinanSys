@@ -264,6 +264,7 @@ class NfcController extends Controller
         return [
             'unit_id' => ['required', 'uuid'],
             'sold_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.$this->today()],
+            'warranty_starts_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:sold_on', 'before_or_equal:'.$this->today()],
             'total_cents' => self::AMOUNT_RULES,
         ];
     }

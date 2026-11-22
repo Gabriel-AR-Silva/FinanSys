@@ -494,6 +494,7 @@ class ManageNfcRecords
         return [
             'unit_id' => strtolower($data['unit_id']),
             'sold_on' => $data['sold_on'],
+            'warranty_starts_on' => $data['warranty_starts_on'] ?? null,
             'total_cents' => (int) $data['total_cents'],
         ];
     }
