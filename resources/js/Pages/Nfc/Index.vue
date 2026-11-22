@@ -3,20 +3,22 @@ import Modal from '@/Components/Modal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import NfcSharedLayout from '@/Layouts/NfcSharedLayout.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, X } from '@lucide/vue';
+import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, Eye, EyeOff, X } from '@lucide/vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import CompanyDetails from './CompanyDetails.vue';
 import ManufacturerDetails from './ManufacturerDetails.vue';
 import Editor from './Editor.vue';
 import Notices from './Notices.vue';
 import PerformanceChart from './PerformanceChart.vue';
-import { date, money } from './format';
+import { date, money as formatMoney } from './format';
 import './nfc.css';
 
 const props = defineProps({
     schema_pending: { type: Boolean, default: false },
     shared: { type: Boolean, default: false },
     read_only: { type: Boolean, default: false },
+    permissions: { type: Object, default: () => ({ create: false, update: false, delete: false }) },
+    privacy_key: { type: String, default: '' },
     share_token: { type: String, default: null },
     share_links: { type: Array, default: () => [] },
     share_links_enabled: { type: Boolean, default: false },
@@ -41,6 +43,26 @@ const filter = ref('all');
 const search = ref('');
 const productionSearch = ref('');
 const manufacturerSearch = ref('');
+const dashboardTabs = [
+    { key: 'finance', label: 'Financeiro' },
+    { key: 'evolution', label: 'Evolução do negócio' },
+    { key: 'registry', label: 'Cadastros' },
+];
+const activeDashboardTab = ref('finance');
+async function onDashboardTabKeydown(event, current) {
+    const order = dashboardTabs.map(tab => tab.key);
+    const index = order.indexOf(current);
+    let next = null;
+    if (event.key === 'ArrowRight') next = order[(index + 1) % order.length];
+    if (event.key === 'ArrowLeft') next = order[(index - 1 + order.length) % order.length];
+    if (event.key === 'Home') next = order[0];
+    if (event.key === 'End') next = order[order.length - 1];
+    if (next === null) return;
+    event.preventDefault();
+    activeDashboardTab.value = next;
+    await nextTick();
+    document.getElementById(`nfc-dashboard-tab-${next}`)?.focus();
+}
 const activeRegistryTab = ref('companies');
 const registryTabOrder = ['companies', 'production', 'manufacturers'];
 async function onRegistryTabKeydown(event, current) {
@@ -63,6 +85,36 @@ const dialogHeading = ref(null);
 const busy = ref(false);
 const shareBusy = ref(false);
 const shareScope = ref('view');
+const scopeOptions = [
+    { value: 'view', label: 'Somente consulta' },
+    { value: 'c', label: 'Consultar e cadastrar' },
+    { value: 'u', label: 'Consultar e editar' },
+    { value: 'd', label: 'Consultar e excluir' },
+    { value: 'cu', label: 'Cadastrar e editar' },
+    { value: 'cd', label: 'Cadastrar e excluir' },
+    { value: 'ud', label: 'Editar e excluir' },
+    { value: 'cud', label: 'Acesso completo' },
+];
+const hiddenValues = ref(false);
+const money = value => hiddenValues.value ? '••••••' : formatMoney(value);
+watch(() => props.privacy_key, key => {
+    try { hiddenValues.value = !!key && localStorage.getItem('nfc-privacy:' + key) === '1'; }
+    catch (_) { hiddenValues.value = false; }
+}, { immediate: true });
+function togglePrivacy() {
+    hiddenValues.value = !hiddenValues.value;
+    try { if (props.privacy_key) localStorage.setItem('nfc-privacy:' + props.privacy_key, hiddenValues.value ? '1' : '0'); } catch (_) {}
+}
+function updateShare(link, scope) {
+    if (shareBusy.value || props.shared || !authenticatedUser.value || scope === link.scope) return;
+    router.patch(route('nfc.share-links.update', { link: link.id }), { scope }, {
+        preserveScroll: true,
+        onStart: () => { shareBusy.value = true; },
+        onFinish: () => { shareBusy.value = false; },
+        onSuccess: () => notify({ message: 'Permissões atualizadas.' }),
+        onError: errors => reportError(errors, 'Não foi possível alterar as permissões.'),
+    });
+}
 const copied = ref(false);
 const feedback = ref(null);
 let feedbackTimer = null;
@@ -263,7 +315,7 @@ const deleteDescriptions = {
 };
 const confirmDeleteLabel = computed(() => dialog.value?.deleteKind === 'share-link' ? 'Revogar link' : 'Excluir registro');
 function destroy(kind, context = {}) {
-    if (props.read_only) return;
+    if (kind !== 'share-link' && !props.permissions.delete) return;
     if (busy.value || shareBusy.value || !Object.hasOwn(deleteDescriptions, kind)) return;
     dialog.value = { kind: 'confirm-delete', deleteKind: kind, deleteContext: context, previous: dialog.value };
 }
@@ -302,7 +354,8 @@ function showCompany(companyId, saleId = null) {
 }
 
 function edit(kind, context = {}) {
-    if (props.read_only) return;
+    const isUpdate = Boolean(context.unitId && kind === 'unit' || context.saleId && kind === 'sale' || context.batchId || context.manufacturerId || context.companyId && kind === 'company-form' || kind === 'plate');
+    if (!props.permissions[isUpdate ? 'update' : 'create']) return;
     dialog.value = { kind, ...context, previous: dialog.value };
 }
 
@@ -315,14 +368,17 @@ function saved(message = 'Registro salvo.') {
     if (dialog.value?.kind === 'company-form' && !company.value) {
         filter.value = 'all';
         search.value = '';
+        activeDashboardTab.value = 'registry';
         activeRegistryTab.value = 'companies';
     }
     if (dialog.value?.kind === 'manufacturer-form') {
         manufacturerSearch.value = '';
+        activeDashboardTab.value = 'registry';
         activeRegistryTab.value = 'manufacturers';
     }
     if (dialog.value?.kind === 'batch') {
         productionSearch.value = '';
+        activeDashboardTab.value = 'registry';
         activeRegistryTab.value = 'production';
     }
     busy.value = false;
@@ -363,7 +419,8 @@ watch(dialog, async (current, previous) => {
             <header class="flex flex-wrap items-center justify-between gap-3">
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC <span v-if="read_only" class="nfc-muted block text-xs font-medium">Acesso somente para consulta</span></h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
-                    <button v-if="!shared && share_links_enabled && authenticatedUser" type="button" class="nfc-button" @click="dialog = { kind: 'share' }">Compartilhar</button>
+                    <button v-if="!shared && authenticatedUser" type="button" class="nfc-button" @click="dialog = { kind: 'share' }">Compartilhar</button>
+                    <button type="button" class="nfc-button nfc-icon-button" :aria-label="hiddenValues ? 'Mostrar valores' : 'Ocultar valores'" :aria-pressed="hiddenValues" @click="togglePrivacy"><EyeOff v-if="hiddenValues" :size="18" aria-hidden="true" /><Eye v-else :size="18" aria-hidden="true" /></button>
                     <button v-if="!shared" type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
                         <Bell :size="18" aria-hidden="true" />
@@ -374,36 +431,76 @@ watch(dialog, async (current, previous) => {
 
             <p v-if="schema_pending" class="nfc-panel nfc-warning p-4 text-sm" role="status">Aplique a migration de Plaquinhas NFC para liberar os cadastros.</p>
 
-            <div v-else class="grid min-w-0 gap-3 lg:grid-cols-2">
-                <section v-for="(group, index) in metricGroups" :key="group.title"
-                    class="nfc-panel min-w-0 p-4" :class="index === 0 ? 'lg:col-span-2' : ''"
-                    :aria-labelledby="'nfc-metrics-' + index">
-                    <h2 :id="'nfc-metrics-' + index" class="mb-3 text-sm font-semibold">{{ group.title }}</h2>
-                    <dl class="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3" :class="index === 0 ? 'xl:grid-cols-5' : ''">
-                        <div v-for="metric in group.metrics" :key="metric.label" class="min-w-0">
-                            <dt class="nfc-muted text-xs font-medium">{{ metric.label }}</dt>
-                            <dd class="mt-1 break-words text-xl font-semibold tabular-nums" :class="metric.tone">{{ metric.value }}</dd>
-                            <dd v-if="metric.detail" class="nfc-muted mt-1 text-xs leading-snug">{{ metric.detail }}</dd>
+            <template v-else>
+                <nav role="tablist" aria-label="Áreas do painel NFC" class="nfc-panel grid grid-cols-3 gap-1 p-1">
+                    <button v-for="tab in dashboardTabs" :id="'nfc-dashboard-tab-' + tab.key" :key="tab.key" type="button" role="tab"
+                        :aria-controls="'nfc-dashboard-panel-' + tab.key"
+                        :aria-selected="activeDashboardTab === tab.key" :tabindex="activeDashboardTab === tab.key ? 0 : -1"
+                        class="nfc-dashboard-tab min-h-12 min-w-0 rounded-xl border px-2 py-2 text-center text-xs font-semibold sm:text-sm"
+                        @keydown="onDashboardTabKeydown($event, tab.key)" @click="activeDashboardTab = tab.key">
+                        {{ tab.label }}
+                    </button>
+                </nav>
+                <section v-show="activeDashboardTab === 'finance'" id="nfc-dashboard-panel-finance" role="tabpanel" aria-labelledby="nfc-dashboard-tab-finance" tabindex="0" class="grid min-w-0 gap-3 lg:grid-cols-2">
+                    <section class="nfc-panel min-w-0 overflow-hidden lg:col-span-2" aria-labelledby="nfc-finance-heading">
+                        <header class="nfc-rule border-b px-4 py-3">
+                            <h2 id="nfc-finance-heading" class="text-sm font-semibold">Resumo financeiro</h2>
+                            <p class="nfc-muted mt-0.5 text-xs">Valores acumulados das vendas e da fabricação.</p>
+                        </header>
+                        <dl class="nfc-finance-strip">
+                            <div v-for="metric in metricGroups[0].metrics.slice(0, 3)" :key="metric.label" class="nfc-finance-cell">
+                                <dt class="nfc-muted text-xs font-medium">{{ metric.label }}</dt>
+                                <dd class="break-words text-xl font-semibold tabular-nums sm:text-2xl" :class="metric.tone">{{ metric.value }}</dd>
+                            </div>
+                        </dl>
+                        <div class="nfc-rule border-t px-4 py-3">
+                            <div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <span class="font-semibold">Recebimento das vendas</span>
+                                <span v-if="!hiddenValues && financialSummary.revenue > 0" class="tabular-nums text-[var(--fs-success)]">{{ financialSummary.receivedPercent }}% recebido</span>
+                            </div>
+                            <div v-if="!hiddenValues && financialSummary.revenue > 0" class="flex h-2.5 overflow-hidden rounded-full bg-[var(--fs-surface-subtle)]" aria-hidden="true">
+                                <div class="bg-[var(--fs-success)]" :style="{ width: financialSummary.receivedPercent + '%' }"></div>
+                                <div class="bg-[var(--fs-warning)]" :style="{ width: financialSummary.outstandingPercent + '%' }"></div>
+                            </div>
+                            <p v-else class="nfc-muted text-xs">{{ hiddenValues ? 'Valores ocultos.' : 'Registre uma venda para acompanhar os recebimentos.' }}</p>
+                            <p v-if="!hiddenValues && financialSummary.revenue > 0" class="nfc-muted mt-2 text-xs">{{ financialSummary.outstandingPercent }}% a receber.</p>
                         </div>
-                    </dl>
-                    <div v-if="index === 0" class="nfc-rule mt-4 border-t pt-4">
-                        <div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-                            <span class="font-semibold">Recebimento das vendas · acumulado</span>
-                            <span v-if="financialSummary.revenue > 0" class="tabular-nums text-[var(--fs-success)]">{{ financialSummary.receivedPercent }}% recebido</span>
+                        <div class="nfc-rule border-t">
+                            <h3 class="nfc-muted bg-[var(--fs-surface-subtle)] px-4 py-2 text-xs font-semibold">Custos e perdas</h3>
+                            <dl>
+                                <div v-for="metric in metricGroups[0].metrics.slice(3)" :key="metric.label" class="nfc-rule grid grid-cols-[minmax(0,1fr)_minmax(0,auto)] items-center gap-3 border-t px-4 py-3">
+                                    <dt class="min-w-0 text-sm font-medium">{{ metric.label }}<span v-if="metric.detail" class="nfc-muted mt-0.5 block text-xs font-normal">{{ metric.detail }}</span></dt>
+                                    <dd class="max-w-[12rem] break-words text-right text-base font-semibold tabular-nums" :class="metric.tone">{{ metric.value }}</dd>
+                                </div>
+                            </dl>
                         </div>
-                        <div v-if="financialSummary.revenue > 0" class="flex h-3 overflow-hidden rounded-full bg-[var(--fs-surface-subtle)]" aria-hidden="true">
-                            <div class="bg-[var(--fs-success)]" :style="{ width: financialSummary.receivedPercent + '%' }"></div>
-                            <div class="bg-[var(--fs-warning)]" :style="{ width: financialSummary.outstandingPercent + '%' }"></div>
-                        </div>
-                        <p v-else class="nfc-muted text-xs">Registre uma venda para acompanhar os recebimentos.</p>
-                        <p v-if="financialSummary.revenue > 0" class="nfc-muted mt-2 text-xs">{{ financialSummary.outstandingPercent }}% a receber · custos e perdas são indicadores separados.</p>
-                    </div>
+                    </section>
+                    <section v-for="(group, index) in metricGroups.slice(1)" :key="group.title" class="nfc-panel min-w-0 overflow-hidden" :aria-labelledby="'nfc-operation-heading-' + index">
+                        <header class="nfc-rule border-b px-4 py-3">
+                            <h2 :id="'nfc-operation-heading-' + index" class="text-sm font-semibold">{{ group.title }}</h2>
+                        </header>
+                        <table class="nfc-metric-table w-full table-fixed border-collapse text-center" :aria-labelledby="'nfc-operation-heading-' + index">
+                            <thead>
+                                <tr>
+                                    <th v-for="metric in group.metrics" :key="metric.label" scope="col">{{ metric.label }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td v-for="metric in group.metrics" :key="metric.label">
+                                        <span class="block break-words text-lg font-semibold tabular-nums sm:text-xl" :class="metric.tone">{{ metric.value }}</span>
+                                        <span v-if="metric.detail" class="nfc-muted mt-1 block break-words text-[11px] leading-tight">{{ metric.detail }}</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </section>
                 </section>
-            </div>
-
-            <PerformanceChart v-if="!schema_pending" :companies="companies" :production="production" :today="today" />
-
-            <div v-if="!schema_pending" role="tablist" aria-label="Empresas, fabricação e fabricantes NFC"
+                <section v-show="activeDashboardTab === 'evolution'" id="nfc-dashboard-panel-evolution" role="tabpanel" aria-labelledby="nfc-dashboard-tab-evolution" tabindex="0" class="min-w-0">
+                    <PerformanceChart :hidden-values="hiddenValues" :companies="companies" :production="production" :today="today" />
+                </section>
+                <section v-show="activeDashboardTab === 'registry'" id="nfc-dashboard-panel-registry" role="tabpanel" aria-labelledby="nfc-dashboard-tab-registry" tabindex="0" class="flex min-w-0 flex-col gap-3">
+            <div role="tablist" aria-label="Tipos de cadastro"
                 class="nfc-rule flex w-full min-w-0 flex-wrap gap-1 border-b pb-1">
                 <button id="nfc-tab-companies" type="button" role="tab" aria-controls="nfc-panel-companies"
                     :aria-selected="activeRegistryTab === 'companies'" :tabindex="activeRegistryTab === 'companies' ? 0 : -1"
@@ -428,10 +525,10 @@ watch(dialog, async (current, previous) => {
                 </button>
             </div>
 
-            <section v-if="!schema_pending" v-show="activeRegistryTab === 'companies'" id="nfc-panel-companies" role="tabpanel" aria-labelledby="nfc-tab-companies" tabindex="0" class="flex min-w-0 flex-col gap-3">
+            <section v-show="activeRegistryTab === 'companies'" id="nfc-panel-companies" role="tabpanel" aria-labelledby="nfc-tab-companies" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex min-w-0 items-center justify-between gap-2">
                     <h2 id="nfc-companies" class="flex min-w-0 items-center gap-2 text-lg font-semibold"><Building2 :size="19" aria-hidden="true" /> Empresas</h2>
-                    <button v-if="!read_only" type="button" class="nfc-button nfc-primary shrink-0" @click="edit('company-form')">
+                    <button v-if="permissions.create" type="button" class="nfc-button nfc-primary shrink-0" @click="edit('company-form')">
                         <Plus :size="16" aria-hidden="true" /> Nova empresa
                     </button>
                 </div>
@@ -487,12 +584,12 @@ watch(dialog, async (current, previous) => {
                 <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ companies.length ? 'Nenhuma empresa neste filtro.' : 'Nenhuma empresa cadastrada.' }}</p>
             </section>
 
-            <section v-if="!schema_pending" v-show="activeRegistryTab === 'production'" id="nfc-panel-production" role="tabpanel" aria-labelledby="nfc-tab-production" tabindex="0" class="flex min-w-0 flex-col gap-3">
+            <section v-show="activeRegistryTab === 'production'" id="nfc-panel-production" role="tabpanel" aria-labelledby="nfc-tab-production" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 id="nfc-production" class="flex items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricação</h2>
                     <div class="flex flex-wrap gap-2">
-                        <button v-if="!read_only && !hasInitialBatch" type="button" class="nfc-button" @click="edit('batch', { initial: true })">Registrar lote inicial</button>
-                        <button v-if="!read_only" type="button" class="nfc-button" @click="edit('batch')"><Plus :size="17" aria-hidden="true" /> Novo lote</button>
+                        <button v-if="permissions.create && !hasInitialBatch" type="button" class="nfc-button" @click="edit('batch', { initial: true })">Registrar lote inicial</button>
+                        <button v-if="permissions.create" type="button" class="nfc-button" @click="edit('batch')"><Plus :size="17" aria-hidden="true" /> Novo lote</button>
                     </div>
                 </div>
                 <label class="nfc-field max-w-xl">Buscar lote, data, status, empresa ou unidade
@@ -508,17 +605,17 @@ watch(dialog, async (current, previous) => {
                         </div>
                         <span class="nfc-muted text-sm tabular-nums">{{ item.cost_cents === null ? 'Custo a informar' : money(item.cost_cents) }}</span>
                         <div class="flex flex-wrap gap-2">
-                            <button v-if="!read_only" type="button" class="nfc-button" :aria-label="`Editar lote #${item.id}`" @click="edit('batch', { batchId: item.id })">Editar</button>
-                            <button v-if="!read_only" type="button" class="nfc-button nfc-danger" @click="destroy('batch', { batchId: item.id })">Excluir</button>
+                            <button v-if="permissions.update" type="button" class="nfc-button" :aria-label="`Editar lote #${item.id}`" @click="edit('batch', { batchId: item.id })">Editar</button>
+                            <button v-if="permissions.delete" type="button" class="nfc-button nfc-danger" @click="destroy('batch', { batchId: item.id })">Excluir</button>
                         </div>
                     </li>
                 </ul>
                 <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ production.length ? 'Nenhum lote encontrado nesta busca.' : 'Nenhuma fabricação registrada.' }}</p>
             </section>
-            <section v-if="!schema_pending" v-show="activeRegistryTab === 'manufacturers'" id="nfc-panel-manufacturers" role="tabpanel" aria-labelledby="nfc-tab-manufacturers" tabindex="0" class="flex min-w-0 flex-col gap-3">
+            <section v-show="activeRegistryTab === 'manufacturers'" id="nfc-panel-manufacturers" role="tabpanel" aria-labelledby="nfc-tab-manufacturers" tabindex="0" class="flex min-w-0 flex-col gap-3">
                 <div class="flex min-w-0 items-center justify-between gap-2">
                     <h2 class="flex min-w-0 items-center gap-2 text-lg font-semibold"><Factory :size="19" aria-hidden="true" /> Fabricantes</h2>
-                    <button v-if="!read_only" type="button" class="nfc-button nfc-primary shrink-0" @click="edit('manufacturer-form')"><Plus :size="16" aria-hidden="true" /> Novo fabricante</button>
+                    <button v-if="permissions.create" type="button" class="nfc-button nfc-primary shrink-0" @click="edit('manufacturer-form')"><Plus :size="16" aria-hidden="true" /> Novo fabricante</button>
                 </div>
                 <label class="nfc-field max-w-xl">Buscar fabricante, contato ou unidade
                     <input v-model.trim="manufacturerSearch" type="search" class="nfc-control" placeholder="Digite para filtrar os fabricantes..." aria-label="Buscar fabricantes" />
@@ -538,6 +635,8 @@ watch(dialog, async (current, previous) => {
                 </ul>
                 <p v-else class="nfc-panel nfc-muted p-4 text-sm">{{ manufacturers.length ? 'Nenhum fabricante neste filtro.' : 'Nenhum fabricante cadastrado. Cadastre um para anexar imagens e vincular lotes.' }}</p>
             </section>
+                </section>
+            </template>
         </div>
 
         <Modal class="nfc-dialog" :show="dialog !== null" labelled-by="nfc-dialog-heading" :closeable="!busy" @close="closeDialog">
@@ -548,8 +647,8 @@ watch(dialog, async (current, previous) => {
                     <button type="button" class="nfc-button nfc-icon-button shrink-0" aria-label="Fechar" :disabled="busy" @click="closeDialog"><X :size="18" aria-hidden="true" /></button>
                 </header>
 
-                <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :read-only="read_only" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
-                <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :read-only="read_only" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
+                <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :permissions="permissions" :hidden-values="hiddenValues" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
+                <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :permissions="permissions" :hidden-values="hiddenValues" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
                 <div v-else-if="dialog.kind === 'confirm-delete'" class="flex min-w-0 flex-col gap-4">
                     <p class="text-sm leading-6">{{ deleteDescriptions[dialog.deleteKind] }}</p>
                     <p class="nfc-muted text-sm">Esta ação pode afetar indicadores ou registros vinculados. Confira antes de continuar.</p>
@@ -558,12 +657,13 @@ watch(dialog, async (current, previous) => {
                         <button type="button" class="nfc-button nfc-danger" :disabled="busy" @click="confirmDestroy">{{ busy ? 'Processando…' : confirmDeleteLabel }}</button>
                     </div>
                 </div>
-                <div v-else-if="dialog.kind === 'share' && !shared && share_links_enabled && authenticatedUser" class="flex min-w-0 flex-col gap-4">
-                    <p class="nfc-muted text-sm">Links válidos por sete dias. Selecione consulta para compartilhar sem permitir mudanças; edição permite alterações e exclusões no módulo NFC.</p>
+                <div v-else-if="dialog.kind === 'share' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
+                    <p v-if="!share_links_enabled" class="nfc-warning rounded-lg p-3 text-sm">Aplique a migration de permissões dos links NFC para habilitar a emissão e edição de links.</p>
+                    <p class="nfc-muted text-sm">Links válidos por sete dias. Escolha as operações permitidas. Cada link mantém sua própria configuração.</p>
                     <label class="nfc-field">Permissão do link
-                        <select v-model="shareScope" class="nfc-control" :disabled="shareBusy"><option value="view">Somente consulta</option><option value="edit">Consulta e edição (inclui exclusões)</option></select>
+                        <select v-model="shareScope" class="nfc-control" :disabled="shareBusy || !share_links_enabled"><option v-for="option in scopeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
                     </label>
-                    <button type="button" class="nfc-button nfc-primary self-start" :disabled="shareBusy" @click="createShare">Gerar novo link</button>
+                    <button type="button" class="nfc-button nfc-primary self-start" :disabled="shareBusy || !share_links_enabled" @click="createShare">Gerar novo link</button>
                     <div v-if="created_share_url" class="nfc-panel flex min-w-0 flex-col gap-2 p-3">
                         <label class="nfc-field">Link gerado (copie agora)
                             <input class="nfc-control" type="text" readonly :value="created_share_url" @focus="$event.target.select()" />
@@ -574,12 +674,13 @@ watch(dialog, async (current, previous) => {
                     <h3 class="font-semibold">Links emitidos</h3>
                     <ul class="flex flex-col gap-2">
                         <li v-for="link in share_links" :key="link.id" class="nfc-panel flex flex-wrap items-center justify-between gap-3 p-3 text-sm">
-                            <div><p class="font-semibold">Link #{{ link.id }} · {{ link.scope === 'view' ? 'Consulta' : 'Edição' }}</p>
+                            <div><p class="font-semibold">Link #{{ link.id }} · {{ scopeOptions.find(option => option.value === (link.scope === 'edit' || !link.scope ? 'cud' : link.scope))?.label }}</p>
                                 <p class="nfc-muted text-xs">Expira: {{ datetime(link.expires_at) }}</p>
                                 <span v-if="link.revoked_at" class="nfc-badge nfc-neutral">Revogado</span>
                                 <span v-else-if="new Date(link.expires_at) <= new Date()" class="nfc-badge nfc-warning">Expirado</span>
                                 <span v-else class="nfc-badge nfc-success">Ativo</span>
                             </div>
+                            <label v-if="!link.revoked_at && new Date(link.expires_at) > new Date() && share_links_enabled" class="nfc-field">Permissões<select class="nfc-control" :value="link.scope === 'edit' ? 'cud' : link.scope" :disabled="shareBusy" @change="updateShare(link, $event.target.value)"><option v-for="option in scopeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
                             <button v-if="!link.revoked_at" type="button" class="nfc-button nfc-danger" :disabled="shareBusy" @click="revokeShare(link)">Revogar</button>
                         </li>
                     </ul>
@@ -592,7 +693,7 @@ watch(dialog, async (current, previous) => {
                             <p class="font-semibold">{{ historyVerb[entry.event] || entry.event }} · {{ historyKind[entry.target_kind] || entry.target_kind }} #{{ entry.target_id }}</p>
                             <p v-if="entry.label" class="min-w-0 break-words">{{ entry.label }}</p>
                             <p class="nfc-muted text-xs">{{ entry.actor }} · {{ datetime(entry.occurred_at) }}</p>
-                            <details class="nfc-history-details mt-2 rounded-lg p-2">
+                            <details v-if="!hiddenValues" class="nfc-history-details mt-2 rounded-lg p-2">
                                 <summary class="cursor-pointer text-xs font-medium">Detalhes técnicos da alteração</summary>
                                 <dl class="mt-2 grid gap-2 sm:grid-cols-2">
                                     <div v-if="entry.before != null" class="min-w-0">
@@ -609,11 +710,13 @@ watch(dialog, async (current, previous) => {
                     </ul>
                     <p v-if="!history.length" class="nfc-muted text-sm">Nenhuma alteração registrada.</p>
                 </div>
-                <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :read-only="read_only" :warranty-notices="warranty_notices" :nfc-route="nfcRoute" @create="edit('notice')" @open-company="showCompany" @request-delete="notice => destroy('notice', { noticeId: notice.id })" @busy="busy = $event" @feedback="notify" />
+                <Notices v-else-if="dialog.kind === 'notices'" :notices="notices" :permissions="permissions" :hidden-values="hiddenValues" :warranty-notices="warranty_notices" :nfc-route="nfcRoute" @create="edit('notice')" @open-company="showCompany" @request-delete="notice => destroy('notice', { noticeId: notice.id })" @busy="busy = $event" @feedback="notify" />
                 <Editor
                     v-else
                     :key="dialog.kind"
                     :kind="dialog.kind"
+                    :permissions="permissions"
+                    :hidden-values="hiddenValues"
                     :context="dialog"
                     :today="today"
                     :company="company"

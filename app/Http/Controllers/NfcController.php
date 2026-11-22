@@ -28,10 +28,16 @@ class NfcController extends Controller
         $linksAvailable = Schema::hasTable('nfc_access_links');
         $scopesAvailable = $linksAvailable && Schema::hasColumn('nfc_access_links', 'scope');
 
+        $permissions = $shared
+            ? $request->attributes->get('nfc_share_permissions', ['create' => false, 'update' => false, 'delete' => false])
+            : ['create' => true, 'update' => true, 'delete' => true];
+
         return Inertia::render('Nfc/Index', [
             ...$query->forUser($this->owner($request), ! $shared),
             'shared' => $shared,
-            'read_only' => $shared && $request->attributes->get('nfc_share_scope') === 'view',
+            'read_only' => ! in_array(true, $permissions, true),
+            'permissions' => $permissions,
+            'privacy_key' => $shared ? 'link-'.$request->attributes->get('nfc_share_link')->id : 'owner-'.$request->user()->id,
             'share_token' => $shared ? (string) $request->attributes->get('nfc_share_token') : null,
             'created_share_url' => $shared ? null : $request->session()->get('nfc_share_url'),
             'share_links_enabled' => ! $shared && $scopesAvailable,

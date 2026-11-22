@@ -357,7 +357,7 @@ class ManageNfcRecords
                 'actor' => $user->name,
                 'occurred_at' => now()->toISOString(),
                 'before' => [],
-                'after' => ['expires_at' => $link->expires_at->toISOString(), 'revoked' => $link->revoked_at !== null],
+                'after' => ['expires_at' => $link->expires_at->toISOString(), 'revoked' => $link->revoked_at !== null, 'scope' => $link->scope ?? 'edit'],
             ],
         ]);
     }

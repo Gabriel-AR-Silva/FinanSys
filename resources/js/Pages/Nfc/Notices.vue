@@ -5,6 +5,8 @@ import { computed, nextTick, ref } from 'vue';
 import { date } from './format';
 
 const props = defineProps({
+    permissions: { type: Object, default: () => ({ create: false, update: false, delete: false }) },
+    hiddenValues: { type: Boolean, default: false },
     readOnly: { type: Boolean, default: false },
     notices: { type: Array, required: true },
     warrantyNotices: { type: Array, required: true },
@@ -42,7 +44,7 @@ function showError(errors, fallback) {
 }
 
 function toggle(notice, event) {
-    if (props.readOnly || form.processing) return;
+    if (!props.permissions.update || form.processing) return;
     const checkbox = event?.target;
     form.patch(props.nfcRoute('nfc.notices.resolve', { notice: notice.id }), {
         preserveScroll: true,
@@ -70,7 +72,7 @@ function context(notice) {
                 <h3 class="text-sm font-semibold">Quadro de avisos</h3>
                 <p class="nfc-muted text-xs">Pendências e garantias.</p>
             </div>
-            <button v-if="!readOnly" type="button" class="nfc-button nfc-primary shrink-0" :disabled="form.processing" @click="emit('create')">
+            <button v-if="permissions.create" type="button" class="nfc-button nfc-primary shrink-0" :disabled="form.processing" @click="emit('create')">
                 <Plus :size="16" aria-hidden="true" /> Novo aviso
             </button>
         </header>
@@ -99,13 +101,13 @@ function context(notice) {
                     <li v-for="notice in selectedNotices" :key="notice.id" class="nfc-panel flex min-w-0 items-start gap-3 p-3 sm:p-4">
                         <label class="flex min-h-8 shrink-0 cursor-pointer items-start pt-1">
                             <input class="nfc-check" type="checkbox" :checked="Boolean(notice.resolved_at)"
-                                :disabled="readOnly || form.processing" :aria-label="'Alternar resolução do aviso: ' + notice.text"
+                                :disabled="!permissions.update || form.processing" :aria-label="'Alternar resolução do aviso: ' + notice.text"
                                 @change="toggle(notice, $event)" />
                         </label>
                         <div class="flex min-w-0 flex-1 flex-col gap-2">
                             <div class="flex min-w-0 items-start justify-between gap-2">
                                 <p class="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm font-medium" :class="notice.resolved_at ? 'nfc-muted' : ''">{{ notice.text }}</p>
-                                <button v-if="!readOnly" type="button" class="nfc-button nfc-icon-button nfc-danger shrink-0"
+                                <button v-if="permissions.delete" type="button" class="nfc-button nfc-icon-button nfc-danger shrink-0"
                                     :disabled="form.processing" :aria-label="'Excluir aviso: ' + notice.text" title="Excluir aviso"
                                     @click="emit('request-delete', notice)">
                                     <Trash2 :size="16" aria-hidden="true" />

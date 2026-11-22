@@ -517,6 +517,42 @@ class NfcWorkspaceTest extends TestCase
         $this->assertDatabaseMissing('nfc_records', ['kind' => NfcRecord::COMPANY, 'user_id' => $owner->id]);
     }
 
+    public function test_link_permissions_are_independent_and_only_owner_can_change_them(): void
+    {
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $this->post(route('nfc.share-links.store'), ['scope' => 'cu'])->assertRedirect();
+        $firstUrl = session('nfc_share_url');
+        $first = NfcAccessLink::query()->whereBelongsTo($owner)->latest('id')->firstOrFail();
+        $this->post(route('nfc.share-links.store'), ['scope' => 'view'])->assertRedirect();
+        $secondUrl = session('nfc_share_url');
+        $second = NfcAccessLink::query()->whereBelongsTo($owner)->latest('id')->firstOrFail();
+        $firstToken = basename($firstUrl);
+        $secondToken = basename($secondUrl);
+        $update = route('nfc.share-links.update', ['link' => $first->id]);
+
+        Auth::logout();
+        $this->get($firstUrl)->assertInertia(fn (Assert $page) => $page
+            ->where('permissions.create', true)
+            ->where('permissions.update', true)
+            ->where('permissions.delete', false)
+            ->where('privacy_key', 'link-'.$first->id));
+        $this->get($secondUrl)->assertInertia(fn (Assert $page) => $page
+            ->where('permissions.create', false)
+            ->where('privacy_key', 'link-'.$second->id));
+        $this->delete(route('nfc.share.companies.destroy', ['token' => $firstToken, 'company' => $company->id]))->assertForbidden();
+        $this->patch($update, ['scope' => 'cud'])->assertRedirect(route('login'));
+        $this->actingAs(User::factory()->create())->patch($update, ['scope' => 'cud'])->assertNotFound();
+        $this->actingAs($owner)->patch($update, ['scope' => 'd'])->assertRedirect(route('nfc.index'));
+
+        Auth::logout();
+        $this->post(route('nfc.share.companies.store', ['token' => $firstToken]), [])->assertForbidden();
+        $this->patch(route('nfc.share.companies.update', ['token' => $firstToken, 'company' => $company->id]), [])->assertForbidden();
+        $this->delete(route('nfc.share.companies.destroy', ['token' => $secondToken, 'company' => $company->id]))->assertForbidden();
+        $this->delete(route('nfc.share.companies.destroy', ['token' => $firstToken, 'company' => $company->id]))->assertRedirect();
+        $this->assertSame('view', $second->fresh()->scope);
+    }
+
     public function test_expired_nfc_share_token_is_rejected(): void
     {
         $owner = User::factory()->create();
