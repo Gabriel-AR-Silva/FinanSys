@@ -605,7 +605,7 @@ class NfcWorkspaceTest extends TestCase
         $this->get($url)->assertNotFound();
     }
 
-    public function test_pdf_custom_filename_and_graphs_include_single_metric_on_separate_page(): void
+    public function test_pdf_omits_empty_charts_and_preserves_graphs_with_real_data(): void
     {
         $owner = User::factory()->create();
         $params = ['from' => '2026-11-01', 'to' => '2026-11-22', 'metrics' => ['received'], 'chart' => 1, 'name' => 'Vendas Novembro NFC'];
@@ -613,17 +613,43 @@ class NfcWorkspaceTest extends TestCase
             ->assertHeader('Content-Type', 'application/pdf')
             ->assertHeader('Content-Disposition', 'attachment; filename="vendas-novembro-nfc.pdf"');
 
-        $content = $response->getContent();
-        $this->assertSame(3, preg_match_all('/\\/Type \\/Page\\b/', $content));
-        $this->assertStringContainsString('COMPOSI', $content);
-        $this->assertStringContainsString('EVOLU', $content);
-        $this->assertStringContainsString('VALORES FINANCEIROS', $content);
-        $this->assertStringContainsString(' re B', $content);
-        $this->assertStringContainsString('Vendas Novembro NFC', $content);
+        $empty = $response->getContent();
+        $this->assertSame(2, preg_match_all('/\/Type \/Page\b/', $empty));
+        $this->assertStringNotContainsString('VALORES FINANCEIROS', $empty);
+        $this->assertStringNotContainsString('INDICADORES OPERACIONAIS', $empty);
+        $this->assertStringNotContainsString('COMPOSI', $empty);
+        $this->assertStringNotContainsString('EVOLU', $empty);
+        $this->assertStringContainsString('Vendas Novembro NFC', $empty);
 
-        $withoutGraph = $this->get(route('nfc.report.export', array_replace($params, ['chart' => 0])))
+        $company = $this->createCompany($owner);
+        $this->createSale($company, [
+            'sold_on' => '2026-11-10',
+            'payments' => [['method' => 'pix', 'amount_cents' => 4000, 'received_on' => '2026-11-12']],
+        ]);
+
+        $onlyFinancial = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => ['received']])))
             ->assertOk()->getContent();
-        $this->assertSame(2, preg_match_all('/\\/Type \\/Page\\b/', $withoutGraph));
+        $this->assertSame(3, preg_match_all('/\/Type \/Page\b/', $onlyFinancial));
+        $this->assertStringContainsString('VALORES FINANCEIROS', $onlyFinancial);
+        $this->assertStringNotContainsString('INDICADORES OPERACIONAIS', $onlyFinancial);
+
+        $onlyOperational = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => ['sold']])))
+            ->assertOk()->getContent();
+        $this->assertSame(3, preg_match_all('/\/Type \/Page\b/', $onlyOperational));
+        $this->assertStringContainsString('INDICADORES OPERACIONAIS', $onlyOperational);
+        $this->assertStringNotContainsString('VALORES FINANCEIROS', $onlyOperational);
+        $this->assertStringContainsString('COMPOSI', $onlyOperational);
+        $this->assertStringContainsString('EVOLU', $onlyOperational);
+
+        $both = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => ['sales', 'sold']])))
+            ->assertOk()->getContent();
+        $this->assertSame(3, preg_match_all('/\/Type \/Page\b/', $both));
+        $this->assertStringContainsString('VALORES FINANCEIROS', $both);
+        $this->assertStringContainsString('INDICADORES OPERACIONAIS', $both);
+
+        $withoutGraph = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => ['sold'], 'chart' => 0])))
+            ->assertOk()->getContent();
+        $this->assertSame(2, preg_match_all('/\/Type \/Page\b/', $withoutGraph));
         $this->assertStringNotContainsString('EVOLU', $withoutGraph);
 
         $this->getJson(route('nfc.report.export', array_replace($params, ['name' => '../indevido'])))
