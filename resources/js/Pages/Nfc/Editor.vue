@@ -76,7 +76,7 @@ function fields() {
         case 'batch':
             return {
                 ...(!batch && { operation_id: crypto.randomUUID(), initial: Boolean(context.initial) }),
-                produced_on: batch ? batch.produced_on ?? '' : context.initial ? '' : today,
+                produced_on: batch?.produced_on ?? '',
                 quantity: batch?.quantity ?? (context.initial ? 60 : 1),
                 customized_quantity: batch ? batch.customized_quantity ?? '' : context.initial ? '' : 0,
                 cost: inputMoney(batch?.cost_cents),
@@ -92,7 +92,7 @@ const form = useForm(fields());
 const quickUnitOpen = ref(false);
 const quickRecordKind = ref(null);
 const quickManufacturer = useForm({ operation_id: crypto.randomUUID(), name: '', phone: '', notes: '' });
-const quickBatch = useForm({ operation_id: crypto.randomUUID(), initial: false, quantity: 1, customized_quantity: 0, produced_on: props.today, status: 'completed', manufacturer_id: null, cost: '' });
+const quickBatch = useForm({ operation_id: crypto.randomUUID(), initial: false, quantity: 1, customized_quantity: 0, produced_on: '', status: 'completed', manufacturer_id: null, cost: '' });
 const quickRecordBusy = computed(() => quickManufacturer.processing || quickBatch.processing);
 
 function createQuickRecord(kind) {
@@ -316,11 +316,12 @@ function submit() {
                     <label class="nfc-field">Quantidade<input v-model.number="quickBatch.quantity" class="nfc-control" type="number" min="1" :disabled="quickRecordBusy" /></label>
                     <label class="nfc-field">Personalizadas<input v-model.number="quickBatch.customized_quantity" class="nfc-control" type="number" min="0" :max="quickBatch.quantity" :disabled="quickRecordBusy" /></label>
                 </div>
-                <label class="nfc-field">Data da fabricação<input v-model="quickBatch.produced_on" class="nfc-control" type="date" :max="today" :disabled="quickRecordBusy" /></label>
+                <label class="nfc-field">Data da fabricação (opcional)<input v-model="quickBatch.produced_on" class="nfc-control" type="date" :max="today" :disabled="quickRecordBusy" /></label>
+                <p v-if="!quickBatch.produced_on" class="text-sm text-[var(--fs-warning)]" role="status">Sem data, este lote não entra nos cálculos de fabricação por período do PDF, e a margem poderá ficar indisponível. Você pode salvar assim mesmo.</p>
                 <label class="nfc-field">Custo (R$)<input v-model.trim="quickBatch.cost" class="nfc-control" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" :disabled="quickRecordBusy" placeholder="A informar" /></label>
                 <p v-for="error in Object.values(quickBatch.errors)" :key="error" class="text-xs text-[var(--fs-danger)]" role="alert">{{ error }}</p>
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" class="nfc-button nfc-primary" :disabled="quickRecordBusy || !quickBatch.quantity || quickBatch.quantity < 1 || (quickBatch.status === 'completed' && !quickBatch.produced_on) || (quickBatch.cost !== '' && asCents(quickBatch.cost) === null)" @click="createQuickRecord('production')">{{ quickRecordBusy ? 'Cadastrando…' : 'Cadastrar lote' }}</button>
+                    <button type="button" class="nfc-button nfc-primary" :disabled="quickRecordBusy || !quickBatch.quantity || quickBatch.quantity < 1 || (quickBatch.cost !== '' && asCents(quickBatch.cost) === null)" @click="createQuickRecord('production')">{{ quickRecordBusy ? 'Cadastrando…' : 'Cadastrar lote' }}</button>
                     <button type="button" class="nfc-button" :disabled="quickRecordBusy" @click="quickRecordKind = null">Voltar à unidade</button>
                 </div>
             </div>
@@ -458,9 +459,10 @@ function submit() {
                     <option value="completed">Fabricado</option>
                 </select>
             </label>
-            <label class="nfc-field">Data da fabricação
-                <input v-model="form.produced_on" class="nfc-control" type="date" :max="today" :required="!initialBatch && form.status === 'completed'" />
+            <label class="nfc-field">Data da fabricação (opcional)
+                <input v-model="form.produced_on" class="nfc-control" type="date" :max="today" />
             </label>
+            <p v-if="!form.produced_on" class="text-sm text-[var(--fs-warning)]" role="status">Sem data, este lote não entra nos cálculos de fabricação por período do PDF, e a margem poderá ficar indisponível. Você pode salvar assim mesmo.</p>
             <div class="grid min-w-0 gap-4 sm:grid-cols-2">
                 <label class="nfc-field">Quantidade fabricada
                     <input v-model.number="form.quantity" class="nfc-control" type="number" inputmode="numeric" min="1" step="1" required />
