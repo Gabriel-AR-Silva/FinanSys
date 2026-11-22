@@ -37,13 +37,14 @@ class NfcFrontendRouteContractTest extends TestCase
         $this->assertStringContainsString('onSuccess:', $dashboard);
         $this->assertStringContainsString('onError:', $dashboard);
     }
+
     public function test_dashboard_separates_finance_evolution_and_registry_without_unmounting_state(): void
     {
         $dashboard = file_get_contents(resource_path('js/Pages/Nfc/Index.vue'));
 
         foreach (['finance', 'evolution', 'registry'] as $tab) {
             $this->assertStringContainsString('id="nfc-dashboard-panel-'.$tab.'"', $dashboard);
-            $this->assertStringContainsString("v-show=\"activeDashboardTab === '".$tab."'\"", $dashboard);
+            $this->assertStringContainsString(sprintf('v-show="activeDashboardTab === \'%s\'"', $tab), $dashboard);
         }
 
         $this->assertStringContainsString('onDashboardTabKeydown', $dashboard);
