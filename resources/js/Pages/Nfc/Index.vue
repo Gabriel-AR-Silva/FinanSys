@@ -2,7 +2,7 @@
 import Modal from '@/Components/Modal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import NfcSharedLayout from '@/Layouts/NfcSharedLayout.vue';
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, Eye, EyeOff, EllipsisVertical, Share2, Trash2, FileDown, X } from '@lucide/vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import CompanyDetails from './CompanyDetails.vue';
@@ -27,6 +27,7 @@ const props = defineProps({
     summary: { type: Object, default: () => ({}) },
     companies: { type: Array, default: () => [] },
     production: { type: Array, default: () => [] },
+    reinvestments: { type: Array, default: () => [] },
     manufacturers: { type: Array, default: () => [] },
     notices: { type: Array, default: () => [] },
     warranty_notices: { type: Array, default: () => [] },
@@ -92,6 +93,44 @@ const reportFrom = ref('');
 const reportName = ref('');
 const reportTo = ref('');
 const reportChart = ref(true);
+const reinvestmentAmount = ref('');
+const reinvestmentForm = useForm({
+    operation_id: crypto.randomUUID(),
+    spent_on: props.today,
+    amount_cents: 0,
+    description: '',
+    production_id: '',
+});
+function saveReinvestment() {
+    if (props.shared || !authenticatedUser.value || reinvestmentForm.processing || busy.value) return;
+    const amount = reinvestmentAmount.value.trim().replace(',', '.');
+    if (!/^\d+(?:\.\d{1,2})?$/.test(amount)) {
+        notify({ type: 'error', message: 'Informe um valor válido em reais, com até duas casas decimais.' });
+        return;
+    }
+    const [reais, fraction = ''] = amount.split('.');
+    const cents = Number(reais) * 100 + Number(fraction.padEnd(2, '0'));
+    if (!Number.isSafeInteger(cents) || cents < 1 || cents > 999999999) {
+        notify({ type: 'error', message: 'Informe um valor maior que zero dentro do limite permitido.' });
+        return;
+    }
+    reinvestmentForm.transform(data => ({
+        ...data, amount_cents: cents, production_id: data.production_id || null,
+    })).post(route('nfc.reinvestments.store'), {
+        preserveScroll: true,
+        onStart: () => { busy.value = true; },
+        onFinish: () => { busy.value = false; },
+        onSuccess: () => {
+            dialog.value = null;
+            reinvestmentForm.reset();
+            reinvestmentForm.operation_id = crypto.randomUUID();
+            reinvestmentAmount.value = '';
+            notify({ message: 'Reinvestimento registrado no caixa NFC.' });
+        },
+        onError: errors => reportError(errors, 'Não foi possível registrar o reinvestimento.'),
+    });
+}
+
 const reportOptions = [
     { key: 'sales', label: 'Valor vendido' },
     { key: 'received', label: 'Recebido' },
@@ -344,6 +383,7 @@ const titles = {
     share: 'Links de acesso NFC',
     reset: 'Zerar cadastros NFC',
     report: 'Exportar relatório PDF',
+    reinvestment: 'Registrar reinvestimento',
     notice: 'Novo aviso',
     payment: 'Registrar pagamento',
     plate: 'Editar plaquinha',
@@ -362,7 +402,7 @@ const title = computed(() => {
 });
 
 const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído', revoked: 'Revogado' };
-const historyKind = { manufacturer: 'Fabricante', company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial', share_link: 'Link compartilhado' };
+const historyKind = { manufacturer: 'Fabricante', company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial', reinvestment: 'Reinvestimento', share_link: 'Link compartilhado' };
 const datetime = text => new Date(text).toLocaleString('pt-BR');
 const deleteDescriptions = {
     company: 'A empresa, suas unidades, vendas, pagamentos e plaquinhas deixarão de aparecer no painel.',
@@ -374,11 +414,12 @@ const deleteDescriptions = {
     manufacturer: 'O fabricante e suas imagens serão removidos. Lotes vinculados podem impedir a exclusão.',
     image: 'Esta imagem será removida permanentemente da galeria do fabricante.',
     notice: 'O aviso será excluído da lista de pendências.',
+    reinvestment: 'Esta retirada será removida e o dinheiro voltará a aparecer no saldo disponível do caixa NFC.',
     'share-link': 'O link deixará de permitir acesso imediatamente, inclusive para quem já o recebeu.',
 };
 const confirmDeleteLabel = computed(() => dialog.value?.deleteKind === 'share-link' ? 'Revogar link' : 'Excluir registro');
 function destroy(kind, context = {}) {
-    if (kind !== 'share-link' && !props.permissions.delete) return;
+    if ((kind === 'reinvestment' && props.shared) || (kind !== 'share-link' && !props.permissions.delete)) return;
     if (busy.value || shareBusy.value || !Object.hasOwn(deleteDescriptions, kind)) return;
     dialog.value = { kind: 'confirm-delete', deleteKind: kind, deleteContext: context, previous: dialog.value };
 }
@@ -395,11 +436,12 @@ function confirmDestroy() {
         manufacturer: ['nfc.manufacturers.destroy', { manufacturer: context.manufacturerId }],
         image: ['nfc.manufacturers.images.destroy', { manufacturer: context.manufacturerId, image: context.imageId }],
         notice: ['nfc.notices.destroy', { notice: context.noticeId }],
+        reinvestment: ['nfc.reinvestments.destroy', { reinvestment: context.reinvestmentId }],
         'share-link': ['nfc.share-links.destroy', { link: context.linkId }],
     };
     const target = routeNames[kind];
     if (!target) return;
-    const endpoint = kind === 'share-link' ? route(target[0], target[1]) : nfcRoute(target[0], target[1]);
+    const endpoint = ['share-link', 'reinvestment'].includes(kind) ? route(target[0], target[1]) : nfcRoute(target[0], target[1]);
     router.delete(endpoint, {
         preserveScroll: true,
         onStart: () => { busy.value = true; },
@@ -544,6 +586,49 @@ watch(dialog, async (current, previous) => {
                                 </div>
                             </dl>
                         </div>
+                    </section>
+                    <section class="nfc-panel min-w-0 overflow-hidden lg:col-span-2" aria-label="Caixa e reinvestimentos NFC">
+                        <header class="nfc-rule flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+                            <div class="min-w-0">
+                                <h2 class="text-sm font-semibold">Caixa das plaquinhas</h2>
+                                <p class="nfc-muted mt-0.5 text-xs">Dinheiro recebido que pode ser usado para produzir mais plaquinhas. Não representa lucro.</p>
+                            </div>
+                            <button v-if="!shared && permissions.create" class="nfc-button nfc-primary w-full sm:w-auto" type="button"
+                                @click="reinvestmentForm.spent_on = today; dialog = { kind: 'reinvestment' }">
+                                <Plus :size="16" aria-hidden="true" /> Registrar reinvestimento
+                            </button>
+                        </header>
+                        <dl class="nfc-finance-strip">
+                            <div class="nfc-finance-cell">
+                                <dt class="nfc-muted text-xs font-medium">Recebido</dt>
+                                <dd class="break-words text-xl font-semibold tabular-nums sm:text-2xl">{{ money(summary.received_cents ?? 0) }}</dd>
+                            </div>
+                            <div class="nfc-finance-cell">
+                                <dt class="nfc-muted text-xs font-medium">Reinvestido</dt>
+                                <dd class="break-words text-xl font-semibold tabular-nums text-[var(--fs-warning)] sm:text-2xl">{{ money(summary.reinvested_cents ?? 0) }}</dd>
+                            </div>
+                            <div class="nfc-finance-cell">
+                                <dt class="nfc-muted text-xs font-medium">Disponível no caixa</dt>
+                                <dd class="break-words text-xl font-semibold tabular-nums" :class="(summary.cash_available_cents ?? 0) < 0 ? 'text-[var(--fs-danger)]' : 'text-[var(--fs-success)]'">{{ money(summary.cash_available_cents ?? 0) }}</dd>
+                            </div>
+                        </dl>
+                        <div v-if="reinvestments.length" class="nfc-rule border-t px-4 py-3">
+                            <h3 class="mb-2 text-xs font-semibold">Últimos reinvestimentos</h3>
+                            <ul class="nfc-scrollbar max-h-64 space-y-2 overflow-y-auto">
+                                <li v-for="entry in reinvestments" :key="entry.id" class="nfc-panel flex min-w-0 flex-wrap items-center justify-between gap-2 p-3">
+                                    <div class="min-w-0 flex-1">
+                                        <p class="break-words text-sm font-medium">{{ entry.description }}</p>
+                                        <p class="nfc-muted text-xs">{{ date(entry.spent_on) }}<span v-if="entry.production_id"> · Lote #{{ entry.production_id }}</span></p>
+                                    </div>
+                                    <strong class="text-sm tabular-nums text-[var(--fs-warning)]">{{ money(entry.amount_cents) }}</strong>
+                                    <button v-if="!shared && permissions.delete" type="button" class="nfc-button nfc-icon-button nfc-danger"
+                                        :aria-label="'Excluir reinvestimento: ' + entry.description" @click="destroy('reinvestment', { reinvestmentId: entry.id })">
+                                        <Trash2 :size="16" aria-hidden="true" />
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <p v-else class="nfc-muted nfc-rule border-t px-4 py-3 text-xs">Nenhum reinvestimento registrado. Os custos dos lotes não são retirados do caixa automaticamente.</p>
                     </section>
                     <section v-for="(group, index) in metricGroups.slice(1)" :key="group.title" class="nfc-panel min-w-0 overflow-hidden" :aria-labelledby="'nfc-operation-heading-' + index">
                         <header class="nfc-rule border-b px-4 py-3">
@@ -727,6 +812,31 @@ watch(dialog, async (current, previous) => {
                         <button type="button" class="nfc-button nfc-danger" :disabled="busy" @click="confirmDestroy">{{ busy ? 'Processando…' : confirmDeleteLabel }}</button>
                     </div>
                 </div>
+                <form v-else-if="dialog.kind === 'reinvestment' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveReinvestment">
+                    <p class="nfc-muted text-sm">Registre o dinheiro que saiu do caixa das vendas para fabricar novas plaquinhas. Não é aporte nem um segundo custo de fabricação.</p>
+                    <label class="nfc-field">Valor retirado (R$)
+                        <input v-model.trim="reinvestmentAmount" type="text" inputmode="decimal" class="nfc-control" required placeholder="Ex.: 75,50" autocomplete="off" :disabled="reinvestmentForm.processing" />
+                    </label>
+                    <label class="nfc-field">Data da retirada
+                        <input v-model="reinvestmentForm.spent_on" type="date" class="nfc-control" required :max="today" :disabled="reinvestmentForm.processing" />
+                    </label>
+                    <label class="nfc-field">Para que foi utilizado?
+                        <input v-model.trim="reinvestmentForm.description" type="text" maxlength="160" class="nfc-control" required placeholder="Ex.: Produção personalizada para loja" :disabled="reinvestmentForm.processing" />
+                    </label>
+                    <label class="nfc-field">Lote de fabricação (opcional)
+                        <select v-model="reinvestmentForm.production_id" class="nfc-control" :disabled="reinvestmentForm.processing">
+                            <option value="">Sem lote vinculado</option>
+                            <option v-for="item in production" :key="item.id" :value="item.id">Lote #{{ item.id }} · {{ item.quantity }} plaquinhas</option>
+                        </select>
+                    </label>
+                    <p class="nfc-muted text-xs">Disponível agora: {{ money(summary.cash_available_cents ?? 0) }}. Vincular um lote não altera seu custo de fabricação já registrado.</p>
+                    <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
+                        <button type="button" class="nfc-button" :disabled="reinvestmentForm.processing" @click="closeDialog">Cancelar</button>
+                        <button type="submit" class="nfc-button nfc-primary" :disabled="reinvestmentForm.processing || busy">
+                            {{ reinvestmentForm.processing ? 'Registrando…' : 'Registrar retirada' }}
+                        </button>
+                    </div>
+                </form>
                 <div v-else-if="dialog.kind === 'report' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
                     <p class="nfc-muted text-sm">Escolha o período e os indicadores. O arquivo contém somente dados do seu plugin NFC.</p>
                     <label class="nfc-field">Nome do relatório / arquivo (opcional)
