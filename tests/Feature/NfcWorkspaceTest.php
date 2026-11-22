@@ -629,13 +629,13 @@ class NfcWorkspaceTest extends TestCase
 
         $onlyFinancial = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => ['received']])))
             ->assertOk()->getContent();
-        $this->assertSame(3, preg_match_all('/\/Type \/Page\b/', $onlyFinancial));
+        $this->assertSame(4, preg_match_all('/\/Type \/Page\b/', $onlyFinancial));
         $this->assertStringContainsString('VALORES FINANCEIROS', $onlyFinancial);
         $this->assertStringNotContainsString('INDICADORES OPERACIONAIS', $onlyFinancial);
 
         $onlyOperational = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => ['sold']])))
             ->assertOk()->getContent();
-        $this->assertSame(3, preg_match_all('/\/Type \/Page\b/', $onlyOperational));
+        $this->assertSame(4, preg_match_all('/\/Type \/Page\b/', $onlyOperational));
         $this->assertStringContainsString('INDICADORES OPERACIONAIS', $onlyOperational);
         $this->assertStringNotContainsString('VALORES FINANCEIROS', $onlyOperational);
         $this->assertStringContainsString('COMPOSI', $onlyOperational);
@@ -643,13 +643,13 @@ class NfcWorkspaceTest extends TestCase
 
         $both = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => ['sales', 'sold']])))
             ->assertOk()->getContent();
-        $this->assertSame(3, preg_match_all('/\/Type \/Page\b/', $both));
+        $this->assertSame(4, preg_match_all('/\/Type \/Page\b/', $both));
         $this->assertStringContainsString('VALORES FINANCEIROS', $both);
         $this->assertStringContainsString('INDICADORES OPERACIONAIS', $both);
 
         $withoutGraph = $this->get(route('nfc.report.export', array_replace($params, ['metrics' => ['sold'], 'chart' => 0])))
             ->assertOk()->getContent();
-        $this->assertSame(2, preg_match_all('/\/Type \/Page\b/', $withoutGraph));
+        $this->assertSame(3, preg_match_all('/\/Type \/Page\b/', $withoutGraph));
         $this->assertStringNotContainsString('EVOLU', $withoutGraph);
 
         $this->getJson(route('nfc.report.export', array_replace($params, ['name' => '../indevido'])))
