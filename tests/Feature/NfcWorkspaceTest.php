@@ -9,6 +9,7 @@ use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -22,6 +23,45 @@ class NfcWorkspaceTest extends TestCase
         parent::setUp();
 
         $this->withoutVite();
+    }
+
+    public function test_reset_requires_owner_session_and_confirmation_and_only_clears_owners_nfc_records(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->create();
+        $other = User::factory()->create();
+
+        foreach ([$owner, $other] as $user) {
+            foreach ([NfcRecord::COMPANY, NfcRecord::MANUFACTURER, NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION, NfcRecord::NOTICE, NfcRecord::HISTORY] as $kind) {
+                NfcRecord::query()->create([
+                    'user_id' => $user->id,
+                    'kind' => $kind,
+                    'record_key' => (string) Str::uuid(),
+                    'payload' => ['name' => 'Teste'],
+                ]);
+            }
+            Storage::disk('local')->put("nfc/manufacturers/{$user->id}/1/test.png", 'test');
+        }
+
+        $this->actingAs($owner)->post(route('nfc.share-links.store'), ['scope' => 'cud'])
+            ->assertRedirect(route('nfc.index'));
+        $url = session('nfc_share_url');
+        preg_match('~/compartilhado/([^/?]+)~', $url, $matches);
+        Auth::logout();
+
+        $this->delete(route('nfc.reset'), ['confirmation' => 'ZERAR'])->assertRedirect(route('login'));
+        $this->delete('/plaquinhas-nfc/compartilhado/'.$matches[1].'/zerar', ['confirmation' => 'ZERAR'])->assertNotFound();
+
+        $this->actingAs($owner)->delete(route('nfc.reset'), ['confirmation' => 'ERRADO'])
+            ->assertSessionHasErrors('confirmation');
+        $this->assertDatabaseHas('nfc_records', ['user_id' => $owner->id, 'kind' => NfcRecord::COMPANY]);
+
+        $this->delete(route('nfc.reset'), ['confirmation' => 'ZERAR'])->assertRedirect(route('nfc.index'));
+        $this->assertDatabaseMissing('nfc_records', ['user_id' => $owner->id]);
+        $this->assertSame(6, NfcRecord::query()->whereBelongsTo($other)->count());
+        $this->assertDatabaseHas('nfc_access_links', ['user_id' => $owner->id]);
+        Storage::disk('local')->assertMissing("nfc/manufacturers/{$owner->id}/1/test.png");
+        Storage::disk('local')->assertExists("nfc/manufacturers/{$other->id}/1/test.png");
     }
 
     public function test_guests_are_redirected_to_login_for_reads_and_writes(): void
@@ -563,6 +603,42 @@ class NfcWorkspaceTest extends TestCase
             ->update(['expires_at' => now()->subSecond()]);
         Auth::logout();
         $this->get($url)->assertNotFound();
+    }
+
+    public function test_report_pdf_filters_metrics_dates_and_owner_and_is_not_available_to_shared_links(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-22T15:00:00Z'));
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $this->createSale($company, [
+            'sold_on' => '2026-11-10',
+            'payments' => [['method' => 'pix', 'amount_cents' => 4000, 'received_on' => '2026-11-12']],
+        ]);
+        $this->createSale($company, [
+            'sold_on' => '2026-10-10',
+            'payments' => [['method' => 'cash', 'amount_cents' => 7000, 'received_on' => '2026-10-12']],
+        ]);
+        $other = $this->createCompany(User::factory()->create());
+        $this->createSale($other, [
+            'sold_on' => '2026-11-10',
+            'payments' => [['method' => 'pix', 'amount_cents' => 9000, 'received_on' => '2026-11-12']],
+        ]);
+
+        $params = ['from' => '2026-11-01', 'to' => '2026-11-22', 'metrics' => ['received'], 'chart' => 0];
+        $url = route('nfc.report.export', $params);
+        $response = $this->actingAs($owner)->get($url)->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+        $this->assertStringContainsString('R$ 40,00', $response->getContent());
+        $this->assertStringNotContainsString('R$ 70,00', $response->getContent());
+        $this->assertStringNotContainsString('R$ 90,00', $response->getContent());
+        $this->assertStringNotContainsString('Valor vendido', $response->getContent());
+        $this->getJson(route('nfc.report.export', array_replace($params, ['metrics' => ['invalid']])))->assertUnprocessable();
+
+        $this->post(route('nfc.share-links.store'), ['scope' => 'cud'])->assertRedirect();
+        $shared = session('nfc_share_url');
+        Auth::logout();
+        $this->get($url)->assertRedirect(route('login'));
+        $this->get($shared.'/relatorio.pdf?'.http_build_query($params))->assertNotFound();
     }
 
     private function createCompany(User $user, string $name = 'Pontasso'): NfcRecord
