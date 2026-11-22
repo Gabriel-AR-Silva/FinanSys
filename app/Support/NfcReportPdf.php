@@ -315,6 +315,13 @@ class NfcReportPdf
             $notes[] = 'No donut, pago até hoje pode incluir pagamentos após o período.';
         }
         foreach ($notes as $note) {
+            if ($y < 84) {
+                $pages[] = $draw;
+                $draw = [];
+                $header('Detalhamento  /  notas (continuação)');
+                $text(50, 670, 'OBSERVAÇÕES E LIMITAÇÕES', 11, true);
+                $y = 646;
+            }
             $text(50, $y, mb_strimwidth($note, 0, 91, '...', 'UTF-8'), 9, false, 'muted');
             $y -= 18;
         }
