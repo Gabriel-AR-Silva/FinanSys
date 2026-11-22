@@ -101,6 +101,15 @@ const reinvestmentForm = useForm({
     description: '',
     production_id: '',
 });
+function openReinvestment() {
+    if (props.shared || !authenticatedUser.value || !props.permissions.create || busy.value) return;
+    reinvestmentForm.reset();
+    reinvestmentForm.clearErrors();
+    reinvestmentForm.operation_id = crypto.randomUUID();
+    reinvestmentForm.spent_on = props.today;
+    reinvestmentAmount.value = '';
+    dialog.value = { kind: 'reinvestment' };
+}
 function saveReinvestment() {
     if (props.shared || !authenticatedUser.value || reinvestmentForm.processing || busy.value) return;
     const amount = reinvestmentAmount.value.trim().replace(',', '.');
@@ -594,7 +603,7 @@ watch(dialog, async (current, previous) => {
                                 <p class="nfc-muted mt-0.5 text-xs">Dinheiro recebido que pode ser usado para produzir mais plaquinhas. Não representa lucro.</p>
                             </div>
                             <button v-if="!shared && permissions.create" class="nfc-button nfc-primary w-full sm:w-auto" type="button"
-                                @click="reinvestmentForm.spent_on = today; dialog = { kind: 'reinvestment' }">
+                                @click="openReinvestment">
                                 <Plus :size="16" aria-hidden="true" /> Registrar reinvestimento
                             </button>
                         </header>
@@ -815,20 +824,25 @@ watch(dialog, async (current, previous) => {
                 <form v-else-if="dialog.kind === 'reinvestment' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveReinvestment">
                     <p class="nfc-muted text-sm">Registre o dinheiro que saiu do caixa das vendas para fabricar novas plaquinhas. Não é aporte nem um segundo custo de fabricação.</p>
                     <label class="nfc-field">Valor retirado (R$)
-                        <input v-model.trim="reinvestmentAmount" type="text" inputmode="decimal" class="nfc-control" required placeholder="Ex.: 75,50" autocomplete="off" :disabled="reinvestmentForm.processing" />
+                        <input v-model.trim="reinvestmentAmount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" class="nfc-control" required placeholder="Ex.: 75,50" autocomplete="off" :disabled="reinvestmentForm.processing" />
+                        <span v-if="reinvestmentForm.errors.amount_cents" role="alert" class="text-xs text-[var(--fs-danger)]">{{ reinvestmentForm.errors.amount_cents }}</span>
                     </label>
                     <label class="nfc-field">Data da retirada
                         <input v-model="reinvestmentForm.spent_on" type="date" class="nfc-control" required :max="today" :disabled="reinvestmentForm.processing" />
+                        <span v-if="reinvestmentForm.errors.spent_on" role="alert" class="text-xs text-[var(--fs-danger)]">{{ reinvestmentForm.errors.spent_on }}</span>
                     </label>
                     <label class="nfc-field">Para que foi utilizado?
                         <input v-model.trim="reinvestmentForm.description" type="text" maxlength="160" class="nfc-control" required placeholder="Ex.: Produção personalizada para loja" :disabled="reinvestmentForm.processing" />
+                        <span v-if="reinvestmentForm.errors.description" role="alert" class="text-xs text-[var(--fs-danger)]">{{ reinvestmentForm.errors.description }}</span>
                     </label>
                     <label class="nfc-field">Lote de fabricação (opcional)
                         <select v-model="reinvestmentForm.production_id" class="nfc-control" :disabled="reinvestmentForm.processing">
                             <option value="">Sem lote vinculado</option>
                             <option v-for="item in production" :key="item.id" :value="item.id">Lote #{{ item.id }} · {{ item.quantity }} plaquinhas</option>
                         </select>
+                        <span v-if="reinvestmentForm.errors.production_id" role="alert" class="text-xs text-[var(--fs-danger)]">{{ reinvestmentForm.errors.production_id }}</span>
                     </label>
+                    <p v-if="reinvestmentForm.errors.operation_id" role="alert" class="text-xs text-[var(--fs-danger)]">{{ reinvestmentForm.errors.operation_id }}</p>
                     <p class="nfc-muted text-xs">Disponível agora: {{ money(summary.cash_available_cents ?? 0) }}. Vincular um lote não altera seu custo de fabricação já registrado.</p>
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
                         <button type="button" class="nfc-button" :disabled="reinvestmentForm.processing" @click="closeDialog">Cancelar</button>
@@ -859,7 +873,7 @@ watch(dialog, async (current, previous) => {
                         </div>
                     </fieldset>
                     <label class="flex items-center gap-2 text-sm"><input v-model="reportChart" type="checkbox" /> Incluir gráficos comparativos quando aplicável</label>
-                    <p class="nfc-muted text-xs">A margem compara vendas e custos de fabricação no intervalo; não representa lucro contábil. O saldo a receber é o saldo atual das vendas do período.</p>
+                    <p class="nfc-muted text-xs">A margem compara vendas e custos de fabricação no intervalo; não representa lucro contábil. O saldo a receber é o saldo atual das vendas do período. O demonstrativo do caixa inclui as retiradas para reinvestimento com data no período.</p>
                     <p v-if="hiddenValues" class="nfc-warning rounded-lg p-3 text-sm">O PDF inclui os valores reais dos indicadores selecionados, mesmo com o olho fechado.</p>
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
                         <button type="button" class="nfc-button" @click="closeDialog">Fechar</button>
@@ -868,7 +882,7 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </div>
                 <form v-else-if="dialog.kind === 'reset' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="resetWorkspace">
-                    <p class="text-sm leading-6">Esta ação excluirá permanentemente todas as empresas, unidades, fabricantes, lotes, vendas, plaquinhas, pagamentos, avisos, imagens e histórico da sua área NFC.</p>
+                    <p class="text-sm leading-6">Esta ação excluirá permanentemente todas as empresas, unidades, fabricantes, lotes, vendas, plaquinhas, pagamentos, reinvestimentos, avisos, imagens e histórico da sua área NFC.</p>
                     <p class="nfc-muted text-sm">Os links de acesso e os dados dos demais módulos do FinanSys serão preservados. Esta ação não pode ser desfeita.</p>
                     <label class="nfc-field">Digite ZERAR para confirmar
                         <input v-model="resetConfirmation" class="nfc-control" type="text" autocomplete="off" :disabled="busy" />
