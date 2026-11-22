@@ -614,14 +614,18 @@ class NfcWorkspaceTest extends TestCase
             ->assertHeader('Content-Disposition', 'attachment; filename="vendas-novembro-nfc.pdf"');
 
         $content = $response->getContent();
-        $this->assertSame(2, preg_match_all('/\\/Type \\/Page\\b/', $content));
+        $this->assertSame(3, preg_match_all('/\\/Type \\/Page\\b/', $content));
         $this->assertStringContainsString('Valores monet', $content);
-        $this->assertStringContainsString('477 8 re f', $content);
+        $this->assertStringContainsString('COMPOSI', $content);
+        $this->assertStringContainsString('EVOLU', $content);
+        $this->assertStringContainsString('VALORES FINANCEIROS', $content);
+        $this->assertStringContainsString(' re B', $content);
         $this->assertStringContainsString('Vendas Novembro NFC', $content);
 
         $withoutGraph = $this->get(route('nfc.report.export', array_replace($params, ['chart' => 0])))
             ->assertOk()->getContent();
-        $this->assertSame(1, preg_match_all('/\\/Type \\/Page\\b/', $withoutGraph));
+        $this->assertSame(2, preg_match_all('/\\/Type \\/Page\\b/', $withoutGraph));
+        $this->assertStringNotContainsString('EVOLU', $withoutGraph);
 
         $this->getJson(route('nfc.report.export', array_replace($params, ['name' => '../indevido'])))
             ->assertUnprocessable();
