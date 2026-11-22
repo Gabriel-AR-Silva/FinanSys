@@ -55,7 +55,11 @@ class NfcDashboardQuery
                     array_values(array_filter($company['units'], fn (array $unit): bool => in_array($unit['production_id'] ?? null, $batchIds, true))),
                 ))->values();
                 $unitKeys = $linkedUnits->map(fn (array $unit): string => $unit['company_id'].':'.$unit['unit_id'])->all();
-                $sales = $companies->flatMap(fn (array $company): array => array_values(array_filter(
+                $expenses = $records->where('kind', NfcRecord::EXPENSE)
+            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
+            ->sortByDesc('spent_on')->values();
+
+        $sales = $companies->flatMap(fn (array $company): array => array_values(array_filter(
                     $company['sales'],
                     fn (array $sale): bool => in_array($company['id'].':'.$sale['unit_id'], $unitKeys, true),
                 )));
@@ -122,13 +126,15 @@ class NfcDashboardQuery
                 'unknown_cost_batches' => $production->whereNull('cost_cents')->count(),
                 'received_cents' => $sales->sum('paid_cents'),
                 'reinvested_cents' => $reinvestments->sum('amount_cents'),
-                'cash_available_cents' => $sales->sum('paid_cents') - $reinvestments->sum('amount_cents'),
+                'expenses_cents' => $expenses->sum('amount_cents'),
+                'cash_available_cents' => $sales->sum('paid_cents') - $reinvestments->sum('amount_cents') - $expenses->sum('amount_cents'),
                 'outstanding_cents' => $sales->sum('balance_cents'),
             ],
             'companies' => $companies->all(),
             'production' => $production->all(),
             'reinvestments' => $reinvestments->all(),
             'damages' => $damages->all(),
+            'expenses' => $expenses->all(),
             'manufacturers' => $manufacturers->all(),
             'notices' => $this->notices($records->where('kind', NfcRecord::NOTICE), $companies->keyBy('id')),
             'warranty_notices' => $this->warrantyNotices($companies, $today),
