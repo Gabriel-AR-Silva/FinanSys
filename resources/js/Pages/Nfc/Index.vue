@@ -408,30 +408,59 @@ watch(dialog, async (current, previous) => {
                     </button>
                 </nav>
                 <section v-show="activeDashboardTab === 'finance'" id="nfc-dashboard-panel-finance" role="tabpanel" aria-labelledby="nfc-dashboard-tab-finance" tabindex="0" class="grid min-w-0 gap-3 lg:grid-cols-2">
-                <section v-for="(group, index) in metricGroups" :key="group.title"
-                    class="nfc-panel min-w-0 p-4" :class="index === 0 ? 'lg:col-span-2' : ''"
-                    :aria-labelledby="'nfc-metrics-' + index">
-                    <h2 :id="'nfc-metrics-' + index" class="mb-3 text-sm font-semibold">{{ group.title }}</h2>
-                    <dl class="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3" :class="index === 0 ? 'xl:grid-cols-5' : ''">
-                        <div v-for="metric in group.metrics" :key="metric.label" class="min-w-0">
-                            <dt class="nfc-muted text-xs font-medium">{{ metric.label }}</dt>
-                            <dd class="mt-1 break-words text-xl font-semibold tabular-nums" :class="metric.tone">{{ metric.value }}</dd>
-                            <dd v-if="metric.detail" class="nfc-muted mt-1 text-xs leading-snug">{{ metric.detail }}</dd>
+                    <section class="nfc-panel min-w-0 overflow-hidden lg:col-span-2" aria-labelledby="nfc-finance-heading">
+                        <header class="nfc-rule border-b px-4 py-3">
+                            <h2 id="nfc-finance-heading" class="text-sm font-semibold">Resumo financeiro</h2>
+                            <p class="nfc-muted mt-0.5 text-xs">Valores acumulados das vendas e da fabricação.</p>
+                        </header>
+                        <dl class="nfc-finance-strip">
+                            <div v-for="metric in metricGroups[0].metrics.slice(0, 3)" :key="metric.label" class="nfc-finance-cell">
+                                <dt class="nfc-muted text-xs font-medium">{{ metric.label }}</dt>
+                                <dd class="break-words text-xl font-semibold tabular-nums sm:text-2xl" :class="metric.tone">{{ metric.value }}</dd>
+                            </div>
+                        </dl>
+                        <div class="nfc-rule border-t px-4 py-3">
+                            <div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <span class="font-semibold">Recebimento das vendas</span>
+                                <span v-if="financialSummary.revenue > 0" class="tabular-nums text-[var(--fs-success)]">{{ financialSummary.receivedPercent }}% recebido</span>
+                            </div>
+                            <div v-if="financialSummary.revenue > 0" class="flex h-2.5 overflow-hidden rounded-full bg-[var(--fs-surface-subtle)]" aria-hidden="true">
+                                <div class="bg-[var(--fs-success)]" :style="{ width: financialSummary.receivedPercent + '%' }"></div>
+                                <div class="bg-[var(--fs-warning)]" :style="{ width: financialSummary.outstandingPercent + '%' }"></div>
+                            </div>
+                            <p v-else class="nfc-muted text-xs">Registre uma venda para acompanhar os recebimentos.</p>
+                            <p v-if="financialSummary.revenue > 0" class="nfc-muted mt-2 text-xs">{{ financialSummary.outstandingPercent }}% a receber.</p>
                         </div>
-                    </dl>
-                    <div v-if="index === 0" class="nfc-rule mt-4 border-t pt-4">
-                        <div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-                            <span class="font-semibold">Recebimento das vendas · acumulado</span>
-                            <span v-if="financialSummary.revenue > 0" class="tabular-nums text-[var(--fs-success)]">{{ financialSummary.receivedPercent }}% recebido</span>
+                        <div class="nfc-rule border-t">
+                            <h3 class="nfc-muted bg-[var(--fs-surface-subtle)] px-4 py-2 text-xs font-semibold">Custos e perdas</h3>
+                            <dl>
+                                <div v-for="metric in metricGroups[0].metrics.slice(3)" :key="metric.label" class="nfc-rule grid grid-cols-[minmax(0,1fr)_minmax(0,auto)] items-center gap-3 border-t px-4 py-3">
+                                    <dt class="min-w-0 text-sm font-medium">{{ metric.label }}<span v-if="metric.detail" class="nfc-muted mt-0.5 block text-xs font-normal">{{ metric.detail }}</span></dt>
+                                    <dd class="max-w-[12rem] break-words text-right text-base font-semibold tabular-nums" :class="metric.tone">{{ metric.value }}</dd>
+                                </div>
+                            </dl>
                         </div>
-                        <div v-if="financialSummary.revenue > 0" class="flex h-3 overflow-hidden rounded-full bg-[var(--fs-surface-subtle)]" aria-hidden="true">
-                            <div class="bg-[var(--fs-success)]" :style="{ width: financialSummary.receivedPercent + '%' }"></div>
-                            <div class="bg-[var(--fs-warning)]" :style="{ width: financialSummary.outstandingPercent + '%' }"></div>
-                        </div>
-                        <p v-else class="nfc-muted text-xs">Registre uma venda para acompanhar os recebimentos.</p>
-                        <p v-if="financialSummary.revenue > 0" class="nfc-muted mt-2 text-xs">{{ financialSummary.outstandingPercent }}% a receber · custos e perdas são indicadores separados.</p>
-                    </div>
-                </section>
+                    </section>
+                    <section v-for="(group, index) in metricGroups.slice(1)" :key="group.title" class="nfc-panel min-w-0 overflow-hidden" :aria-labelledby="'nfc-operation-heading-' + index">
+                        <header class="nfc-rule border-b px-4 py-3">
+                            <h2 :id="'nfc-operation-heading-' + index" class="text-sm font-semibold">{{ group.title }}</h2>
+                        </header>
+                        <table class="nfc-metric-table w-full table-fixed border-collapse text-center" :aria-labelledby="'nfc-operation-heading-' + index">
+                            <thead>
+                                <tr>
+                                    <th v-for="metric in group.metrics" :key="metric.label" scope="col">{{ metric.label }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td v-for="metric in group.metrics" :key="metric.label">
+                                        <span class="block break-words text-lg font-semibold tabular-nums sm:text-xl" :class="metric.tone">{{ metric.value }}</span>
+                                        <span v-if="metric.detail" class="nfc-muted mt-1 block break-words text-[11px] leading-tight">{{ metric.detail }}</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </section>
                 </section>
                 <section v-show="activeDashboardTab === 'evolution'" id="nfc-dashboard-panel-evolution" role="tabpanel" aria-labelledby="nfc-dashboard-tab-evolution" tabindex="0" class="min-w-0">
                     <PerformanceChart :companies="companies" :production="production" :today="today" />
