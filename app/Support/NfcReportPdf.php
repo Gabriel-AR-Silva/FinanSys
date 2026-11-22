@@ -232,47 +232,9 @@ class NfcReportPdf
         $pages[] = $draw;
         $draw = [];
 
-        if ($chart) {
-            // Gráficos com zero ou valor indisponível não ocupam páginas.
-            $hasValue = fn (string $key): bool => ($values[$key] ?? null) !== null && abs((float) $values[$key]) > 0;
-            $financeKeys = array_values(array_filter(array_intersect($monetary, $metrics), $hasValue));
-            $operationalKeys = array_values(array_filter(array_intersect(['sold', 'manufactured', 'defective'], $metrics), $hasValue));
-            if (count($financeKeys) > 0 || count($operationalKeys) > 0) {
-                $header('Comparativos  /  colunas verticais');
-                $drawColumns = function (array $keys, string $title, int $top, int $height) use ($rect, $stroke, $text, $values, $monetary, $compact): void {
-                    $bottom = $top - $height;
-                    $rect(50, $bottom, 495, $height, '1 1 1', true);
-                    $text(65, $top - 28, $title, 11, true);
-                    $baseline = $bottom + 68;
-                    $plotMax = $top - 57;
-                    $stroke(65, $baseline, 532, $baseline, 'muted');
-                    $max = max(1, ...array_map(fn (string $key): float => abs((float) $values[$key]), $keys));
-                    $slot = 456 / count($keys);
-                    foreach ($keys as $i => $key) {
-                        $value = $values[$key];
-                        $center = 73 + ($i + 0.5) * $slot;
-                        $heightValue = ($plotMax - $baseline) * abs((float) $value) / $max;
-                        $barWidth = min(36, $slot * 0.58);
-                        $barHeight = $value < 0 ? $heightValue * 0.50 : $heightValue;
-                        $barY = $value < 0 ? $baseline - $barHeight : $baseline;
-                        $rect($center - $barWidth / 2, $barY, $barWidth, $barHeight, $value < 0 ? 'red' : 'blue');
-                        $short = ['sales' => 'Vendido', 'received' => 'Recebido', 'pending' => 'A receber', 'cost' => 'Custo', 'loss' => 'Perdas', 'result' => 'Diferença', 'sold' => 'Vendidas', 'manufactured' => 'Fabricadas', 'defective' => 'Defeitos'][$key];
-                        $text($center - $slot * 0.38, $bottom + 43, $short, 8, false, 'muted');
-                        $text($center - $slot * 0.38, $bottom + 26, $compact($value, in_array($key, $monetary, true)), 8, true);
-                    }
-                };
-                if (count($financeKeys) > 0 && count($operationalKeys) > 0) {
-                    $drawColumns($financeKeys, 'VALORES FINANCEIROS  /  R$', 676, 295);
-                    $drawColumns($operationalKeys, 'INDICADORES OPERACIONAIS  /  UNIDADES', 366, 295);
-                } elseif (count($financeKeys) > 0) {
-                    $drawColumns($financeKeys, 'VALORES FINANCEIROS  /  R$', 676, 430);
-                } else {
-                    $drawColumns($operationalKeys, 'INDICADORES OPERACIONAIS  /  UNIDADES', 676, 430);
-                }
-                $pages[] = $draw;
-                $draw = [];
-            }
-        }
+        // A antiga página de colunas foi removida: mesmo com valores presentes,
+        // o renderizador podia produzir um PDF com a área do gráfico em branco.
+        // Mantemos os cards e gráficos de composição/evolução na primeira página.
 
         $header('Detalhamento  /  notas do relatório');
         $text(50, 670, 'INDICADOR', 10, true);
