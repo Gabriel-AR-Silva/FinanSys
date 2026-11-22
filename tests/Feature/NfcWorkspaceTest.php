@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\NfcAccessLink;
 use App\Models\NfcRecord;
 use App\Models\User;
+use App\Queries\NfcDashboardQuery;
+use App\Queries\NfcReportQuery;
 use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
@@ -260,8 +262,8 @@ class NfcWorkspaceTest extends TestCase
             ->has('reinvestments', 1)
             ->where('reinvestments.0.description', 'Repor plaquinhas personalizadas'));
 
-        $report = app(\App\Queries\NfcReportQuery::class)->calculate(
-            app(\App\Queries\NfcDashboardQuery::class)->forUser($owner, false),
+        $report = app(NfcReportQuery::class)->calculate(
+            app(NfcDashboardQuery::class)->forUser($owner, false),
             '2026-11-01',
             '2026-11-22',
         );
