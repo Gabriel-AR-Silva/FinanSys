@@ -9,6 +9,7 @@ use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -22,6 +23,45 @@ class NfcWorkspaceTest extends TestCase
         parent::setUp();
 
         $this->withoutVite();
+    }
+
+    public function test_reset_requires_owner_session_and_confirmation_and_only_clears_owners_nfc_records(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->create();
+        $other = User::factory()->create();
+
+        foreach ([$owner, $other] as $user) {
+            foreach ([NfcRecord::COMPANY, NfcRecord::MANUFACTURER, NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION, NfcRecord::NOTICE, NfcRecord::HISTORY] as $kind) {
+                NfcRecord::query()->create([
+                    'user_id' => $user->id,
+                    'kind' => $kind,
+                    'record_key' => (string) Str::uuid(),
+                    'payload' => ['name' => 'Teste'],
+                ]);
+            }
+            Storage::disk('local')->put("nfc/manufacturers/{$user->id}/1/test.png", 'test');
+        }
+
+        $this->actingAs($owner)->post(route('nfc.share-links.store'), ['scope' => 'cud'])
+            ->assertRedirect(route('nfc.index'));
+        $url = session('nfc_share_url');
+        preg_match('~/compartilhado/([^/?]+)~', $url, $matches);
+        Auth::logout();
+
+        $this->delete(route('nfc.reset'), ['confirmation' => 'ZERAR'])->assertRedirect(route('login'));
+        $this->delete('/plaquinhas-nfc/compartilhado/'.$matches[1].'/zerar', ['confirmation' => 'ZERAR'])->assertNotFound();
+
+        $this->actingAs($owner)->delete(route('nfc.reset'), ['confirmation' => 'ERRADO'])
+            ->assertSessionHasErrors('confirmation');
+        $this->assertDatabaseHas('nfc_records', ['user_id' => $owner->id, 'kind' => NfcRecord::COMPANY]);
+
+        $this->delete(route('nfc.reset'), ['confirmation' => 'ZERAR'])->assertRedirect(route('nfc.index'));
+        $this->assertDatabaseMissing('nfc_records', ['user_id' => $owner->id]);
+        $this->assertSame(6, NfcRecord::query()->whereBelongsTo($other)->count());
+        $this->assertDatabaseHas('nfc_access_links', ['user_id' => $owner->id]);
+        Storage::disk('local')->assertMissing("nfc/manufacturers/{$owner->id}/1/test.png");
+        Storage::disk('local')->assertExists("nfc/manufacturers/{$other->id}/1/test.png");
     }
 
     public function test_guests_are_redirected_to_login_for_reads_and_writes(): void
