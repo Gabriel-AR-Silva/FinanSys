@@ -40,7 +40,7 @@ class NfcReportPdf
         ];
         $draw = [];
         $pages = [];
-        $text = function (int $x, int $y, string $value, int $size = 11, bool $bold = false, string $color = 'ink') use (&$draw): void {
+        $text = function (float $x, float $y, string $value, int $size = 11, bool $bold = false, string $color = 'ink') use (&$draw): void {
             $rgb = match ($color) {
                 'muted' => '0.39 0.44 0.50',
                 'green' => '0.10 0.43 0.29',
@@ -262,14 +262,14 @@ class NfcReportPdf
         $header('Detalhamento  /  notas do relatório');
         $text(50, 670, 'INDICADOR', 10, true);
         $text(374, 670, 'VALOR', 10, true);
-        $line(656);
+        $rule(656);
         $y = 636;
         foreach ($metrics as $key) {
             $value = $values[$key] ?? null;
             $text(50, $y, self::LABELS[$key], 10);
             $text(374, $y, $format($value, $key), 10, true,
                 $key === 'result' && $value !== null ? ($value < 0 ? 'red' : 'green') : 'ink');
-            $line($y - 10);
+            $rule($y - 10);
             $y -= 25;
         }
         if (in_array('result', $metrics, true)) {
