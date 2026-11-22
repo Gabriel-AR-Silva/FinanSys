@@ -1,12 +1,15 @@
 <script setup>
 import { computed } from 'vue';
-import { date, money } from './format';
+import { date, money as formatMoney } from './format';
 
 const props = defineProps({
+    permissions: { type: Object, default: () => ({ create: false, update: false, delete: false }) },
+    hiddenValues: { type: Boolean, default: false },
     readOnly: { type: Boolean, default: false },
     company: { type: Object, required: true },
     highlightSaleId: { type: String, default: null },
 });
+const money = value => props.hiddenValues ? '••••••' : formatMoney(value);
 const emit = defineEmits(['edit', 'destroy']);
 
 const units = computed(() => props.company.units.map(unit => ({
@@ -37,10 +40,10 @@ function destroy(kind, context = {}) {
             <div v-if="company.notes" class="min-w-0 sm:col-span-2"><dt class="nfc-muted">Observações</dt><dd class="whitespace-pre-wrap break-words">{{ company.notes }}</dd></div>
         </dl>
         <div class="flex flex-wrap items-center gap-2">
-            <button v-if="!readOnly" type="button" class="nfc-button" @click="edit('company-form')">Editar empresa</button>
-            <button v-if="!readOnly" type="button" class="nfc-button" @click="edit('unit')">Nova unidade</button>
-            <button v-if="!readOnly" type="button" class="nfc-button nfc-primary" @click="edit('sale')">Nova venda</button>
-            <button v-if="!readOnly" type="button" class="nfc-button nfc-danger" @click="destroy('company')">Excluir empresa</button>
+            <button v-if="permissions.update" type="button" class="nfc-button" @click="edit('company-form')">Editar empresa</button>
+            <button v-if="permissions.create" type="button" class="nfc-button" @click="edit('unit')">Nova unidade</button>
+            <button v-if="permissions.create" type="button" class="nfc-button nfc-primary" @click="edit('sale')">Nova venda</button>
+            <button v-if="permissions.delete" type="button" class="nfc-button nfc-danger" @click="destroy('company')">Excluir empresa</button>
         </div>
         <dl class="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Resumo da empresa">
             <div class="nfc-panel flex min-w-0 flex-col gap-1 p-3">
@@ -60,9 +63,9 @@ function destroy(kind, context = {}) {
             </summary>
             <div class="nfc-rule flex min-w-0 flex-col gap-3 border-t p-3">
                 <div class="flex flex-wrap gap-2">
-                    <button v-if="!readOnly" type="button" class="nfc-button" @click="edit('unit', { unitId: unit.id })">Editar unidade</button>
-                    <button v-if="!readOnly" type="button" class="nfc-button" @click="edit('sale', { unitId: unit.id })">Nova venda nesta unidade</button>
-                    <button v-if="!readOnly" type="button" class="nfc-button nfc-danger" @click="destroy('unit', { unitId: unit.id })">Excluir unidade</button>
+                    <button v-if="permissions.update" type="button" class="nfc-button" @click="edit('unit', { unitId: unit.id })">Editar unidade</button>
+                    <button v-if="permissions.create" type="button" class="nfc-button" @click="edit('sale', { unitId: unit.id })">Nova venda nesta unidade</button>
+                    <button v-if="permissions.delete" type="button" class="nfc-button nfc-danger" @click="destroy('unit', { unitId: unit.id })">Excluir unidade</button>
                 </div>
                 <p v-if="!unit.sales.length" class="nfc-muted text-sm">Nenhuma venda nesta unidade.</p>
                 <details v-for="sale in [...unit.sales].reverse()" :key="sale.id" class="nfc-panel min-w-0" :open="sale.id === highlightSaleId">
@@ -96,13 +99,13 @@ function destroy(kind, context = {}) {
                         <ul v-if="sale.payments.length" class="flex flex-wrap gap-2" aria-label="Pagamentos">
                             <li v-for="payment in sale.payments" :key="payment.id" class="nfc-badge nfc-info flex items-center gap-2">
                                 {{ paymentMethods[payment.method] }} · {{ money(payment.amount_cents) }} · {{ payment.received_on ? date(payment.received_on) : 'Sem data' }}
-                                <button v-if="!readOnly" type="button" class="font-semibold underline" :aria-label="'Excluir pagamento de ' + money(payment.amount_cents)" @click="destroy('payment', { saleId: sale.id, paymentId: payment.id })">Excluir</button>
+                                <button v-if="permissions.delete" type="button" class="font-semibold underline" :aria-label="'Excluir pagamento de ' + money(payment.amount_cents)" @click="destroy('payment', { saleId: sale.id, paymentId: payment.id })">Excluir</button>
                             </li>
                         </ul>
                         <div class="flex flex-wrap gap-2">
-                            <button v-if="!readOnly" type="button" class="nfc-button" @click="edit('sale', { saleId: sale.id, unitId: unit.id })">Editar venda</button>
-                            <button v-if="!readOnly" type="button" class="nfc-button nfc-danger" @click="destroy('sale', { saleId: sale.id })">Excluir venda</button>
-                            <button v-if="!readOnly && sale.balance_cents > 0" type="button" class="nfc-button nfc-primary" @click="edit('payment', { saleId: sale.id })">Registrar pagamento</button>
+                            <button v-if="permissions.update" type="button" class="nfc-button" @click="edit('sale', { saleId: sale.id, unitId: unit.id })">Editar venda</button>
+                            <button v-if="permissions.delete" type="button" class="nfc-button nfc-danger" @click="destroy('sale', { saleId: sale.id })">Excluir venda</button>
+                            <button v-if="permissions.create && sale.balance_cents > 0" type="button" class="nfc-button nfc-primary" @click="edit('payment', { saleId: sale.id })">Registrar pagamento</button>
                         </div>
                         <ul class="nfc-rule border-t" aria-label="Plaquinhas da venda">
                             <li v-for="plate in sale.plates" :key="plate.id" class="nfc-rule flex min-w-0 flex-wrap items-center justify-between gap-2 border-b py-2 last:border-b-0">
@@ -113,8 +116,8 @@ function destroy(kind, context = {}) {
                                     <p v-if="plate.notes" class="nfc-muted whitespace-pre-wrap break-words">{{ plate.notes }}</p>
                                 </div>
                                 <div class="flex gap-2">
-                                    <button v-if="!readOnly" type="button" class="nfc-button" :aria-label="'Editar ' + (plate.label || 'plaquinha')" @click="edit('plate', { saleId: sale.id, plateId: plate.id })">Editar</button>
-                                    <button v-if="!readOnly" type="button" class="nfc-button nfc-danger" :aria-label="'Excluir ' + (plate.label || 'plaquinha')" @click="destroy('plate', { saleId: sale.id, plateId: plate.id })">Excluir</button>
+                                    <button v-if="permissions.update" type="button" class="nfc-button" :aria-label="'Editar ' + (plate.label || 'plaquinha')" @click="edit('plate', { saleId: sale.id, plateId: plate.id })">Editar</button>
+                                    <button v-if="permissions.delete" type="button" class="nfc-button nfc-danger" :aria-label="'Excluir ' + (plate.label || 'plaquinha')" @click="destroy('plate', { saleId: sale.id, plateId: plate.id })">Excluir</button>
                                 </div>
                             </li>
                         </ul>

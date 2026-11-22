@@ -225,3 +225,89 @@
         animation-duration: 0.01ms !important;
     }
 }
+
+/* Primary dashboard navigation is distinct from registry tabs and filter chips. */
+.nfc-dashboard-tab {
+    border-color: transparent;
+    background-color: transparent;
+    color: var(--fs-text-secondary);
+}
+.nfc-dashboard-tab:hover {
+    background-color: var(--fs-surface-subtle);
+}
+.nfc-dashboard-tab[aria-selected='true'] {
+    border-color: var(--fs-info);
+    background-color: var(--fs-info-soft);
+    color: var(--fs-info);
+}
+.nfc-dashboard-tab:focus-visible {
+    outline: 2px solid var(--fs-info);
+    outline-offset: 2px;
+}
+
+/* A single summary surface, with structural rules rather than individual cards. */
+.nfc-finance-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+}
+.nfc-finance-cell {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+}
+.nfc-finance-cell dd {
+    text-align: right;
+}
+.nfc-finance-cell + .nfc-finance-cell {
+    border-top: 1px solid var(--fs-border-soft);
+}
+@media (min-width: 640px) {
+    .nfc-finance-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .nfc-finance-cell {
+        grid-template-columns: minmax(0, 1fr);
+        align-content: start;
+        padding: 1rem;
+    }
+    .nfc-finance-cell dd {
+        text-align: left;
+    }
+    .nfc-finance-cell + .nfc-finance-cell {
+        border-top: 0;
+        border-left: 1px solid var(--fs-border-soft);
+    }
+}
+.nfc-metric-table th,
+.nfc-metric-table td {
+    border-right: 1px solid var(--fs-border-soft);
+    overflow-wrap: anywhere;
+    padding: 0.625rem 0.25rem;
+}
+.nfc-metric-table th:last-child,
+.nfc-metric-table td:last-child {
+    border-right: 0;
+}
+.nfc-metric-table th {
+    background-color: var(--fs-surface-subtle);
+    color: var(--fs-text-secondary);
+    border-bottom: 1px solid var(--fs-border-soft);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.15rem;
+}
+.nfc-metric-table td {
+    vertical-align: top;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+}
+@media (min-width: 640px) {
+    .nfc-metric-table th,
+    .nfc-metric-table td {
+        padding-left: 0.625rem;
+        padding-right: 0.625rem;
+    }
+}
