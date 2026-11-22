@@ -230,6 +230,7 @@ class NfcReportPdf
                 $text(65, $top - 28, $title, 11, true);
                 if (count($keys) === 0) {
                     $text(65, $top - 67, 'Nenhum indicador selecionado para este grupo.', 9, false, 'muted');
+
                     return;
                 }
                 $baseline = $bottom + 68;
