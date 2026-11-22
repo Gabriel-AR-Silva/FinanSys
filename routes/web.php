@@ -94,6 +94,7 @@ Route::middleware('auth')->group(function () {
     Route::prefix('plaquinhas-nfc')->name('nfc.')->middleware(EnsureNfcRecordsAvailable::class)->controller(NfcController::class)->group(function () {
         Route::get('/', 'index')->name('index');
         Route::delete('/zerar', 'reset')->middleware('throttle:3,1')->name('reset');
+        Route::get('/relatorio.pdf', 'exportReport')->middleware('throttle:15,1')->name('report.export');
         Route::post('/empresas', 'storeCompany')->name('companies.store');
         Route::patch('/empresas/{company}', 'updateCompany')->whereNumber('company')->name('companies.update');
         Route::post('/empresas/{company}/unidades', 'storeUnit')->whereNumber('company')->name('units.store');
