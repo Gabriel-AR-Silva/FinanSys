@@ -282,6 +282,53 @@ class ManageNfcRecords
         );
     }
 
+    public function storeDamage(User $user, array $data): void
+    {
+        $target = $data['target'];
+        if ($target === 'production') {
+            $batch = NfcRecord::query()->whereBelongsTo($user)
+                ->whereIn('kind', [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION])
+                ->whereKey((int) $data['production_id'])->first();
+            if (! $batch || ! empty($batch->payload['deleted_at'])) {
+                throw ValidationException::withMessages(['production_id' => 'Selecione um lote válido.']);
+            }
+            $recorded = NfcRecord::query()->whereBelongsTo($user)->where('kind', NfcRecord::DAMAGE)
+                ->get()->filter(fn (NfcRecord $entry): bool => empty($entry->payload['deleted_at']) && ($entry->payload['production_id'] ?? null) === $batch->id)
+                ->sum(fn (NfcRecord $entry): int => (int) ($entry->payload['quantity'] ?? 0));
+            if ($recorded + (int) $data['quantity'] > (int) $batch->payload['quantity']) {
+                throw ValidationException::withMessages(['quantity' => 'A quantidade de avarias ultrapassa a quantidade do lote.']);
+            }
+            $this->createRecord($user, NfcRecord::DAMAGE, strtolower($data['operation_id']), [
+                'production_id' => $batch->id,
+                'quantity' => (int) $data['quantity'],
+                'occurred_on' => $data['occurred_on'],
+                'reason' => trim($data['reason']),
+                'estimated_loss_cents' => $data['estimated_loss_cents'] ?? null,
+            ]);
+
+            return;
+        }
+
+        if ((int) $data['quantity'] !== 1) {
+            throw ValidationException::withMessages(['quantity' => 'Para plaquinha existente, registre uma unidade por vez.']);
+        }
+        $company = (int) $data['company_id'];
+        $sale = $data['sale_id'];
+        $plate = $data['plate_id'];
+        $this->changeSale($user, $company, $sale, function (array $stored) use ($plate, $data): array {
+            $index = $this->indexOrFail($stored['plates'], $plate);
+            if ($stored['plates'][$index]['defective'] ?? false) {
+                throw ValidationException::withMessages(['plate_id' => 'Esta plaquinha já está marcada como defeituosa.']);
+            }
+            $stored['plates'][$index]['defective'] = true;
+            $stored['plates'][$index]['estimated_loss_cents'] = $data['estimated_loss_cents'] ?? null;
+            $description = trim($data['reason']);
+            $stored['plates'][$index]['notes'] = trim(($stored['plates'][$index]['notes'] ?? '')."\nAvaria em ".$data['occurred_on'].": ".$description);
+
+            return $stored;
+        });
+    }
+
     public function storeReinvestment(User $user, array $data): void
     {
         DB::transaction(function () use ($user, $data): void {
