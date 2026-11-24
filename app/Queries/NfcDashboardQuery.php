@@ -132,7 +132,6 @@ class NfcDashboardQuery
             'today' => $today->toDateString(),
             'summary' => [
                 'interested' => $companies->where('interested', true)->count(),
-                'in_customization' => $plates->where('customizing', true)->filter(fn (array $plate): bool => (bool) ($plate['defective'] ?? false) === false)->count(),
                 'manufactured' => $production->where('status', 'completed')->sum('quantity'),
                 'in_production' => $production->where('status', 'in_progress')->sum('quantity'),
                 'usable_manufactured' => $production->where('status', 'completed')->sum('usable_quantity'),
