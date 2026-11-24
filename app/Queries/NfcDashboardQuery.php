@@ -45,6 +45,12 @@ class NfcDashboardQuery
 
                     return [
                         ...$unit,
+                        'images' => array_map(fn (array $image): array => [
+                            'id' => $image['id'],
+                            'name' => $image['name'],
+                            'mime' => $image['mime'],
+                            'size' => $image['size'],
+                        ], $unit['images'] ?? []),
                         'production_status' => $batch['status'] ?? null,
                         'batch_quantity' => $batch['quantity'] ?? null,
                         'sold' => $plates->count(),
