@@ -142,6 +142,37 @@ class ManageNfcRecords
         });
     }
 
+    public function attachUnitImages(User $user, int $company, string $unit, array $images): void
+    {
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($unit, $images): array {
+            $index = $this->indexOrFail($payload['units'], $unit);
+            $existing = $payload['units'][$index]['images'] ?? [];
+            if (count($existing) + count($images) > 10) {
+                throw ValidationException::withMessages(['images' => 'Cada unidade aceita no máximo 10 imagens.']);
+            }
+            $payload['units'][$index]['images'] = [...$existing, ...$images];
+
+            return $payload;
+        }, 'images_added', ['unit_id' => $unit]);
+    }
+
+    public function removeUnitImage(User $user, int $company, string $unit, string $image): string
+    {
+        $path = '';
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($unit, $image, &$path): array {
+            $index = $this->indexOrFail($payload['units'], $unit);
+            $images = $payload['units'][$index]['images'] ?? [];
+            $imageIndex = $this->indexOrFail($images, $image);
+            $path = $images[$imageIndex]['path'];
+            array_splice($images, $imageIndex, 1);
+            $payload['units'][$index]['images'] = $images;
+
+            return $payload;
+        }, 'image_removed', ['unit_id' => $unit, 'image_id' => $image]);
+
+        return $path;
+    }
+
     public function storeSale(User $user, int $company, array $data): void
     {
         $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($data): array {
@@ -154,16 +185,9 @@ class ManageNfcRecords
             $sale = $this->saleFields($payload['units'], $data);
             $standardQuantity = (int) $data['standard_quantity'];
             $customQuantity = (int) $data['custom_quantity'];
-            $inCustomization = (int) ($data['in_customization_quantity'] ?? 0);
 
             if ($standardQuantity + $customQuantity === 0) {
                 throw ValidationException::withMessages(['standard_quantity' => 'Informe pelo menos uma plaquinha.']);
-            }
-
-            if ($inCustomization > $customQuantity) {
-                throw ValidationException::withMessages([
-                    'in_customization_quantity' => 'A quantidade em customização não pode exceder a quantidade personalizada.',
-                ]);
             }
 
             $payments = array_map(
@@ -182,7 +206,7 @@ class ManageNfcRecords
             }
 
             for ($number = 1; $number <= $customQuantity; $number++) {
-                $plates[] = $this->newPlate('custom', "Personalizada {$number}", $number <= $inCustomization);
+                $plates[] = $this->newPlate('custom', "Personalizada {$number}");
             }
 
             $payload['sales'][] = [
@@ -238,9 +262,12 @@ class ManageNfcRecords
         $this->changeSale($user, $company, $sale, function (array $stored) use ($plate, $data): array {
             $index = $this->indexOrFail($stored['plates'], $plate);
             $changes = Arr::only($data, ['label', 'notes', 'type']);
-            $changes['customizing'] = $data['type'] === 'custom' && (bool) $data['customizing'];
             $changes['defective'] = (bool) $data['defective'];
-            $changes['estimated_loss_cents'] = $changes['defective'] ? ($data['estimated_loss_cents'] ?? null) : null;
+            $changes['estimated_loss_cents'] = $changes['defective'] ? ($data['estimated_loss_cents'] ?? NfcDashboardQuery::DEFAULT_DAMAGE_COST_CENTS) : null;
+
+            $changes['defective_on'] = $changes['defective']
+                ? ($stored['plates'][$index]['defective_on'] ?? now('America/Sao_Paulo')->toDateString())
+                : null;
 
             $stored['plates'][$index] = [...$stored['plates'][$index], ...$changes];
 
@@ -275,10 +302,17 @@ class ManageNfcRecords
             $user,
             $production,
             [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION],
-            fn (array $payload): array => [
-                ...$this->productionFields([...$payload, ...$data]),
-                'manufacturer_id' => $this->validatedManufacturerId($user, array_key_exists('manufacturer_id', $data) ? $data['manufacturer_id'] : ($payload['manufacturer_id'] ?? null)),
-            ],
+            function (array $payload) use ($user, $production, $data): array {
+                $fields = $this->productionFields([...$payload, ...$data]);
+                if ($fields['quantity'] < $this->damageQuantity($user, $production)) {
+                    throw ValidationException::withMessages(['quantity' => 'A quantidade do lote não pode ser menor que as avarias registradas.']);
+                }
+
+                return [
+                    ...$fields,
+                    'manufacturer_id' => $this->validatedManufacturerId($user, array_key_exists('manufacturer_id', $data) ? $data['manufacturer_id'] : ($payload['manufacturer_id'] ?? null)),
+                ];
+            },
         );
     }
 
@@ -286,25 +320,28 @@ class ManageNfcRecords
     {
         $target = $data['target'];
         if ($target === 'production') {
-            $batch = NfcRecord::query()->whereBelongsTo($user)
-                ->whereIn('kind', [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION])
-                ->whereKey((int) $data['production_id'])->first();
-            if (! $batch || ! empty($batch->payload['deleted_at'])) {
-                throw ValidationException::withMessages(['production_id' => 'Selecione um lote válido.']);
-            }
-            $recorded = NfcRecord::query()->whereBelongsTo($user)->where('kind', NfcRecord::DAMAGE)
-                ->get()->filter(fn (NfcRecord $entry): bool => empty($entry->payload['deleted_at']) && ($entry->payload['production_id'] ?? null) === $batch->id)
-                ->sum(fn (NfcRecord $entry): int => (int) ($entry->payload['quantity'] ?? 0));
-            if ($recorded + (int) $data['quantity'] > (int) $batch->payload['quantity']) {
-                throw ValidationException::withMessages(['quantity' => 'A quantidade de avarias ultrapassa a quantidade do lote.']);
-            }
-            $this->createRecord($user, NfcRecord::DAMAGE, strtolower($data['operation_id']), [
-                'production_id' => $batch->id,
-                'quantity' => (int) $data['quantity'],
-                'occurred_on' => $data['occurred_on'],
-                'reason' => trim($data['reason']),
-                'estimated_loss_cents' => $data['estimated_loss_cents'] ?? null,
-            ]);
+            DB::transaction(function () use ($user, $data): void {
+                $batch = NfcRecord::query()->whereBelongsTo($user)
+                    ->whereIn('kind', [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION])
+                    ->whereKey((int) $data['production_id'])->lockForUpdate()->first();
+                if ($batch === null || ! empty($batch->payload['deleted_at'])) {
+                    throw ValidationException::withMessages(['production_id' => 'Selecione um lote válido.']);
+                }
+                $key = strtolower($data['operation_id']);
+                if (NfcRecord::query()->whereBelongsTo($user)->where('kind', NfcRecord::DAMAGE)->where('record_key', $key)->exists()) {
+                    return;
+                }
+                if ($this->damageQuantity($user, $batch->id) + (int) $data['quantity'] > (int) $batch->payload['quantity']) {
+                    throw ValidationException::withMessages(['quantity' => 'A quantidade de avarias ultrapassa a quantidade do lote.']);
+                }
+                $this->createRecord($user, NfcRecord::DAMAGE, $key, [
+                    'production_id' => $batch->id,
+                    'quantity' => (int) $data['quantity'],
+                    'occurred_on' => $data['occurred_on'],
+                    'reason' => trim($data['reason']),
+                    'estimated_loss_cents' => $data['estimated_loss_cents'] ?? NfcDashboardQuery::DEFAULT_DAMAGE_COST_CENTS * (int) $data['quantity'],
+                ]);
+            }, 3);
 
             return;
         }
@@ -320,13 +357,29 @@ class ManageNfcRecords
             if ($stored['plates'][$index]['defective'] ?? false) {
                 throw ValidationException::withMessages(['plate_id' => 'Esta plaquinha já está marcada como defeituosa.']);
             }
+            $discount = (int) ($data['discount_cents'] ?? 0);
+            if ($discount > $stored['total_cents'] - $this->receivedCents($stored['payments'])) {
+                throw ValidationException::withMessages(['discount_cents' => 'O desconto não pode superar o saldo a receber. Valores já pagos precisam de ajuste financeiro separado.']);
+            }
+            $stored['total_cents'] -= $discount;
             $stored['plates'][$index]['defective'] = true;
-            $stored['plates'][$index]['estimated_loss_cents'] = $data['estimated_loss_cents'] ?? null;
+            $stored['plates'][$index]['defective_on'] = $data['occurred_on'];
+            $stored['plates'][$index]['estimated_loss_cents'] = $data['estimated_loss_cents'] ?? NfcDashboardQuery::DEFAULT_DAMAGE_COST_CENTS;
             $description = trim($data['reason']);
-            $stored['plates'][$index]['notes'] = trim(($stored['plates'][$index]['notes'] ?? '').'\nAvaria em '.$data['occurred_on'].': '.$description);
+            if ($discount > 0) {
+                $description .= ' (abatimento de '.$discount.' centavos no valor da venda)';
+            }
+            $stored['plates'][$index]['notes'] = trim(($stored['plates'][$index]['notes'] ?? '')."\nAvaria em ".$data['occurred_on'].': '.$description);
 
             return $stored;
-        });
+        }, 'damage_registered', ['sale_id' => $sale, 'plate_id' => $plate]);
+    }
+
+    private function damageQuantity(User $user, int $production): int
+    {
+        return (int) NfcRecord::query()->whereBelongsTo($user)->where('kind', NfcRecord::DAMAGE)
+            ->get()->filter(fn (NfcRecord $entry): bool => empty($entry->payload['deleted_at']) && (int) ($entry->payload['production_id'] ?? 0) === $production)
+            ->sum(fn (NfcRecord $entry): int => (int) ($entry->payload['quantity'] ?? 0));
     }
 
     public function storeReinvestment(User $user, array $data): void
@@ -455,6 +508,10 @@ class ManageNfcRecords
 
     public function deleteProduction(User $user, int $production): void
     {
+        if ($this->damageQuantity($user, $production) > 0) {
+            throw ValidationException::withMessages(['production' => 'Remova ou corrija as avarias vinculadas antes de excluir o lote.']);
+        }
+
         $companies = NfcRecord::query()->whereBelongsTo($user)
             ->where('kind', NfcRecord::COMPANY)->get();
         foreach ($companies as $company) {
@@ -558,9 +615,9 @@ class ManageNfcRecords
         }, 3);
     }
 
-    private function changeRecord(User $user, int $id, string|array $kinds, Closure $change, string $event = 'updated'): void
+    private function changeRecord(User $user, int $id, string|array $kinds, Closure $change, string $event = 'updated', array $context = []): void
     {
-        DB::transaction(function () use ($user, $id, $kinds, $change, $event): void {
+        DB::transaction(function () use ($user, $id, $kinds, $change, $event, $context): void {
             $record = NfcRecord::query()->whereBelongsTo($user)->whereIn('kind', (array) $kinds)
                 ->lockForUpdate()->findOrFail($id);
             $before = $record->payload;
@@ -569,12 +626,12 @@ class ManageNfcRecords
 
             if ($after !== $before) {
                 $record->update(['payload' => $after]);
-                $this->recordHistory($user, $event, $record, $before, $after);
+                $this->recordHistory($user, $event, $record, $before, $after, $context);
             }
         }, 3);
     }
 
-    private function recordHistory(User $user, string $event, NfcRecord $record, array $before, array $after): void
+    private function recordHistory(User $user, string $event, NfcRecord $record, array $before, array $after, array $context = []): void
     {
         NfcRecord::query()->create([
             'user_id' => $user->id,
@@ -584,7 +641,8 @@ class ManageNfcRecords
                 'event' => $event,
                 'target_kind' => $record->kind,
                 'target_id' => $record->id,
-                'label' => $after['name'] ?? $before['name'] ?? ($after['text'] ?? $before['text'] ?? null),
+                'label' => $after['name'] ?? $before['name'] ?? $after['text'] ?? $before['text'] ?? $after['reason'] ?? $before['reason'] ?? null,
+                'context' => $context,
                 'actor' => request()->attributes->has('nfc_share_link')
                     ? 'Link compartilhado #'.request()->attributes->get('nfc_share_link')->id
                     : $user->name,
@@ -595,14 +653,14 @@ class ManageNfcRecords
         ]);
     }
 
-    private function changeSale(User $user, int $company, string $sale, Closure $change): void
+    private function changeSale(User $user, int $company, string $sale, Closure $change, string $event = 'updated', array $context = []): void
     {
         $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($sale, $change): array {
             $index = $this->indexOrFail($payload['sales'], $sale);
             $payload['sales'][$index] = $change($payload['sales'][$index], $payload['units']);
 
             return $payload;
-        });
+        }, $event, $context);
     }
 
     private function companyFields(array $data): array
@@ -680,14 +738,13 @@ class ManageNfcRecords
         return $productionId;
     }
 
-    private function newPlate(string $type, string $label, bool $customizing = false): array
+    private function newPlate(string $type, string $label): array
     {
         return [
             'id' => (string) Str::uuid(),
             'type' => $type,
             'label' => $label,
             'notes' => null,
-            'customizing' => $customizing,
             'defective' => false,
             'estimated_loss_cents' => null,
         ];

@@ -98,6 +98,7 @@ class NfcController extends Controller
 
         // Private images are no longer addressable after their records are removed.
         Storage::disk('local')->deleteDirectory("nfc/manufacturers/{$user->id}");
+        Storage::disk('local')->deleteDirectory("nfc/units/{$user->id}");
 
         return to_route('nfc.index', status: 303);
     }
@@ -153,7 +154,6 @@ class NfcController extends Controller
             'operation_id' => self::OPERATION_RULES,
             'standard_quantity' => ['required', 'integer', 'min:0', 'max:1000'],
             'custom_quantity' => ['required', 'integer', 'min:0', 'max:1000'],
-            'in_customization_quantity' => ['nullable', 'integer', 'min:0', 'max:1000'],
             'payments' => ['sometimes', 'array', 'list', 'max:100'],
             'payments.*' => ['array:method,amount_cents,received_on'],
             'payments.*.method' => ['required', Rule::in(ManageNfcRecords::PAYMENT_METHODS)],
@@ -193,7 +193,6 @@ class NfcController extends Controller
             'type' => ['required', Rule::in(ManageNfcRecords::PLATE_TYPES)],
             'label' => ['nullable', 'string', 'max:160'],
             'notes' => ['nullable', 'string', 'max:2000'],
-            'customizing' => ['required', 'boolean'],
             'defective' => ['required', 'boolean'],
             'estimated_loss_cents' => ['nullable', 'integer', 'min:0', 'max:999999999'],
         ]);
@@ -216,6 +215,7 @@ class NfcController extends Controller
             'occurred_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
             'reason' => ['required', 'string', 'max:160'],
             'estimated_loss_cents' => ['nullable', 'integer', 'min:0', 'max:999999999'],
+            'discount_cents' => ['exclude_unless:target,plate', 'nullable', 'integer', 'min:0', 'max:999999999'],
         ]);
         $records->storeDamage($this->owner($request), $data);
 
@@ -330,14 +330,18 @@ class NfcController extends Controller
 
     public function deleteCompany(Request $request, ManageNfcRecords $records, int $company): RedirectResponse
     {
-        $records->deleteRecord($this->owner($request), $company, NfcRecord::COMPANY);
+        $owner = $this->owner($request);
+        $records->deleteRecord($owner, $company, NfcRecord::COMPANY);
+        Storage::disk('local')->deleteDirectory("nfc/units/{$owner->id}/{$company}");
 
         return $this->redirectToDashboard($request);
     }
 
     public function deleteUnit(Request $request, ManageNfcRecords $records, int $company, string $unit): RedirectResponse
     {
-        $records->deleteUnit($this->owner($request), $company, $unit);
+        $owner = $this->owner($request);
+        $records->deleteUnit($owner, $company, $unit);
+        Storage::disk('local')->deleteDirectory("nfc/units/{$owner->id}/{$company}/".strtolower($unit));
 
         return $this->redirectToDashboard($request);
     }

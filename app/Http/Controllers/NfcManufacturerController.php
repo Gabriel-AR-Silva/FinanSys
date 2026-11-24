@@ -120,6 +120,84 @@ class NfcManufacturerController extends Controller
         return $record;
     }
 
+    public function uploadUnitImages(Request $request, ManageNfcRecords $records, int $company, string $unit): RedirectResponse
+    {
+        $data = $request->validate([
+            'images' => ['required', 'array', 'list', 'min:1', 'max:10'],
+            'images.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ]);
+
+        $owner = $this->owner($request);
+        $unit = strtolower($unit);
+        $uploaded = [];
+
+        try {
+            foreach ($data['images'] as $file) {
+                $id = (string) Str::uuid();
+                $path = $file->storeAs(
+                    "nfc/units/{$owner->id}/{$company}/{$unit}",
+                    "{$id}.{$file->extension()}",
+                    'local',
+                );
+
+                if (! $path) {
+                    throw ValidationException::withMessages(['images' => 'Não foi possível armazenar a imagem.']);
+                }
+
+                $uploaded[] = [
+                    'id' => $id,
+                    'name' => Str::limit(basename($file->getClientOriginalName()), 160, ''),
+                    'path' => $path,
+                    'mime' => $file->getMimeType(),
+                    'size' => $file->getSize(),
+                ];
+            }
+
+            $records->attachUnitImages($owner, $company, $unit, $uploaded);
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete(array_column($uploaded, 'path'));
+
+            throw $exception;
+        }
+
+        return $this->backToNfc($request);
+    }
+
+    public function showUnitImage(Request $request, int $company, string $unit, string $image): BinaryFileResponse
+    {
+        $owner = $this->owner($request);
+        $unit = strtolower($unit);
+        $record = NfcRecord::query()->whereBelongsTo($owner)->where('kind', NfcRecord::COMPANY)->findOrFail($company);
+        abort_if(! empty($record->payload['deleted_at']), 404);
+        $storedUnit = collect($record->payload['units'])->firstWhere('id', strtolower($unit));
+        abort_if($storedUnit === null, 404);
+        $entry = collect($storedUnit['images'] ?? [])->firstWhere('id', strtolower($image));
+        abort_if($entry === null, 404);
+
+        $path = (string) ($entry['path'] ?? '');
+        abort_unless(str_starts_with($path, "nfc/units/{$owner->id}/{$company}/{$unit}/"), 404);
+        abort_unless(Storage::disk('local')->exists($path), 404);
+
+        $fullPath = Storage::disk('local')->path($path);
+        $response = $request->boolean('download')
+            ? response()->download($fullPath, $entry['name'] ?? 'imagem.png')
+            : response()->file($fullPath, ['Content-Type' => $entry['mime'] ?? 'image/png']);
+
+        $response->headers->set('Cache-Control', 'private, no-store, max-age=0');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+        $response->headers->set('Referrer-Policy', 'no-referrer');
+
+        return $response;
+    }
+
+    public function deleteUnitImage(Request $request, ManageNfcRecords $records, int $company, string $unit, string $image): RedirectResponse
+    {
+        $path = $records->removeUnitImage($this->owner($request), $company, $unit, $image);
+        Storage::disk('local')->delete($path);
+
+        return $this->backToNfc($request);
+    }
+
     private function owner(Request $request): User
     {
         return $request->attributes->get('nfc_share_owner') ?? $request->user();

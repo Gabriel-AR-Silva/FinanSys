@@ -146,8 +146,9 @@ function context(notice) {
                                 <span v-if="notice.resolved_at" class="nfc-badge nfc-success">Resolvido</span>
                                 <span v-else-if="!notice.important" class="nfc-badge nfc-neutral">Pendente</span>
                             </div>
-                            <button v-if="notice.company_id" type="button" class="nfc-notice-company min-h-11 self-start break-words rounded-lg px-2.5 py-2 text-left text-xs font-semibold"
-                                @click="emit('open-company', notice.company_id)">{{ context(notice) }}</button>
+                            <button v-if="notice.company_id && !notice.company_missing" type="button" class="nfc-notice-company min-h-11 self-start break-words rounded-lg px-2.5 py-2 text-left text-xs font-semibold"
+                                @click="emit('open-company', notice.company_id, notice.sale_id)">{{ context(notice) }}</button>
+                            <span v-if="notice.company_missing || notice.plate_missing" class="nfc-muted text-xs">{{ notice.company_missing ? 'Empresa excluída' : 'Plaquinha ou venda excluída' }} · aviso preservado para conferência</span>
                         </div>
                     </li>
                 </ul>
