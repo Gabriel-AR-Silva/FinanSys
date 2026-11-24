@@ -418,7 +418,13 @@ class NfcWorkspaceTest extends TestCase
             ->where('schema_pending', true));
         $this->post(route('nfc.companies.store'))
             ->assertStatus(303)
-            ->assertRedirect(route('nfc.index'));
+            ->assertRedirect(route('nfc.index'))
+            ->assertSessionHasErrors('nfc');
+
+        $this->delete(route('nfc.reset'), ['confirmation' => 'ZERAR'])
+            ->assertStatus(303)
+            ->assertRedirect(route('nfc.index'))
+            ->assertSessionHasErrors('nfc');
     }
 
     public function test_new_company_with_blank_first_unit_uses_a_readable_default_name(): void
