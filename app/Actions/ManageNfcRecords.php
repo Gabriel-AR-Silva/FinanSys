@@ -240,7 +240,7 @@ class ManageNfcRecords
             $changes = Arr::only($data, ['label', 'notes', 'type']);
             $changes['customizing'] = $data['type'] === 'custom' && (bool) $data['customizing'];
             $changes['defective'] = (bool) $data['defective'];
-            $changes['estimated_loss_cents'] = $changes['defective'] ? ($data['estimated_loss_cents'] ?? null) : null;
+            $changes['estimated_loss_cents'] = $changes['defective'] ? ($data['estimated_loss_cents'] ?? NfcDashboardQuery::DEFAULT_DAMAGE_COST_CENTS) : null;
 
             $stored['plates'][$index] = [...$stored['plates'][$index], ...$changes];
 
@@ -311,7 +311,7 @@ class ManageNfcRecords
                     'quantity' => (int) $data['quantity'],
                     'occurred_on' => $data['occurred_on'],
                     'reason' => trim($data['reason']),
-                    'estimated_loss_cents' => $data['estimated_loss_cents'] ?? null,
+                    'estimated_loss_cents' => $data['estimated_loss_cents'] ?? NfcDashboardQuery::DEFAULT_DAMAGE_COST_CENTS * (int) $data['quantity'],
                 ]);
             }, 3);
 
@@ -335,7 +335,8 @@ class ManageNfcRecords
             }
             $stored['total_cents'] -= $discount;
             $stored['plates'][$index]['defective'] = true;
-            $stored['plates'][$index]['estimated_loss_cents'] = $data['estimated_loss_cents'] ?? null;
+            $stored['plates'][$index]['defective_on'] = $data['occurred_on'];
+            $stored['plates'][$index]['estimated_loss_cents'] = $data['estimated_loss_cents'] ?? NfcDashboardQuery::DEFAULT_DAMAGE_COST_CENTS;
             $description = trim($data['reason']);
             if ($discount > 0) {
                 $description .= ' (abatimento de '.$discount.' centavos no valor da venda)';
