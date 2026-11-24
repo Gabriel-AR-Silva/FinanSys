@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -97,8 +98,13 @@ class NfcController extends Controller
         }, 3);
 
         // Private images are no longer addressable after their records are removed.
-        Storage::disk('local')->deleteDirectory("nfc/manufacturers/{$user->id}");
-        Storage::disk('local')->deleteDirectory("nfc/units/{$user->id}");
+        $disk = Storage::disk('local');
+        $manufacturersRemoved = $disk->deleteDirectory("nfc/manufacturers/{$user->id}");
+        $unitsRemoved = $disk->deleteDirectory("nfc/units/{$user->id}");
+
+        if (! $manufacturersRemoved || ! $unitsRemoved) {
+            throw ValidationException::withMessages(['confirmation' => 'Cadastros removidos, mas a limpeza dos arquivos falhou. Tente novamente para concluir a limpeza.']);
+        }
 
         return to_route('nfc.index', status: 303);
     }
@@ -332,7 +338,9 @@ class NfcController extends Controller
     {
         $owner = $this->owner($request);
         $records->deleteRecord($owner, $company, NfcRecord::COMPANY);
-        Storage::disk('local')->deleteDirectory("nfc/units/{$owner->id}/{$company}");
+        if (! Storage::disk('local')->deleteDirectory("nfc/units/{$owner->id}/{$company}")) {
+            throw ValidationException::withMessages(['images' => 'Empresa removida, mas a limpeza dos arquivos falhou.']);
+        }
 
         return $this->redirectToDashboard($request);
     }
@@ -341,7 +349,9 @@ class NfcController extends Controller
     {
         $owner = $this->owner($request);
         $records->deleteUnit($owner, $company, $unit);
-        Storage::disk('local')->deleteDirectory("nfc/units/{$owner->id}/{$company}/".strtolower($unit));
+        if (! Storage::disk('local')->deleteDirectory("nfc/units/{$owner->id}/{$company}/".strtolower($unit))) {
+            throw ValidationException::withMessages(['images' => 'Unidade removida, mas a limpeza dos arquivos falhou.']);
+        }
 
         return $this->redirectToDashboard($request);
     }
