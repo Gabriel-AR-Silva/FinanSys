@@ -14,6 +14,8 @@ class NfcReportQuery
         $values = array_fill_keys(self::METRICS, 0);
         $unknownCosts = 0;
         $unknownLosses = 0;
+        $usableSold = 0;
+        $usableManufactured = 0;
         $undatedPayments = 0;
         $undatedBatches = 0;
         $companies = [];
@@ -58,16 +60,20 @@ class NfcReportQuery
                     $companyRow['pending'] += $sale['balance_cents'];
                     $values['sold'] += count($sale['plates']);
                     $companyRow['sold'] += count($sale['plates']);
+                    $usableSold += count(array_filter($sale['plates'], fn (array $plate): bool => ! ($plate['defective'] ?? false)));
                     foreach ($sale['plates'] as $plate) {
                         $kind = ($plate['type'] ?? 'standard') === 'custom' ? 'custom' : 'standard';
                         $soldTypes[$kind]++;
-                        if ($plate['defective'] ?? false) {
-                            $timeline[$saleBucket]['defective']++;
-                            $timeline[$saleBucket]['loss'] += $plate['estimated_loss_cents'] ?? 0;
-                            $values['defective']++;
-                            $values['loss'] += $plate['estimated_loss_cents'] ?? 0;
-                            $unknownLosses += (int) (($plate['estimated_loss_cents'] ?? null) === null);
-                        }
+                    }
+                }
+                foreach ($sale['plates'] as $plate) {
+                    $defectBucket = $bucketFor($plate['defective_on'] ?? $sale['sold_on'] ?? null);
+                    if (($plate['defective'] ?? false) && $defectBucket !== null) {
+                        $loss = $plate['estimated_loss_cents'] ?? NfcDashboardQuery::DEFAULT_DAMAGE_COST_CENTS;
+                        $timeline[$defectBucket]['defective']++;
+                        $timeline[$defectBucket]['loss'] += $loss;
+                        $values['defective']++;
+                        $values['loss'] += $loss;
                     }
                 }
                 foreach ($sale['payments'] as $payment) {
@@ -93,12 +99,12 @@ class NfcReportQuery
                 continue;
             }
             $quantity = (int) $damage['quantity'];
-            $loss = (int) ($damage['estimated_loss_cents'] ?? 0);
+            $loss = (int) ($damage['estimated_loss_cents'] ?? NfcDashboardQuery::DEFAULT_DAMAGE_COST_CENTS * $quantity);
             $values['defective'] += $quantity;
             $values['loss'] += $loss;
             $timeline[$bucket]['defective'] += $quantity;
             $timeline[$bucket]['loss'] += $loss;
-            $unknownLosses += $damage['estimated_loss_cents'] === null ? $quantity : 0;
+
         }
         foreach ($dashboard['production'] as $batch) {
             if (empty($batch['produced_on'])) {
@@ -115,6 +121,7 @@ class NfcReportQuery
             $unknownCosts += (int) (($batch['cost_cents'] ?? null) === null);
             if ($batch['status'] === 'completed') {
                 $values['manufactured'] += $batch['quantity'];
+                $usableManufactured += $batch['usable_quantity'] ?? $batch['quantity'];
                 $timeline[$batchBucket]['manufactured'] += $batch['quantity'];
             }
         }
@@ -151,6 +158,8 @@ class NfcReportQuery
             'margin' => $values['result'] !== null && $values['sales'] > 0 ? $values['result'] / $values['sales'] * 100 : null,
             'unknownCosts' => $unknownCosts,
             'unknownLosses' => $unknownLosses,
+            'usableSold' => $usableSold,
+            'usableManufactured' => $usableManufactured,
             'undatedPayments' => $undatedPayments,
             'undatedBatches' => $undatedBatches,
             'cash' => [
