@@ -31,6 +31,7 @@ class NfcDashboardQuery
                 'status' => $record->payload['status'] ?? 'completed',
             ])->values()->map(function (array $batch) use ($damages): array {
                 $quantity = (int) $damages->where('production_id', $batch['id'])->sum('quantity');
+
                 return [...$batch, 'damaged_quantity' => $quantity, 'usable_quantity' => max(0, (int) $batch['quantity'] - $quantity)];
             });
 
@@ -126,7 +127,7 @@ class NfcDashboardQuery
             'today' => $today->toDateString(),
             'summary' => [
                 'interested' => $companies->where('interested', true)->count(),
-                'in_customization' => $plates->where('customizing', true)->count(),
+                'in_customization' => $plates->where('customizing', true)->filter(fn (array $plate): bool => (bool) ($plate['defective'] ?? false) === false)->count(),
                 'manufactured' => $production->where('status', 'completed')->sum('quantity'),
                 'in_production' => $production->where('status', 'in_progress')->sum('quantity'),
                 'usable_manufactured' => $production->where('status', 'completed')->sum('usable_quantity'),
@@ -191,7 +192,7 @@ class NfcDashboardQuery
             'id' => $record->id,
             'sales' => $sales->all(),
             'sold' => $sales->sum(fn (array $sale): int => count($sale['plates'])),
-            'usable_sold' => $sales->sum(fn (array $sale): int => count(array_filter($sale['plates'], fn (array $plate): bool => ! ($plate['defective'] ?? false)))),
+            'usable_sold' => $sales->sum(fn (array $sale): int => count(array_filter($sale['plates'], fn (array $plate): bool => (bool) ($plate['defective'] ?? false) === false))),
             'defective' => $sales->sum(fn (array $sale): int => count(array_filter($sale['plates'], fn (array $plate): bool => (bool) ($plate['defective'] ?? false)))),
             'outstanding_cents' => $sales->sum('balance_cents'),
         ];
@@ -214,6 +215,9 @@ class NfcDashboardQuery
                 'company_name' => $company['name'] ?? null,
                 'unit_name' => $unit['name'] ?? null,
                 'plate_label' => $plate['label'] ?? null,
+                'sale_id' => $sale['id'] ?? null,
+                'company_missing' => $notice['company_id'] !== null && $company === null,
+                'plate_missing' => $notice['plate_id'] !== null && $plate === null,
             ];
         })->values()->all();
     }
@@ -226,6 +230,7 @@ class NfcDashboardQuery
             $units = collect($company['units'])->keyBy('id');
 
             return collect($company['sales'])
+                ->filter(fn (array $sale): bool => count($sale['plates']) > 0)
                 ->where('warranty_status', 'active')
                 ->where('warranty_until', '<=', $windowEnd)
                 ->map(fn (array $sale): array => [
