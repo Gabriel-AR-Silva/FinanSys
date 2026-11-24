@@ -153,7 +153,6 @@ class NfcController extends Controller
             'operation_id' => self::OPERATION_RULES,
             'standard_quantity' => ['required', 'integer', 'min:0', 'max:1000'],
             'custom_quantity' => ['required', 'integer', 'min:0', 'max:1000'],
-            'in_customization_quantity' => ['nullable', 'integer', 'min:0', 'max:1000'],
             'payments' => ['sometimes', 'array', 'list', 'max:100'],
             'payments.*' => ['array:method,amount_cents,received_on'],
             'payments.*.method' => ['required', Rule::in(ManageNfcRecords::PAYMENT_METHODS)],
@@ -193,7 +192,6 @@ class NfcController extends Controller
             'type' => ['required', Rule::in(ManageNfcRecords::PLATE_TYPES)],
             'label' => ['nullable', 'string', 'max:160'],
             'notes' => ['nullable', 'string', 'max:2000'],
-            'customizing' => ['required', 'boolean'],
             'defective' => ['required', 'boolean'],
             'estimated_loss_cents' => ['nullable', 'integer', 'min:0', 'max:999999999'],
         ]);
