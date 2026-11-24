@@ -50,7 +50,7 @@ function upload(event) {
 <template>
         <section class="nfc-panel flex min-w-0 flex-col gap-3 p-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
-                <h3 class="font-semibold">Imagens do unidade <span class="nfc-muted text-sm font-normal">({{ unit.images.length }}/10)</span></h3>
+                <h3 class="font-semibold">Imagens da unidade <span class="nfc-muted text-sm font-normal">({{ unit.images.length }}/10)</span></h3>
                 <label v-if="permissions.create && availableSlots" class="nfc-button cursor-pointer" :aria-disabled="uploadForm.processing">
                     <ImagePlus :size="16" aria-hidden="true" /> {{ uploadForm.processing ? 'Enviando…' : 'Adicionar imagens' }}
                     <input type="file" accept="image/jpeg,image/png,image/webp" multiple class="sr-only" :disabled="uploadForm.processing" @change="upload" />
