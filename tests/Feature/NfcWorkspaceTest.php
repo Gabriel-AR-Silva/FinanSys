@@ -40,7 +40,6 @@ class NfcWorkspaceTest extends TestCase
             'total_cents' => 10000,
             'standard_quantity' => 1,
             'custom_quantity' => 0,
-            'in_customization_quantity' => 0,
             'payments' => [['method' => 'pix', 'amount_cents' => 10000, 'received_on' => '2026-11-21']],
         ])->assertRedirect(route('nfc.index'));
 
@@ -381,7 +380,6 @@ class NfcWorkspaceTest extends TestCase
             'sold_on' => '2026-11-10',
             'standard_quantity' => 2,
             'custom_quantity' => 2,
-            'in_customization_quantity' => 1,
             'payments' => [['method' => 'cash', 'amount_cents' => 4000]],
         ]);
 
@@ -392,7 +390,7 @@ class NfcWorkspaceTest extends TestCase
             ->where('companies.0.sales.0.payment_status', 'partial')
             ->where('summary.sold_standard', 2)
             ->where('summary.sold_custom', 2)
-            ->where('summary.in_customization', 1)
+            ->missing('summary.in_customization')
             ->where('summary.manufactured', 0)
             ->where('summary.paid_plates', 0)
             ->where('summary.received_cents', 4000)
@@ -780,7 +778,6 @@ class NfcWorkspaceTest extends TestCase
             'type' => 'standard',
             'label' => 'Defeituosa',
             'notes' => null,
-            'customizing' => false,
             'defective' => true,
             'estimated_loss_cents' => 2500,
         ])->assertRedirect(route('nfc.index'));
@@ -1054,7 +1051,6 @@ class NfcWorkspaceTest extends TestCase
             'total_cents' => 10000,
             'standard_quantity' => 1,
             'custom_quantity' => 0,
-            'in_customization_quantity' => 0,
             'payments' => [],
         ], $overrides))->assertRedirect(route('nfc.index'));
 
