@@ -110,6 +110,10 @@ class NfcWorkspaceTest extends TestCase
             'reason' => 'Mais avarias',
         ])->assertSessionHasErrors('quantity');
 
+        $this->patch(route('nfc.production.update', ['production' => $batch->id]), [
+            'quantity' => 1, 'status' => 'completed',
+        ])->assertSessionHasErrors('quantity');
+
         $this->delete(route('nfc.damages.destroy', ['damage' => $damage->id]))->assertRedirect(route('nfc.index'));
         $this->assertSame(0, app(NfcDashboardQuery::class)->forUser($owner)['summary']['defective']);
     }
@@ -132,14 +136,15 @@ class NfcWorkspaceTest extends TestCase
         $this->post(route('nfc.damages.store'), [
             'operation_id' => (string) Str::uuid(), 'target' => 'plate', 'company_id' => $company->id,
             'sale_id' => $sale['id'], 'plate_id' => $sale['plates'][0]['id'], 'quantity' => 1,
-            'occurred_on' => '2026-11-21', 'reason' => 'Defeito', 'estimated_loss_cents' => 1500,
+            'occurred_on' => '2026-11-21', 'reason' => 'Defeito', 'estimated_loss_cents' => 1500, 'discount_cents' => 1000,
         ])->assertRedirect(route('nfc.index'));
         $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
         $this->assertSame(4, $dashboard['summary']['sold']);
         $this->assertSame(3, $dashboard['summary']['usable_sold']);
         $this->assertSame([1, 2, 0], array_column($dashboard['companies'][0]['units'], 'usable_sold'));
         $this->assertSame([1500, 0, 0], array_column($dashboard['companies'][0]['units'], 'estimated_loss_cents'));
-        $this->assertSame(20000, $dashboard['summary']['outstanding_cents']);
+        $this->assertSame(19000, $dashboard['summary']['outstanding_cents']);
+        $this->assertSame([9000, 10000, 0], array_column($dashboard['companies'][0]['units'], 'outstanding_cents'));
     }
 
     public function test_damage_cannot_be_attached_to_another_users_batch(): void
