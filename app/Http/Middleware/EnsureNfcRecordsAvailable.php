@@ -17,9 +17,11 @@ class EnsureNfcRecordsAvailable
         }
 
         if (! $request->isMethodSafe()) {
-            return $request->attributes->has('nfc_share_owner')
+            $redirect = $request->attributes->has('nfc_share_owner')
                 ? to_route('nfc.share.index', ['token' => $request->attributes->get('nfc_share_token')], status: 303)
                 : to_route('nfc.index', status: 303);
+
+            return $redirect->withErrors(['nfc' => 'O armazenamento NFC está indisponível. Nenhuma alteração foi realizada. Tente novamente após a atualização do sistema.']);
         }
 
         return Inertia::render('Nfc/Index', [
