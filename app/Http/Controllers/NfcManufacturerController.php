@@ -33,7 +33,9 @@ class NfcManufacturerController extends Controller
     public function destroy(Request $request, ManageNfcRecords $records, int $manufacturer): RedirectResponse
     {
         $paths = $records->deleteManufacturer($this->owner($request), $manufacturer);
-        Storage::disk('local')->delete($paths);
+        if ($paths !== [] && ! Storage::disk('local')->delete($paths)) {
+            throw ValidationException::withMessages(['images' => 'Fabricante removido, mas a limpeza dos arquivos falhou. A função Zerar pode repetir a limpeza.']);
+        }
 
         return $this->backToNfc($request);
     }
@@ -105,8 +107,7 @@ class NfcManufacturerController extends Controller
 
     public function deleteImage(Request $request, ManageNfcRecords $records, int $manufacturer, string $image): RedirectResponse
     {
-        $path = $records->removeManufacturerImage($this->owner($request), $manufacturer, $image);
-        Storage::disk('local')->delete($path);
+        $records->removeManufacturerImage($this->owner($request), $manufacturer, $image);
 
         return $this->backToNfc($request);
     }
@@ -192,8 +193,7 @@ class NfcManufacturerController extends Controller
 
     public function deleteUnitImage(Request $request, ManageNfcRecords $records, int $company, string $unit, string $image): RedirectResponse
     {
-        $path = $records->removeUnitImage($this->owner($request), $company, $unit, $image);
-        Storage::disk('local')->delete($path);
+        $records->removeUnitImage($this->owner($request), $company, $unit, $image);
 
         return $this->backToNfc($request);
     }
