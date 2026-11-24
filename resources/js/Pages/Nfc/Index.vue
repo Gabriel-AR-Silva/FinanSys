@@ -193,6 +193,7 @@ function saveExpense() {
 }
 
 const damageAmount = ref('');
+const damageDiscount = ref('');
 const damageForm = useForm({
     operation_id: crypto.randomUUID(), target: 'production',
     production_id: '', company_id: '', sale_id: '', plate_id: '',
@@ -209,6 +210,7 @@ function openDamage() {
     damageForm.operation_id = crypto.randomUUID();
     damageForm.occurred_on = props.today;
     damageAmount.value = '';
+    damageDiscount.value = '';
     dialog.value = { kind: 'damage' };
 }
 function openDamageForBatch(batchId) {
@@ -232,6 +234,18 @@ function saveDamage() {
         notify({ type: 'error', message: 'Valor de prejuízo fora do limite permitido.' });
         return;
     }
+    const discountRaw = damageForm.target === 'plate' ? damageDiscount.value.trim().replace(',', '.') : '';
+    if (discountRaw && !/^\d+(?:\.\d{1,2})?$/.test(discountRaw)) {
+        damageForm.setError('discount_cents', 'Informe um desconto válido.');
+        return;
+    }
+    const [discountWhole, discountFraction = ''] = discountRaw ? discountRaw.split('.') : ['0', ''];
+    const discountCents = Number(discountWhole) * 100 + Number(discountFraction.padEnd(2, '0'));
+    const selectedSale = damageSales.value.find(sale => sale.id === damageForm.sale_id);
+    if (damageForm.target === 'plate' && (!Number.isSafeInteger(discountCents) || discountCents > 999999999 || discountCents > (selectedSale?.balance_cents ?? 0))) {
+        damageForm.setError('discount_cents', 'O desconto não pode superar o saldo a receber.');
+        return;
+    }
     damageForm.transform(data => ({
         ...data, quantity: data.target === 'plate' ? 1 : Number(data.quantity),
         production_id: data.target === 'production' ? Number(data.production_id) : null,
@@ -239,6 +253,7 @@ function saveDamage() {
         sale_id: data.target === 'plate' ? data.sale_id : null,
         plate_id: data.target === 'plate' ? data.plate_id : null,
         estimated_loss_cents: raw ? cents : null,
+        discount_cents: data.target === 'plate' ? discountCents : null,
     })).post(nfcRoute('nfc.damages.store'), {
         preserveScroll: true,
         onStart: () => { busy.value = true; },
@@ -1025,7 +1040,11 @@ watch(dialog, async (current, previous) => {
                     <label class="nfc-field">Possível prejuízo total (R$, opcional)
                         <input v-model.trim="damageAmount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" class="nfc-control" placeholder="Ex.: 15,00" :disabled="busy" />
                     </label>
-                    <p class="nfc-muted text-xs">A avaria reduz a quantidade aproveitável, não apaga a venda nem o pagamento. Se houver desconto real ao cliente, ajuste o valor da venda; não duplique custos na estimativa.</p>
+                    <label v-if="damageForm.target === 'plate'" class="nfc-field">Abatimento no saldo da venda (R$, opcional)
+                        <input v-model.trim="damageDiscount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" class="nfc-control" placeholder="0,00" :disabled="busy" />
+                        <span class="nfc-muted text-xs">Saldo atual: {{ money(damageSales.find(sale => sale.id === damageForm.sale_id)?.balance_cents ?? 0) }}. Use somente se o cliente realmente receber desconto.</span>
+                    </label>
+                    <p class="nfc-muted text-xs">A avaria reduz a quantidade aproveitável. Só o abatimento informado reduz o valor da venda. Pagamentos registrados permanecem intactos; não duplique custos na estimativa de perda.</p>
                     <p v-for="(error, field) in damageForm.errors" :key="field" class="text-xs text-[var(--fs-danger)]" role="alert">{{ error }}</p>
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
                         <button type="button" class="nfc-button" :disabled="busy" @click="closeDialog">Cancelar</button>
