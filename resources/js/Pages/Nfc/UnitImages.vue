@@ -64,7 +64,7 @@ function upload(event) {
                     </button>
                     <figcaption class="flex flex-col gap-2 p-2">
                         <p class="truncate text-xs" :title="image.name">{{ image.name }}</p>
-                        <div class="flex items-center justify-between gap-1">
+                        <div class="flex flex-wrap items-center justify-between gap-1">
                             <a class="nfc-button nfc-icon-button" :href="imageDownloadUrl(image)" :download="image.name" :aria-label="'Baixar ' + image.name" title="Baixar imagem"><Download :size="16" aria-hidden="true" /></a>
                             <button v-if="permissions.delete" type="button" class="nfc-button nfc-icon-button nfc-danger"  :disabled="uploadForm.processing" :aria-label="'Excluir ' + image.name" title="Excluir imagem" @click="emit('request-delete-image', image)"><Trash2 :size="16" aria-hidden="true" /></button>
                         </div>
@@ -73,7 +73,7 @@ function upload(event) {
             </div>
             <p v-else class="nfc-muted text-sm">Nenhuma imagem anexada. Adicione fotos dos cartões, plaquinhas ou artes de referência.</p>
             <figure v-if="selectedImage && unit.images.some(image => image.id === selectedImage.id)" class="nfc-panel flex min-w-0 flex-col gap-2 p-3">
-                <div class="flex items-center justify-between gap-2">
+                <div class="flex flex-wrap items-center justify-between gap-2">
                     <figcaption class="min-w-0 truncate text-sm font-semibold">Pré-visualização: {{ selectedImage.name }}</figcaption>
                     <button type="button" class="nfc-button" @click="selectedImage = null">Fechar prévia</button>
                 </div>
