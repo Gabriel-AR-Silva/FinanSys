@@ -293,20 +293,32 @@ class ManageNfcRecords
         $initial = (bool) $data['initial'];
         $payload = $this->productionFields($data);
         $payload['manufacturer_id'] = $this->validatedManufacturerId($user, $data['manufacturer_id'] ?? null);
-        $record = $this->createRecord(
-            $user,
-            $initial ? NfcRecord::INITIAL_PRODUCTION : NfcRecord::PRODUCTION,
-            $initial ? self::INITIAL_PRODUCTION_KEY : $data['operation_id'],
-            $payload,
-        );
-
-        if ($initial && $record->payload != $payload) {
-            throw ValidationException::withMessages([
-                'quantity' => 'O lote inicial já foi registrado. Abra a fabricação para editar os dados.',
-            ]);
+        if (! $initial) {
+            return $this->createRecord($user, NfcRecord::PRODUCTION, $data['operation_id'], $payload);
         }
 
-        return $record;
+        return DB::transaction(function () use ($user, $payload): NfcRecord {
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $previous = NfcRecord::query()->whereBelongsTo($user)
+                ->where('kind', NfcRecord::INITIAL_PRODUCTION)
+                ->where('record_key', self::INITIAL_PRODUCTION_KEY)
+                ->lockForUpdate()->first();
+
+            if ($previous !== null && ! empty($previous->payload['deleted_at'])) {
+                // Preserve the old record and its history without blocking a new initial batch.
+                $previous->update(['record_key' => (string) Str::uuid()]);
+            }
+
+            $record = $this->createRecord($user, NfcRecord::INITIAL_PRODUCTION, self::INITIAL_PRODUCTION_KEY, $payload);
+
+            if ($record->payload != $payload) {
+                throw ValidationException::withMessages([
+                    'quantity' => 'O lote inicial já foi registrado. Abra a fabricação para editar os dados.',
+                ]);
+            }
+
+            return $record;
+        }, 3);
     }
 
     public function updateProduction(User $user, int $production, array $data): void
