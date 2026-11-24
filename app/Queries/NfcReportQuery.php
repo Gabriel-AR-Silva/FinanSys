@@ -60,7 +60,7 @@ class NfcReportQuery
                     $companyRow['pending'] += $sale['balance_cents'];
                     $values['sold'] += count($sale['plates']);
                     $companyRow['sold'] += count($sale['plates']);
-                    $usableSold += count(array_filter($sale['plates'], fn (array $plate): bool => ! ($plate['defective'] ?? false)));
+                    $usableSold += count(array_filter($sale['plates'], fn (array $plate): bool => (bool) ($plate['defective'] ?? false) === false));
                     foreach ($sale['plates'] as $plate) {
                         $kind = ($plate['type'] ?? 'standard') === 'custom' ? 'custom' : 'standard';
                         $soldTypes[$kind]++;
