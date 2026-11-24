@@ -57,6 +57,7 @@ Route::get('/dashboard', DashboardController::class)
 
 Route::prefix('plaquinhas-nfc/compartilhado/{token}')->name('nfc.share.')->middleware([ResolveNfcShareToken::class, EnsureNfcRecordsAvailable::class, 'throttle:60,1'])->controller(NfcController::class)->group(function () {
     Route::get('/', 'index')->name('index');
+    Route::get('/relatorio.pdf', 'exportReport')->middleware('throttle:15,1')->name('report.export');
     Route::post('/empresas', 'storeCompany')->name('companies.store');
     Route::patch('/empresas/{company}', 'updateCompany')->whereNumber('company')->name('companies.update');
     Route::post('/empresas/{company}/unidades', 'storeUnit')->whereNumber('company')->name('units.store');
