@@ -391,6 +391,7 @@ class NfcWorkspaceTest extends TestCase
             ->where('summary.sold_standard', 2)
             ->where('summary.sold_custom', 2)
             ->missing('summary.in_customization')
+            ->missing('companies.0.sales.0.plates.0.customizing')
             ->where('summary.manufactured', 0)
             ->where('summary.paid_plates', 0)
             ->where('summary.received_cents', 4000)
