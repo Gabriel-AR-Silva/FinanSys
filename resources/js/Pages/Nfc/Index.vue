@@ -536,7 +536,7 @@ const title = computed(() => {
     }
 });
 
-const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído', revoked: 'Revogado' };
+const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído', revoked: 'Revogado', damage_registered: 'Avaria registrada' };
 const historyKind = { manufacturer: 'Fabricante', company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial', reinvestment: 'Reinvestimento', expense: 'Despesa', damage: 'Avaria', share_link: 'Link compartilhado' };
 const datetime = text => new Date(text).toLocaleString('pt-BR');
 const deleteDescriptions = {
@@ -545,7 +545,7 @@ const deleteDescriptions = {
     sale: 'A venda, os pagamentos e as plaquinhas vinculadas serão removidos dos indicadores.',
     plate: 'A plaquinha será removida e os indicadores de vendas e defeitos serão recalculados.',
     payment: 'O pagamento será removido e o valor a receber será recalculado.',
-    batch: 'O lote será removido. Se estiver vinculado a unidades, a operação será impedida.',
+    batch: 'O lote será removido. Se estiver vinculado a unidades ou avarias, a operação será impedida.',
     manufacturer: 'O fabricante e suas imagens serão removidos. Lotes vinculados podem impedir a exclusão.',
     image: 'Esta imagem será removida permanentemente da galeria do fabricante.',
     notice: 'O aviso será excluído da lista de pendências.',
@@ -832,7 +832,7 @@ watch(dialog, async (current, previous) => {
                     </section>
                 </section>
                 <section v-show="activeDashboardTab === 'evolution'" id="nfc-dashboard-panel-evolution" role="tabpanel" aria-labelledby="nfc-dashboard-tab-evolution" tabindex="0" class="min-w-0">
-                    <PerformanceChart :hidden-values="hiddenValues" :companies="companies" :production="production" :today="today" />
+                    <PerformanceChart :hidden-values="hiddenValues" :companies="companies" :production="production" :damages="damages" :today="today" />
                 </section>
                 <section v-show="activeDashboardTab === 'registry'" id="nfc-dashboard-panel-registry" role="tabpanel" aria-labelledby="nfc-dashboard-tab-registry" tabindex="0" class="flex min-w-0 flex-col gap-3">
             <div role="tablist" aria-label="Tipos de cadastro"
