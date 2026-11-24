@@ -92,6 +92,8 @@ class NfcWorkspaceTest extends TestCase
         $damage = NfcRecord::query()->whereBelongsTo($owner)->where('kind', NfcRecord::DAMAGE)->firstOrFail();
         $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
         $this->assertSame(2, $dashboard['summary']['defective']);
+        $this->assertSame(3, $dashboard['summary']['usable_manufactured']);
+        $this->assertSame(3, $dashboard['production'][0]['usable_quantity']);
         $this->assertSame(2000, $dashboard['summary']['estimated_loss_cents']);
         $this->assertSame(5000, $dashboard['summary']['production_cost_cents']);
         $this->assertSame(0, $dashboard['summary']['reinvested_cents']);
@@ -110,6 +112,34 @@ class NfcWorkspaceTest extends TestCase
 
         $this->delete(route('nfc.damages.destroy', ['damage' => $damage->id]))->assertRedirect(route('nfc.index'));
         $this->assertSame(0, app(NfcDashboardQuery::class)->forUser($owner)['summary']['defective']);
+    }
+
+    public function test_unit_registration_and_defects_do_not_duplicate_or_move_sales(): void
+    {
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $unitOne = $company->payload['units'][0]['id'];
+        $unitTwo = (string) Str::uuid();
+        $this->post(route('nfc.units.store', ['company' => $company->id]), ['operation_id' => $unitTwo, 'name' => 'Unidade 2'])->assertRedirect(route('nfc.index'));
+        $this->createSale($company, ['unit_id' => $unitOne, 'sold_on' => '2026-11-10', 'standard_quantity' => 0, 'custom_quantity' => 2]);
+        $this->createSale($company, ['unit_id' => $unitTwo, 'sold_on' => '2026-11-10', 'standard_quantity' => 2]);
+        $third = (string) Str::uuid();
+        $this->post(route('nfc.units.store', ['company' => $company->id]), ['operation_id' => $third, 'name' => 'Unidade 3'])->assertRedirect(route('nfc.index'));
+        $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
+        $this->assertSame(4, $dashboard['summary']['sold']);
+        $this->assertSame([2, 2, 0], array_column($dashboard['companies'][0]['units'], 'sold'));
+        $sale = $company->fresh()->payload['sales'][0];
+        $this->post(route('nfc.damages.store'), [
+            'operation_id' => (string) Str::uuid(), 'target' => 'plate', 'company_id' => $company->id,
+            'sale_id' => $sale['id'], 'plate_id' => $sale['plates'][0]['id'], 'quantity' => 1,
+            'occurred_on' => '2026-11-21', 'reason' => 'Defeito', 'estimated_loss_cents' => 1500,
+        ])->assertRedirect(route('nfc.index'));
+        $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
+        $this->assertSame(4, $dashboard['summary']['sold']);
+        $this->assertSame(3, $dashboard['summary']['usable_sold']);
+        $this->assertSame([1, 2, 0], array_column($dashboard['companies'][0]['units'], 'usable_sold'));
+        $this->assertSame([1500, 0, 0], array_column($dashboard['companies'][0]['units'], 'estimated_loss_cents'));
+        $this->assertSame(20000, $dashboard['summary']['outstanding_cents']);
     }
 
     public function test_damage_cannot_be_attached_to_another_users_batch(): void
