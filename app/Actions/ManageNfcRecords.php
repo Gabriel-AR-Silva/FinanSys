@@ -9,6 +9,7 @@ use App\Queries\NfcDashboardQuery;
 use Closure;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -79,9 +80,10 @@ class ManageNfcRecords
     public function removeManufacturerImage(User $user, int $manufacturer, string $image): string
     {
         $removedPath = null;
-        $this->changeRecord($user, $manufacturer, NfcRecord::MANUFACTURER, function (array $payload) use ($image, &$removedPath): array {
+        $this->changeRecord($user, $manufacturer, NfcRecord::MANUFACTURER, function (array $payload) use ($user, $manufacturer, $image, &$removedPath): array {
             $index = $this->indexOrFail($payload['images'] ?? [], $image);
             $removedPath = $payload['images'][$index]['path'];
+            $this->deleteImageFile($removedPath, "nfc/manufacturers/{$user->id}/{$manufacturer}/");
             array_splice($payload['images'], $index, 1);
 
             return $payload;
@@ -159,11 +161,12 @@ class ManageNfcRecords
     public function removeUnitImage(User $user, int $company, string $unit, string $image): string
     {
         $path = '';
-        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($unit, $image, &$path): array {
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($user, $company, $unit, $image, &$path): array {
             $index = $this->indexOrFail($payload['units'], $unit);
             $images = $payload['units'][$index]['images'] ?? [];
             $imageIndex = $this->indexOrFail($images, $image);
             $path = $images[$imageIndex]['path'];
+            $this->deleteImageFile($path, "nfc/units/{$user->id}/{$company}/".strtolower($unit).'/');
             array_splice($images, $imageIndex, 1);
             $payload['units'][$index]['images'] = $images;
 
@@ -171,6 +174,16 @@ class ManageNfcRecords
         }, 'image_removed', ['unit_id' => $unit, 'image_id' => $image]);
 
         return $path;
+    }
+
+    private function deleteImageFile(string $path, string $prefix): void
+    {
+        abort_unless(str_starts_with($path, $prefix), 404);
+        $disk = Storage::disk('local');
+
+        if ($disk->exists($path) && (! $disk->delete($path) || $disk->exists($path))) {
+            throw ValidationException::withMessages(['images' => 'Não foi possível excluir o arquivo. Tente novamente.']);
+        }
     }
 
     public function storeSale(User $user, int $company, array $data): void
