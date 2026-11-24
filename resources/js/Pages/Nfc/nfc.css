@@ -416,3 +416,18 @@
     scrollbar-width: thin;
     scrollbar-color: var(--fs-border) var(--fs-surface-muted);
 }
+
+@media (max-width: 639px) {
+    .nfc-settings-dialog [scroll-region] {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        padding: 0.75rem;
+    }
+    .nfc-settings-dialog [scroll-region] > .shadow-xl {
+        min-height: 0;
+        max-height: calc(100dvh - 1.5rem);
+        width: 100%;
+        border-radius: 1rem;
+    }
+}
