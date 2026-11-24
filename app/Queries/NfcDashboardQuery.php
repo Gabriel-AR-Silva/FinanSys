@@ -9,6 +9,8 @@ use Illuminate\Support\Collection;
 
 class NfcDashboardQuery
 {
+    public const DEFAULT_DAMAGE_COST_CENTS = 2500;
+
     public function forUser(User $user, bool $includeHistory = true): array
     {
         $today = CarbonImmutable::today('America/Sao_Paulo');
@@ -18,7 +20,9 @@ class NfcDashboardQuery
             ->map(fn (NfcRecord $record): array => $this->company($record, $today))
             ->values();
         $damages = $records->where('kind', NfcRecord::DAMAGE)
-            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])->values();
+            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload,
+                'estimated_loss_cents' => $record->payload['estimated_loss_cents'] ?? self::DEFAULT_DAMAGE_COST_CENTS * (int) $record->payload['quantity'],
+            ])->values();
         $production = $records->whereIn('kind', [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION])
             ->map(fn (NfcRecord $record): array => [
                 'id' => $record->id,
@@ -163,6 +167,9 @@ class NfcDashboardQuery
     {
         $company = $record->payload;
         $sales = collect($company['sales'])->map(function (array $sale) use ($today): array {
+            $sale['plates'] = array_map(fn (array $plate): array => ($plate['defective'] ?? false)
+                ? [...$plate, 'estimated_loss_cents' => $plate['estimated_loss_cents'] ?? self::DEFAULT_DAMAGE_COST_CENTS]
+                : $plate, $sale['plates']);
             $paid = array_sum(array_column($sale['payments'], 'amount_cents'));
             $balance = $sale['total_cents'] - $paid;
             $warrantyStart = $sale['warranty_starts_on'] ?? $sale['sold_on'];
