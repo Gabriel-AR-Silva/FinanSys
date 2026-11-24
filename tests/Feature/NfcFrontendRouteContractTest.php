@@ -38,6 +38,17 @@ class NfcFrontendRouteContractTest extends TestCase
         $this->assertStringContainsString('onError:', $dashboard);
     }
 
+    public function test_shared_report_control_uses_server_permission_and_token_scoped_route(): void
+    {
+        $dashboard = file_get_contents(resource_path('js/Pages/Nfc/Index.vue'));
+
+        $this->assertStringContainsString('v-if="shared && can_export_report"', $dashboard);
+        $this->assertStringContainsString("nfcRoute('nfc.report.export'", $dashboard);
+        $this->assertStringContainsString("dialog.kind === 'report' && can_export_report", $dashboard);
+        $this->assertStringContainsString("dialog.kind === 'reset' && !shared && authenticatedUser", $dashboard);
+        $this->assertStringContainsString("dialog.kind === 'share' && !shared && authenticatedUser", $dashboard);
+    }
+
     public function test_dashboard_separates_finance_evolution_and_registry_without_unmounting_state(): void
     {
         $dashboard = file_get_contents(resource_path('js/Pages/Nfc/Index.vue'));
