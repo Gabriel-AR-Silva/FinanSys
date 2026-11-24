@@ -9,6 +9,8 @@ use Illuminate\Support\Collection;
 
 class NfcDashboardQuery
 {
+    public const DEFAULT_DAMAGE_COST_CENTS = 2500;
+
     public function forUser(User $user, bool $includeHistory = true): array
     {
         $today = CarbonImmutable::today('America/Sao_Paulo');
@@ -17,24 +19,47 @@ class NfcDashboardQuery
         $companies = $records->where('kind', NfcRecord::COMPANY)
             ->map(fn (NfcRecord $record): array => $this->company($record, $today))
             ->values();
+        $damages = $records->where('kind', NfcRecord::DAMAGE)
+            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload,
+                'estimated_loss_cents' => $record->payload['estimated_loss_cents'] ?? self::DEFAULT_DAMAGE_COST_CENTS * (int) $record->payload['quantity'],
+            ])->values();
         $production = $records->whereIn('kind', [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION])
             ->map(fn (NfcRecord $record): array => [
                 'id' => $record->id,
                 'initial' => $record->kind === NfcRecord::INITIAL_PRODUCTION,
                 ...$record->payload,
                 'status' => $record->payload['status'] ?? 'completed',
-            ])->values();
+            ])->values()->map(function (array $batch) use ($damages): array {
+                $quantity = (int) $damages->where('production_id', $batch['id'])->sum('quantity');
+
+                return [...$batch, 'damaged_quantity' => $quantity, 'usable_quantity' => max(0, (int) $batch['quantity'] - $quantity)];
+            });
 
         $companies = $companies->map(function (array $company) use ($production): array {
             return [
                 ...$company,
-                'units' => array_map(function (array $unit) use ($production): array {
+                'units' => array_map(function (array $unit) use ($production, $company): array {
                     $batch = $production->firstWhere('id', $unit['production_id'] ?? null);
+                    $sales = collect($company['sales'])->where('unit_id', $unit['id']);
+                    $plates = $sales->flatMap(fn (array $sale): array => $sale['plates']);
 
                     return [
                         ...$unit,
+                        'images' => array_map(fn (array $image): array => [
+                            'id' => $image['id'],
+                            'name' => $image['name'],
+                            'mime' => $image['mime'],
+                            'size' => $image['size'],
+                        ], $unit['images'] ?? []),
                         'production_status' => $batch['status'] ?? null,
                         'batch_quantity' => $batch['quantity'] ?? null,
+                        'sold' => $plates->count(),
+                        'defective' => $plates->where('defective', true)->count(),
+                        'usable_sold' => $plates->count() - $plates->where('defective', true)->count(),
+                        'estimated_loss_cents' => $plates->where('defective', true)->sum('estimated_loss_cents'),
+                        'sales_total_cents' => $sales->sum('total_cents'),
+                        'received_cents' => $sales->sum('paid_cents'),
+                        'outstanding_cents' => $sales->sum('balance_cents'),
                     ];
                 }, $company['units']),
             ];
@@ -93,16 +118,17 @@ class NfcDashboardQuery
                 ];
             })->values();
 
-        $damages = $records->where('kind', NfcRecord::DAMAGE)
-            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
-            ->values();
-
         $reinvestments = $records->where('kind', NfcRecord::REINVESTMENT)
             ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
             ->sortByDesc('spent_on')->values();
 
         $expenses = $records->where('kind', NfcRecord::EXPENSE)
-            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
+            ->map(fn (NfcRecord $record): array => [
+                'id' => $record->id,
+                ...$record->payload,
+                'damage_missing' => isset($record->payload['damage_id']) && $damages->firstWhere('id', $record->payload['damage_id']) === null,
+                'production_missing' => isset($record->payload['production_id']) && $production->firstWhere('id', $record->payload['production_id']) === null,
+            ])
             ->sortByDesc('spent_on')->values();
 
         $sales = $companies->flatMap(fn (array $company): array => $company['sales']);
@@ -112,10 +138,13 @@ class NfcDashboardQuery
             'today' => $today->toDateString(),
             'summary' => [
                 'interested' => $companies->where('interested', true)->count(),
-                'in_customization' => $plates->where('customizing', true)->count(),
                 'manufactured' => $production->where('status', 'completed')->sum('quantity'),
                 'in_production' => $production->where('status', 'in_progress')->sum('quantity'),
+                'usable_manufactured' => $production->where('status', 'completed')->sum('usable_quantity'),
+                'manufacturing_defects' => $damages->sum('quantity'),
                 'sold' => $plates->count(),
+                'usable_sold' => $plates->count() - $plates->where('defective', true)->count(),
+                'sold_defective' => $plates->where('defective', true)->count(),
                 'sold_standard' => $plates->where('type', 'standard')->count(),
                 'sold_custom' => $plates->where('type', 'custom')->count(),
                 'defective' => $plates->where('defective', true)->count() + $damages->sum('quantity'),
@@ -149,6 +178,9 @@ class NfcDashboardQuery
     {
         $company = $record->payload;
         $sales = collect($company['sales'])->map(function (array $sale) use ($today): array {
+            $sale['plates'] = array_map(fn (array $plate): array => ($plate['defective'] ?? false)
+                ? [...$plate, 'estimated_loss_cents' => $plate['estimated_loss_cents'] ?? self::DEFAULT_DAMAGE_COST_CENTS]
+                : $plate, $sale['plates']);
             $paid = array_sum(array_column($sale['payments'], 'amount_cents'));
             $balance = $sale['total_cents'] - $paid;
             $warrantyStart = $sale['warranty_starts_on'] ?? $sale['sold_on'];
@@ -170,6 +202,8 @@ class NfcDashboardQuery
             'id' => $record->id,
             'sales' => $sales->all(),
             'sold' => $sales->sum(fn (array $sale): int => count($sale['plates'])),
+            'usable_sold' => $sales->sum(fn (array $sale): int => count(array_filter($sale['plates'], fn (array $plate): bool => (bool) ($plate['defective'] ?? false) === false))),
+            'defective' => $sales->sum(fn (array $sale): int => count(array_filter($sale['plates'], fn (array $plate): bool => (bool) ($plate['defective'] ?? false)))),
             'outstanding_cents' => $sales->sum('balance_cents'),
         ];
     }
@@ -191,6 +225,9 @@ class NfcDashboardQuery
                 'company_name' => $company['name'] ?? null,
                 'unit_name' => $unit['name'] ?? null,
                 'plate_label' => $plate['label'] ?? null,
+                'sale_id' => $sale['id'] ?? null,
+                'company_missing' => $notice['company_id'] !== null && $company === null,
+                'plate_missing' => $notice['plate_id'] !== null && $plate === null,
             ];
         })->values()->all();
     }
@@ -203,6 +240,7 @@ class NfcDashboardQuery
             $units = collect($company['units'])->keyBy('id');
 
             return collect($company['sales'])
+                ->filter(fn (array $sale): bool => count($sale['plates']) > 0)
                 ->where('warranty_status', 'active')
                 ->where('warranty_until', '<=', $windowEnd)
                 ->map(fn (array $sale): array => [

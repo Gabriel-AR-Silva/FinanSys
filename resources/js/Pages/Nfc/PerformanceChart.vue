@@ -6,6 +6,7 @@ const props = defineProps({
     hiddenValues: { type: Boolean, default: false },
     companies: { type: Array, required: true },
     production: { type: Array, required: true },
+    damages: { type: Array, default: () => [] },
     today: { type: String, required: true },
 });
 const money = value => props.hiddenValues ? '••••••' : formatMoney(value);
@@ -24,7 +25,7 @@ const definitions = {
     volume: [
         { key: 'sold', label: 'Vendidas', color: 'var(--fs-info)', dash: '', description: 'Quantidade vendida pela data da venda.' },
         { key: 'manufactured', label: 'Fabricadas', color: 'var(--fs-success)', dash: '8 3', description: 'Quantidade dos lotes concluídos pela data de fabricação.' },
-        { key: 'defects', label: 'Defeituosas por mês de venda', color: 'var(--fs-danger)', dash: '2 3', description: 'Defeitos atuais agrupados pelo mês da venda, não pela data do defeito.' },
+        { key: 'defects', label: 'Defeituosas por mês da avaria', color: 'var(--fs-danger)', dash: '2 3', description: 'Avarias pela data do defeito; registros antigos sem data usam a venda.' },
     ],
 };
 const visibleSeries = computed(() => definitions[mode.value].filter(item => selected.value[mode.value].includes(item.key)));
@@ -51,7 +52,11 @@ const report = computed(() => {
                 row.sales += sale.total_cents;
                 row.pending += sale.balance_cents;
                 row.sold += sale.plates.length;
-                row.defects += sale.plates.filter(plate => plate.defective).length;
+
+            }
+            for (const plate of sale.plates ?? []) {
+                const defectRow = byMonth.get((plate.defective_on ?? sale.sold_on)?.slice(0, 7));
+                if (plate.defective && defectRow) { defectRow.defects++; hasData = true; }
             }
             for (const payment of sale.payments ?? []) {
                 if (!payment.received_on) undated.received += payment.amount_cents;
@@ -59,6 +64,10 @@ const report = computed(() => {
                 if (paymentRow) { paymentRow.received += payment.amount_cents; hasData = true; }
             }
         }
+    }
+    for (const damage of props.damages) {
+        const row = byMonth.get(damage.occurred_on?.slice(0, 7));
+        if (row) { row.defects += Number(damage.quantity); hasData = true; }
     }
     for (const batch of props.production) {
         const row = byMonth.get(batch.produced_on?.slice(0, 7));

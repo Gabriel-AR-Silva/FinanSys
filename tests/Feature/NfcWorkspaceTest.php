@@ -9,6 +9,7 @@ use App\Queries\NfcDashboardQuery;
 use App\Queries\NfcReportQuery;
 use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -27,6 +28,44 @@ class NfcWorkspaceTest extends TestCase
         $this->withoutVite();
     }
 
+    public function test_unit_images_are_private_and_scoped_to_the_correct_unit(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $unit = $company->payload['units'][0]['id'];
+        $otherUnit = (string) Str::uuid();
+        $this->post(route('nfc.units.store', ['company' => $company->id]), [
+            'operation_id' => $otherUnit,
+            'name' => 'Unidade 2',
+        ])->assertRedirect();
+        $this->post(route('nfc.units.images.store', ['company' => $company->id, 'unit' => $unit]), [
+            'images' => [UploadedFile::fake()->image('placa.png')],
+        ])->assertRedirect();
+        $entry = $company->fresh()->payload['units'][0]['images'][0];
+        Storage::disk('local')->assertExists($entry['path']);
+        $params = ['company' => $company->id, 'unit' => $unit, 'image' => $entry['id']];
+        $this->get(route('nfc.units.images.show', $params))->assertOk();
+        $this->get(route('nfc.units.images.show', [...$params, 'unit' => $otherUnit]))->assertNotFound();
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->has('companies.0.units.0.images', 1)
+            ->missing('companies.0.units.0.images.0.path')
+            ->has('companies.0.units.1.images', 0));
+        $this->post(route('nfc.share-links.store'), ['scope' => 'view'])->assertRedirect(route('nfc.index'));
+        preg_match('~/compartilhado/([^/?]+)~', session('nfc_share_url'), $matches);
+        $sharedParams = ['token' => $matches[1], ...$params];
+        Auth::logout();
+        $this->get(route('nfc.share.units.images.show', $sharedParams))->assertOk();
+        $this->delete(route('nfc.share.units.images.destroy', $sharedParams))->assertForbidden();
+        $this->post(route('nfc.share.units.images.store', ['token' => $matches[1], 'company' => $company->id, 'unit' => $unit]), [
+            'images' => [UploadedFile::fake()->image('outra.png')],
+        ])->assertForbidden();
+        $this->actingAs(User::factory()->create())->get(route('nfc.units.images.show', $params))->assertNotFound();
+        $this->actingAs($owner)->delete(route('nfc.units.images.destroy', $params))->assertRedirect();
+        Storage::disk('local')->assertMissing($entry['path']);
+        $this->assertSame([], $company->fresh()->payload['units'][0]['images']);
+    }
+
     public function test_operating_expense_reduces_available_cash_without_changing_production_cost(): void
     {
         $owner = User::factory()->create();
@@ -40,7 +79,6 @@ class NfcWorkspaceTest extends TestCase
             'total_cents' => 10000,
             'standard_quantity' => 1,
             'custom_quantity' => 0,
-            'in_customization_quantity' => 0,
             'payments' => [['method' => 'pix', 'amount_cents' => 10000, 'received_on' => '2026-11-21']],
         ])->assertRedirect(route('nfc.index'));
 
@@ -92,12 +130,15 @@ class NfcWorkspaceTest extends TestCase
         $damage = NfcRecord::query()->whereBelongsTo($owner)->where('kind', NfcRecord::DAMAGE)->firstOrFail();
         $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
         $this->assertSame(2, $dashboard['summary']['defective']);
+        $this->assertSame(3, $dashboard['summary']['usable_manufactured']);
+        $this->assertSame(3, $dashboard['production'][0]['usable_quantity']);
         $this->assertSame(2000, $dashboard['summary']['estimated_loss_cents']);
         $this->assertSame(5000, $dashboard['summary']['production_cost_cents']);
         $this->assertSame(0, $dashboard['summary']['reinvested_cents']);
         $report = app(NfcReportQuery::class)->calculate($dashboard, '2026-11-01', '2026-11-30');
         $this->assertSame(2, $report['values']['defective']);
         $this->assertSame(2000, $report['values']['loss']);
+        $this->delete(route('nfc.production.destroy', ['production' => $batch->id]))->assertSessionHasErrors('production');
 
         $this->post(route('nfc.damages.store'), [
             'operation_id' => (string) Str::uuid(),
@@ -108,8 +149,103 @@ class NfcWorkspaceTest extends TestCase
             'reason' => 'Mais avarias',
         ])->assertSessionHasErrors('quantity');
 
+        $this->patch(route('nfc.production.update', ['production' => $batch->id]), [
+            'quantity' => 1, 'status' => 'completed',
+        ])->assertSessionHasErrors('quantity');
+
         $this->delete(route('nfc.damages.destroy', ['damage' => $damage->id]))->assertRedirect(route('nfc.index'));
         $this->assertSame(0, app(NfcDashboardQuery::class)->forUser($owner)['summary']['defective']);
+    }
+
+    public function test_unit_registration_and_defects_do_not_duplicate_or_move_sales(): void
+    {
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $unitOne = $company->payload['units'][0]['id'];
+        $unitTwo = (string) Str::uuid();
+        $this->post(route('nfc.units.store', ['company' => $company->id]), ['operation_id' => $unitTwo, 'name' => 'Unidade 2'])->assertRedirect(route('nfc.index'));
+        $this->createSale($company, ['unit_id' => $unitOne, 'sold_on' => '2026-11-10', 'standard_quantity' => 0, 'custom_quantity' => 2]);
+        $this->createSale($company, ['unit_id' => $unitTwo, 'sold_on' => '2026-11-10', 'standard_quantity' => 2]);
+        $third = (string) Str::uuid();
+        $this->post(route('nfc.units.store', ['company' => $company->id]), ['operation_id' => $third, 'name' => 'Unidade 3'])->assertRedirect(route('nfc.index'));
+        $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
+        $this->assertSame(4, $dashboard['summary']['sold']);
+        $this->assertSame([2, 2, 0], array_column($dashboard['companies'][0]['units'], 'sold'));
+        $sale = $company->fresh()->payload['sales'][0];
+        $this->post(route('nfc.damages.store'), [
+            'operation_id' => (string) Str::uuid(), 'target' => 'plate', 'company_id' => $company->id,
+            'sale_id' => $sale['id'], 'plate_id' => $sale['plates'][0]['id'], 'quantity' => 1,
+            'occurred_on' => '2026-11-21', 'reason' => 'Defeito', 'estimated_loss_cents' => 1500, 'discount_cents' => 1000,
+        ])->assertRedirect(route('nfc.index'));
+        $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
+        $this->assertSame(4, $dashboard['summary']['sold']);
+        $this->assertSame(3, $dashboard['summary']['usable_sold']);
+        $this->assertSame([1, 2, 0], array_column($dashboard['companies'][0]['units'], 'usable_sold'));
+        $this->assertSame([1500, 0, 0], array_column($dashboard['companies'][0]['units'], 'estimated_loss_cents'));
+        $this->assertSame(19000, $dashboard['summary']['outstanding_cents']);
+        $this->assertSame([9000, 10000, 0], array_column($dashboard['companies'][0]['units'], 'outstanding_cents'));
+    }
+
+    public function test_default_damage_cost_is_consistent_for_legacy_records_and_pdf(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-24T12:00:00Z'));
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $sale = $this->createSale($company, ['sold_on' => '2026-11-10']);
+        $payload = $company->fresh()->payload;
+        $payload['sales'][0]['plates'][0]['defective'] = true;
+        $payload['sales'][0]['plates'][0]['estimated_loss_cents'] = null;
+        $company->update(['payload' => $payload]);
+        $batch = NfcRecord::query()->create([
+            'user_id' => $owner->id, 'kind' => NfcRecord::PRODUCTION, 'record_key' => (string) Str::uuid(),
+            'payload' => ['quantity' => 5, 'cost_cents' => 12500, 'status' => 'completed', 'produced_on' => '2026-11-20'],
+        ]);
+        $this->post(route('nfc.damages.store'), [
+            'operation_id' => (string) Str::uuid(), 'target' => 'production', 'production_id' => $batch->id,
+            'quantity' => 2, 'occurred_on' => '2026-11-21', 'reason' => 'Avaria sem valor',
+        ])->assertRedirect(route('nfc.index'));
+        $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
+        $this->assertSame(3, $dashboard['summary']['defective']);
+        $this->assertSame(7500, $dashboard['summary']['estimated_loss_cents']);
+        $this->assertSame(0, $dashboard['summary']['unestimated_defects']);
+        $this->assertSame(5000, $dashboard['damages'][0]['estimated_loss_cents']);
+        $report = app(NfcReportQuery::class)->calculate($dashboard, '2026-11-01', '2026-11-24');
+        $this->assertSame(7500, $report['values']['loss']);
+        $this->assertSame(3, $report['values']['defective']);
+        $this->assertSame(3, $report['usableManufactured']);
+        $pdf = $this->get(route('nfc.report.export', [
+            'from' => '2026-11-01', 'to' => '2026-11-24', 'metrics' => ['loss', 'defective', 'manufactured'], 'chart' => 1,
+        ]))->assertOk()->assertHeader('Content-Type', 'application/pdf')->getContent();
+        $this->assertStringContainsString('R$ 75,00', $pdf);
+    }
+
+    public function test_damage_history_and_notice_links_remain_consistent_after_plate_deletion(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-24T12:00:00Z'));
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $sale = $this->createSale($company, ['sold_on' => '2026-11-10']);
+        $plate = $sale['plates'][0];
+        $this->post(route('nfc.notices.store'), [
+            'operation_id' => (string) Str::uuid(), 'company_id' => $company->id,
+            'plate_id' => $plate['id'], 'text' => 'Verificar defeito', 'important' => true,
+        ])->assertRedirect(route('nfc.index'));
+        $this->post(route('nfc.damages.store'), [
+            'operation_id' => (string) Str::uuid(), 'target' => 'plate', 'company_id' => $company->id,
+            'sale_id' => $sale['id'], 'plate_id' => $plate['id'], 'quantity' => 1,
+            'occurred_on' => '2026-11-21', 'reason' => 'Defeito',
+        ])->assertRedirect(route('nfc.index'));
+        $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
+        $this->assertSame('damage_registered', $dashboard['history'][0]['event']);
+        $this->assertSame($plate['id'], $dashboard['history'][0]['context']['plate_id']);
+        $this->assertSame($sale['id'], $dashboard['notices'][0]['sale_id']);
+        $this->delete(route('nfc.plates.destroy', [
+            'company' => $company->id, 'sale' => $sale['id'], 'plate' => $plate['id'],
+        ]))->assertRedirect(route('nfc.index'));
+        $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
+        $this->assertTrue($dashboard['notices'][0]['plate_missing']);
+        $this->assertNull($dashboard['notices'][0]['sale_id']);
+        $this->assertSame(0, $dashboard['summary']['defective']);
     }
 
     public function test_damage_cannot_be_attached_to_another_users_batch(): void
@@ -283,7 +419,6 @@ class NfcWorkspaceTest extends TestCase
             'sold_on' => '2026-11-10',
             'standard_quantity' => 2,
             'custom_quantity' => 2,
-            'in_customization_quantity' => 1,
             'payments' => [['method' => 'cash', 'amount_cents' => 4000]],
         ]);
 
@@ -294,7 +429,8 @@ class NfcWorkspaceTest extends TestCase
             ->where('companies.0.sales.0.payment_status', 'partial')
             ->where('summary.sold_standard', 2)
             ->where('summary.sold_custom', 2)
-            ->where('summary.in_customization', 1)
+            ->missing('summary.in_customization')
+            ->missing('companies.0.sales.0.plates.0.customizing')
             ->where('summary.manufactured', 0)
             ->where('summary.paid_plates', 0)
             ->where('summary.received_cents', 4000)
@@ -682,7 +818,6 @@ class NfcWorkspaceTest extends TestCase
             'type' => 'standard',
             'label' => 'Defeituosa',
             'notes' => null,
-            'customizing' => false,
             'defective' => true,
             'estimated_loss_cents' => 2500,
         ])->assertRedirect(route('nfc.index'));
@@ -956,7 +1091,6 @@ class NfcWorkspaceTest extends TestCase
             'total_cents' => 10000,
             'standard_quantity' => 1,
             'custom_quantity' => 0,
-            'in_customization_quantity' => 0,
             'payments' => [],
         ], $overrides))->assertRedirect(route('nfc.index'));
 
