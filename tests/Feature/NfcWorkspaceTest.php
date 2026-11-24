@@ -180,6 +180,35 @@ class NfcWorkspaceTest extends TestCase
         $this->assertStringContainsString('R$ 75,00', $pdf);
     }
 
+    public function test_damage_history_and_notice_links_remain_consistent_after_plate_deletion(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-24T12:00:00Z'));
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $sale = $this->createSale($company, ['sold_on' => '2026-11-10']);
+        $plate = $sale['plates'][0];
+        $this->post(route('nfc.notices.store'), [
+            'operation_id' => (string) Str::uuid(), 'company_id' => $company->id,
+            'plate_id' => $plate['id'], 'text' => 'Verificar defeito', 'important' => true,
+        ])->assertRedirect(route('nfc.index'));
+        $this->post(route('nfc.damages.store'), [
+            'operation_id' => (string) Str::uuid(), 'target' => 'plate', 'company_id' => $company->id,
+            'sale_id' => $sale['id'], 'plate_id' => $plate['id'], 'quantity' => 1,
+            'occurred_on' => '2026-11-21', 'reason' => 'Defeito',
+        ])->assertRedirect(route('nfc.index'));
+        $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
+        $this->assertSame('damage_registered', $dashboard['history'][0]['event']);
+        $this->assertSame($plate['id'], $dashboard['history'][0]['context']['plate_id']);
+        $this->assertSame($sale['id'], $dashboard['notices'][0]['sale_id']);
+        $this->delete(route('nfc.plates.destroy', [
+            'company' => $company->id, 'sale' => $sale['id'], 'plate' => $plate['id'],
+        ]))->assertRedirect(route('nfc.index'));
+        $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
+        $this->assertTrue($dashboard['notices'][0]['plate_missing']);
+        $this->assertNull($dashboard['notices'][0]['sale_id']);
+        $this->assertSame(0, $dashboard['summary']['defective']);
+    }
+
     public function test_damage_cannot_be_attached_to_another_users_batch(): void
     {
         $owner = User::factory()->create();
