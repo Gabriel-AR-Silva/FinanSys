@@ -511,6 +511,32 @@ class NfcWorkspaceTest extends TestCase
             ->where('summary.unknown_cost_batches', 1));
     }
 
+    public function test_deleted_initial_batch_can_be_replaced_without_losing_history(): void
+    {
+        $owner = User::factory()->create();
+        $this->actingAs($owner);
+        $payload = [
+            'operation_id' => (string) Str::uuid(),
+            'initial' => true,
+            'quantity' => 60,
+        ];
+        $this->post(route('nfc.production.store'), $payload)->assertRedirect(route('nfc.index'));
+        $old = NfcRecord::query()->whereBelongsTo($owner)->where('kind', NfcRecord::INITIAL_PRODUCTION)->firstOrFail();
+        $this->delete(route('nfc.production.destroy', ['production' => $old->id]))->assertRedirect(route('nfc.index'));
+        $replacement = array_replace($payload, ['operation_id' => (string) Str::uuid(), 'quantity' => 45]);
+        $this->post(route('nfc.production.store'), $replacement)->assertRedirect(route('nfc.index'))->assertSessionHasNoErrors();
+        $this->post(route('nfc.production.store'), $replacement)->assertRedirect(route('nfc.index'))->assertSessionHasNoErrors();
+
+        $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
+        $this->assertCount(1, $dashboard['production']);
+        $this->assertSame(45, $dashboard['summary']['manufactured']);
+        $this->assertNotSame($old->id, $dashboard['production'][0]['id']);
+        $this->assertNotNull($old->fresh()->payload['deleted_at']);
+        $this->assertTrue(collect($dashboard['history'])->contains(
+            fn (array $event): bool => $event['event'] === 'deleted' && $event['target_id'] === $old->id,
+        ));
+    }
+
     public function test_mixed_payments_reduce_the_balance_and_quit_the_sale_only_once(): void
     {
         $this->travelTo(new DateTimeImmutable('2026-11-11T15:00:00Z'));
