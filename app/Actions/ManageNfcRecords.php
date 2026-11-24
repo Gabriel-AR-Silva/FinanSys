@@ -275,10 +275,16 @@ class ManageNfcRecords
             $user,
             $production,
             [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION],
-            fn (array $payload): array => [
-                ...$this->productionFields([...$payload, ...$data]),
-                'manufacturer_id' => $this->validatedManufacturerId($user, array_key_exists('manufacturer_id', $data) ? $data['manufacturer_id'] : ($payload['manufacturer_id'] ?? null)),
-            ],
+            function (array $payload) use ($user, $production, $data): array {
+                $fields = $this->productionFields([...$payload, ...$data]);
+                if ($fields['quantity'] < $this->damageQuantity($user, $production)) {
+                    throw ValidationException::withMessages(['quantity' => 'A quantidade do lote não pode ser menor que as avarias registradas.']);
+                }
+                return [
+                    ...$fields,
+                    'manufacturer_id' => $this->validatedManufacturerId($user, array_key_exists('manufacturer_id', $data) ? $data['manufacturer_id'] : ($payload['manufacturer_id'] ?? null)),
+                ];
+            },
         );
     }
 
@@ -286,25 +292,28 @@ class ManageNfcRecords
     {
         $target = $data['target'];
         if ($target === 'production') {
-            $batch = NfcRecord::query()->whereBelongsTo($user)
-                ->whereIn('kind', [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION])
-                ->whereKey((int) $data['production_id'])->first();
-            if (! $batch || ! empty($batch->payload['deleted_at'])) {
-                throw ValidationException::withMessages(['production_id' => 'Selecione um lote válido.']);
-            }
-            $recorded = NfcRecord::query()->whereBelongsTo($user)->where('kind', NfcRecord::DAMAGE)
-                ->get()->filter(fn (NfcRecord $entry): bool => empty($entry->payload['deleted_at']) && ($entry->payload['production_id'] ?? null) === $batch->id)
-                ->sum(fn (NfcRecord $entry): int => (int) ($entry->payload['quantity'] ?? 0));
-            if ($recorded + (int) $data['quantity'] > (int) $batch->payload['quantity']) {
-                throw ValidationException::withMessages(['quantity' => 'A quantidade de avarias ultrapassa a quantidade do lote.']);
-            }
-            $this->createRecord($user, NfcRecord::DAMAGE, strtolower($data['operation_id']), [
-                'production_id' => $batch->id,
-                'quantity' => (int) $data['quantity'],
-                'occurred_on' => $data['occurred_on'],
-                'reason' => trim($data['reason']),
-                'estimated_loss_cents' => $data['estimated_loss_cents'] ?? null,
-            ]);
+            DB::transaction(function () use ($user, $data): void {
+                $batch = NfcRecord::query()->whereBelongsTo($user)
+                    ->whereIn('kind', [NfcRecord::PRODUCTION, NfcRecord::INITIAL_PRODUCTION])
+                    ->whereKey((int) $data['production_id'])->lockForUpdate()->first();
+                if (! $batch || ! empty($batch->payload['deleted_at'])) {
+                    throw ValidationException::withMessages(['production_id' => 'Selecione um lote válido.']);
+                }
+                $key = strtolower($data['operation_id']);
+                if (NfcRecord::query()->whereBelongsTo($user)->where('kind', NfcRecord::DAMAGE)->where('record_key', $key)->exists()) {
+                    return;
+                }
+                if ($this->damageQuantity($user, $batch->id) + (int) $data['quantity'] > (int) $batch->payload['quantity']) {
+                    throw ValidationException::withMessages(['quantity' => 'A quantidade de avarias ultrapassa a quantidade do lote.']);
+                }
+                $this->createRecord($user, NfcRecord::DAMAGE, $key, [
+                    'production_id' => $batch->id,
+                    'quantity' => (int) $data['quantity'],
+                    'occurred_on' => $data['occurred_on'],
+                    'reason' => trim($data['reason']),
+                    'estimated_loss_cents' => $data['estimated_loss_cents'] ?? null,
+                ]);
+            }, 3);
 
             return;
         }
@@ -320,13 +329,28 @@ class ManageNfcRecords
             if ($stored['plates'][$index]['defective'] ?? false) {
                 throw ValidationException::withMessages(['plate_id' => 'Esta plaquinha já está marcada como defeituosa.']);
             }
+            $discount = (int) ($data['discount_cents'] ?? 0);
+            if ($discount > $stored['total_cents'] - $this->receivedCents($stored['payments'])) {
+                throw ValidationException::withMessages(['discount_cents' => 'O desconto não pode superar o saldo a receber. Valores já pagos precisam de ajuste financeiro separado.']);
+            }
+            $stored['total_cents'] -= $discount;
             $stored['plates'][$index]['defective'] = true;
             $stored['plates'][$index]['estimated_loss_cents'] = $data['estimated_loss_cents'] ?? null;
             $description = trim($data['reason']);
+            if ($discount > 0) {
+                $description .= ' (abatimento de '.$discount.' centavos no valor da venda)';
+            }
             $stored['plates'][$index]['notes'] = trim(($stored['plates'][$index]['notes'] ?? '').'\nAvaria em '.$data['occurred_on'].': '.$description);
 
             return $stored;
         });
+    }
+
+    private function damageQuantity(User $user, int $production): int
+    {
+        return (int) NfcRecord::query()->whereBelongsTo($user)->where('kind', NfcRecord::DAMAGE)
+            ->get()->filter(fn (NfcRecord $entry): bool => empty($entry->payload['deleted_at']) && (int) ($entry->payload['production_id'] ?? 0) === $production)
+            ->sum(fn (NfcRecord $entry): int => (int) ($entry->payload['quantity'] ?? 0));
     }
 
     public function storeReinvestment(User $user, array $data): void
