@@ -428,9 +428,9 @@ function submit() {
                 <input v-model="form.defective" type="checkbox" class="nfc-check" /> Plaquinha com defeito
             </label>
             <label v-if="form.defective" class="nfc-field">Possível prejuízo (R$)
-                <input v-model.trim="form.estimated_loss" class="nfc-control" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" :pattern="decimalPattern" placeholder="Ainda não estimado" />
+                <input v-model.trim="form.estimated_loss" class="nfc-control" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" :pattern="decimalPattern" placeholder="Padrão: 25,00" />
             </label>
-            <p v-if="form.defective" class="nfc-muted text-xs">Estimativa informativa: não altera o valor da venda nem os pagamentos recebidos.</p>
+            <p v-if="form.defective" class="nfc-muted text-xs">Se deixar vazio, será usado R$ 25,00. A estimativa não altera pagamentos recebidos.</p>
             <label class="nfc-field">Observação
                 <textarea v-model.trim="form.notes" class="nfc-control" rows="3" />
             </label>
