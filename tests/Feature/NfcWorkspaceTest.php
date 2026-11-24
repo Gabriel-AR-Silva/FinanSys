@@ -147,6 +147,39 @@ class NfcWorkspaceTest extends TestCase
         $this->assertSame([9000, 10000, 0], array_column($dashboard['companies'][0]['units'], 'outstanding_cents'));
     }
 
+    public function test_default_damage_cost_is_consistent_for_legacy_records_and_pdf(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-24T12:00:00Z'));
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $sale = $this->createSale($company, ['sold_on' => '2026-11-10']);
+        $payload = $company->fresh()->payload;
+        $payload['sales'][0]['plates'][0]['defective'] = true;
+        $payload['sales'][0]['plates'][0]['estimated_loss_cents'] = null;
+        $company->update(['payload' => $payload]);
+        $batch = NfcRecord::query()->create([
+            'user_id' => $owner->id, 'kind' => NfcRecord::PRODUCTION, 'record_key' => (string) Str::uuid(),
+            'payload' => ['quantity' => 5, 'cost_cents' => 12500, 'status' => 'completed', 'produced_on' => '2026-11-20'],
+        ]);
+        $this->post(route('nfc.damages.store'), [
+            'operation_id' => (string) Str::uuid(), 'target' => 'production', 'production_id' => $batch->id,
+            'quantity' => 2, 'occurred_on' => '2026-11-21', 'reason' => 'Avaria sem valor',
+        ])->assertRedirect(route('nfc.index'));
+        $dashboard = app(NfcDashboardQuery::class)->forUser($owner);
+        $this->assertSame(3, $dashboard['summary']['defective']);
+        $this->assertSame(7500, $dashboard['summary']['estimated_loss_cents']);
+        $this->assertSame(0, $dashboard['summary']['unestimated_defects']);
+        $this->assertSame(5000, $dashboard['damages'][0]['estimated_loss_cents']);
+        $report = app(NfcReportQuery::class)->calculate($dashboard, '2026-11-01', '2026-11-24');
+        $this->assertSame(7500, $report['values']['loss']);
+        $this->assertSame(3, $report['values']['defective']);
+        $this->assertSame(3, $report['usableManufactured']);
+        $pdf = $this->get(route('nfc.report.export', [
+            'from' => '2026-11-01', 'to' => '2026-11-24', 'metrics' => ['loss', 'defective', 'manufactured'], 'chart' => 1,
+        ]))->assertOk()->assertHeader('Content-Type', 'application/pdf')->getContent();
+        $this->assertStringContainsString('R$ 75,00', $pdf);
+    }
+
     public function test_damage_cannot_be_attached_to_another_users_batch(): void
     {
         $owner = User::factory()->create();
