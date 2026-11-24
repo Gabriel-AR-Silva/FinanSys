@@ -100,6 +100,7 @@ class NfcWorkspaceTest extends TestCase
         $report = app(NfcReportQuery::class)->calculate($dashboard, '2026-11-01', '2026-11-30');
         $this->assertSame(2, $report['values']['defective']);
         $this->assertSame(2000, $report['values']['loss']);
+        $this->delete(route('nfc.production.destroy', ['production' => $batch->id]))->assertSessionHasErrors('production');
 
         $this->post(route('nfc.damages.store'), [
             'operation_id' => (string) Str::uuid(),
