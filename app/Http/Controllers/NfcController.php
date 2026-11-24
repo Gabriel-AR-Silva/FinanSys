@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -42,6 +43,7 @@ class NfcController extends Controller
             'shared' => $shared,
             'read_only' => ! in_array(true, $permissions, true),
             'permissions' => $permissions,
+            'can_export_report' => $this->canExportReport($request),
             'privacy_key' => $shared ? 'link-'.$request->attributes->get('nfc_share_link')->id : 'owner-'.$request->user()->id,
             'share_token' => $shared ? (string) $request->attributes->get('nfc_share_token') : null,
             'created_share_url' => $shared ? null : $request->session()->get('nfc_share_url'),
@@ -57,9 +59,8 @@ class NfcController extends Controller
 
     public function exportReport(Request $request, NfcDashboardQuery $dashboard, NfcReportQuery $query, NfcReportPdf $pdf): \Illuminate\Http\Response
     {
-        abort_if($request->attributes->has('nfc_share_owner'), 403);
-        $user = $request->user();
-        abort_unless($user instanceof User, 403);
+        abort_unless($this->canExportReport($request), 403);
+        $user = $this->owner($request);
 
         $data = $request->validate([
             'from' => ['required', 'date_format:Y-m-d'],
@@ -81,6 +82,7 @@ class NfcController extends Controller
             'Content-Disposition' => 'attachment; filename="'.$filename.'.pdf"',
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
+            'Referrer-Policy' => 'no-referrer',
         ]);
     }
 
@@ -97,8 +99,13 @@ class NfcController extends Controller
         }, 3);
 
         // Private images are no longer addressable after their records are removed.
-        Storage::disk('local')->deleteDirectory("nfc/manufacturers/{$user->id}");
-        Storage::disk('local')->deleteDirectory("nfc/units/{$user->id}");
+        $disk = Storage::disk('local');
+        $manufacturersRemoved = $disk->deleteDirectory("nfc/manufacturers/{$user->id}");
+        $unitsRemoved = $disk->deleteDirectory("nfc/units/{$user->id}");
+
+        if (! $manufacturersRemoved || ! $unitsRemoved) {
+            throw ValidationException::withMessages(['confirmation' => 'Cadastros removidos, mas a limpeza dos arquivos falhou. Tente novamente para concluir a limpeza.']);
+        }
 
         return to_route('nfc.index', status: 303);
     }
@@ -332,7 +339,9 @@ class NfcController extends Controller
     {
         $owner = $this->owner($request);
         $records->deleteRecord($owner, $company, NfcRecord::COMPANY);
-        Storage::disk('local')->deleteDirectory("nfc/units/{$owner->id}/{$company}");
+        if (! Storage::disk('local')->deleteDirectory("nfc/units/{$owner->id}/{$company}")) {
+            throw ValidationException::withMessages(['images' => 'Empresa removida, mas a limpeza dos arquivos falhou.']);
+        }
 
         return $this->redirectToDashboard($request);
     }
@@ -341,7 +350,9 @@ class NfcController extends Controller
     {
         $owner = $this->owner($request);
         $records->deleteUnit($owner, $company, $unit);
-        Storage::disk('local')->deleteDirectory("nfc/units/{$owner->id}/{$company}/".strtolower($unit));
+        if (! Storage::disk('local')->deleteDirectory("nfc/units/{$owner->id}/{$company}/".strtolower($unit))) {
+            throw ValidationException::withMessages(['images' => 'Unidade removida, mas a limpeza dos arquivos falhou.']);
+        }
 
         return $this->redirectToDashboard($request);
     }
@@ -379,6 +390,17 @@ class NfcController extends Controller
         $records->deleteRecord($this->owner($request), $notice, NfcRecord::NOTICE);
 
         return $this->redirectToDashboard($request);
+    }
+
+    private function canExportReport(Request $request): bool
+    {
+        if (! $request->attributes->has('nfc_share_owner')) {
+            return $request->user() instanceof User;
+        }
+
+        $permissions = $request->attributes->get('nfc_share_permissions', []);
+
+        return ($permissions['create'] ?? false) && ($permissions['update'] ?? false) && ($permissions['delete'] ?? false);
     }
 
     private function owner(Request $request): User

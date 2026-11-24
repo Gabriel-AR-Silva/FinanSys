@@ -17,6 +17,7 @@ const props = defineProps({
     schema_pending: { type: Boolean, default: false },
     shared: { type: Boolean, default: false },
     read_only: { type: Boolean, default: false },
+    can_export_report: { type: Boolean, default: false },
     permissions: { type: Object, default: () => ({ create: false, update: false, delete: false }) },
     privacy_key: { type: String, default: '' },
     share_token: { type: String, default: null },
@@ -274,11 +275,12 @@ const reportOptions = [
 const reportMetrics = ref(reportOptions.map(item => item.key));
 const reportValid = computed(() => !!reportFrom.value && !!reportTo.value && reportFrom.value <= reportTo.value && reportMetrics.value.length > 0 && reportName.value.length <= 80 && /^[\p{L}\p{N}\s._-]*$/u.test(reportName.value));
 const reportUrl = computed(() => {
-    if (!reportValid.value || props.shared || !authenticatedUser.value || props.schema_pending) return '';
-    return route('nfc.report.export', { from: reportFrom.value, to: reportTo.value, metrics: reportMetrics.value, chart: reportChart.value ? 1 : 0, reinvestments: reportReinvestments.value ? 1 : 0, ...(reportName.value.trim() ? { name: reportName.value.trim() } : {}) });
+    if (!reportValid.value || !props.can_export_report || props.schema_pending) return '';
+    return nfcRoute('nfc.report.export', { from: reportFrom.value, to: reportTo.value, metrics: reportMetrics.value, chart: reportChart.value ? 1 : 0, reinvestments: reportReinvestments.value ? 1 : 0, ...(reportName.value.trim() ? { name: reportName.value.trim() } : {}) });
 });
 function openSettingsAction(kind) {
-    if (props.shared || !authenticatedUser.value || busy.value || shareBusy.value) return;
+    if (busy.value || shareBusy.value) return;
+    if (kind === 'report' ? !props.can_export_report : (props.shared || !authenticatedUser.value)) return;
     if (['reset', 'report'].includes(kind) && props.schema_pending) return;
     if (kind === 'report' && !reportFrom.value) {
         reportFrom.value = props.today.slice(0, 7) + '-01';
@@ -316,7 +318,7 @@ const scopeOptions = [
     { value: 'cu', label: 'Cadastrar e editar' },
     { value: 'cd', label: 'Cadastrar e excluir' },
     { value: 'ud', label: 'Editar e excluir' },
-    { value: 'cud', label: 'Acesso completo' },
+    { value: 'cud', label: 'Acesso completo + exportar PDF' },
 ];
 const hiddenValues = ref(false);
 const money = value => hiddenValues.value ? '••••••' : formatMoney(value);
@@ -674,6 +676,7 @@ watch(dialog, async (current) => {
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC <span v-if="read_only" class="nfc-muted block text-xs font-medium">Acesso somente para consulta</span></h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
                     <button v-if="!shared && authenticatedUser" type="button" class="nfc-button nfc-icon-button" aria-label="Configurações NFC" title="Configurações NFC" aria-haspopup="dialog" @click="dialog = { kind: 'settings' }"><EllipsisVertical :size="19" aria-hidden="true" /></button>
+                    <button v-if="shared && can_export_report" type="button" class="nfc-button nfc-icon-button" aria-label="Exportar relatório PDF" title="Exportar relatório PDF" aria-haspopup="dialog" :disabled="busy || shareBusy" @click="openSettingsAction('report')"><FileDown :size="19" aria-hidden="true" /></button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="hiddenValues ? 'Mostrar valores' : 'Ocultar valores'" :aria-pressed="hiddenValues" @click="togglePrivacy"><EyeOff v-if="hiddenValues" :size="18" aria-hidden="true" /><Eye v-else :size="18" aria-hidden="true" /></button>
                     <button v-if="!shared" type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
@@ -1138,8 +1141,8 @@ watch(dialog, async (current) => {
                         </button>
                     </div>
                 </form>
-                <div v-else-if="dialog.kind === 'report' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
-                    <p class="nfc-muted text-sm">Escolha o período e ao menos um indicador. O arquivo contém somente dados do seu plugin NFC.</p>
+                <div v-else-if="dialog.kind === 'report' && can_export_report" class="flex min-w-0 flex-col gap-4">
+                    <p class="nfc-muted text-sm">Escolha o período e ao menos um indicador. O arquivo contém somente dados deste módulo NFC.</p>
                     <label class="nfc-field">Nome do relatório / arquivo (opcional)
                         <input v-model.trim="reportName" type="text" class="nfc-control" maxlength="80" placeholder="Ex.: Vendas NFC - Novembro 2026" autocomplete="off" />
                         <span class="nfc-muted text-xs font-normal">Será usado como título do PDF e nome do arquivo baixado. Se ficar vazio, o nome será automático.</span>
@@ -1183,7 +1186,7 @@ watch(dialog, async (current) => {
                 </form>
                 <div v-else-if="dialog.kind === 'share' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
                     <p v-if="!share_links_enabled" class="nfc-warning rounded-lg p-3 text-sm">Aplique a migration de permissões dos links NFC para habilitar a emissão e edição de links.</p>
-                    <p class="nfc-muted text-sm">Links válidos por sete dias. Escolha as operações permitidas. Cada link mantém sua própria configuração.</p>
+                    <p class="nfc-muted text-sm">Links válidos por sete dias. Escolha as operações permitidas. Cada link mantém sua própria configuração. O acesso completo também permite exportar relatórios PDF.</p>
                     <label class="nfc-field"><span>Permissão do link <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <select v-model="shareScope" class="nfc-control" :disabled="shareBusy || !share_links_enabled" required><option v-for="option in scopeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
                     </label>

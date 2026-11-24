@@ -50,3 +50,7 @@ npm run build
 ### Permissões e privacidade de valores
 
 Cada link recebe permissão de consulta e, opcionalmente, cadastro (`c`), alteração (`u`) e exclusão (`d`), em qualquer combinação. O proprietário autenticado pode mudar a permissão de um link ativo; o middleware valida a operação em cada requisição. Escopos anteriores `view` e `edit` continuam válidos. O olho oculta valores monetários, percentuais, gráficos financeiros e campos de valores na interface, com preferência local por link e por navegador. Não é uma restrição de acesso aos dados nem sincroniza entre dispositivos.
+
+### Exportação de relatório por link
+
+O proprietário e os links NFC com acesso completo (`cud` ou `edit` legado) podem exportar o relatório PDF do módulo, incluindo período, indicadores, gráficos e demonstrativo de caixa opcionais. A permissão é validada novamente na rota de exportação; links com permissões parciais, expirados ou revogados não podem baixar o relatório. A consulta utiliza o proprietário do token, nunca a conta autenticada do visitante. O acesso compartilhado não permite zerar cadastros nem administrar links. Zerar remove exclusivamente os registros JSON e arquivos NFC do proprietário, preservando seus links e os demais módulos.
