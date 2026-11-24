@@ -3,7 +3,7 @@ import Modal from '@/Components/Modal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import NfcSharedLayout from '@/Layouts/NfcSharedLayout.vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, Eye, EyeOff, EllipsisVertical, Share2, Trash2, FileDown, X } from '@lucide/vue';
+import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, Eye, EyeOff, EllipsisVertical, Share2, Trash2, FileDown, Pencil, X } from '@lucide/vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import CompanyDetails from './CompanyDetails.vue';
 import ManufacturerDetails from './ManufacturerDetails.vue';
@@ -521,6 +521,7 @@ const title = computed(() => {
         case 'manufacturer': return manufacturer.value?.name;
         case 'manufacturer-form': return manufacturer.value ? 'Editar fabricante' : 'Novo fabricante';
         case 'company-form': return company.value ? 'Editar empresa' : 'Nova empresa';
+        case 'unit-actions': return unit.value?.name ? 'Ações · ' + unit.value.name : 'Ações da unidade';
         case 'unit': return unit.value ? 'Editar unidade' : 'Nova unidade';
         case 'sale': return sale.value ? 'Editar venda' : 'Nova venda';
         case 'batch': return batch.value ? 'Editar lote' : dialog.value.initial ? 'Registrar lote inicial' : 'Novo lote';
@@ -589,6 +590,21 @@ function confirmDestroy() {
 
 function showCompany(companyId, saleId = null) {
     dialog.value = { kind: 'company', companyId, saleId, previous: dialog.value?.kind === 'notices' ? dialog.value : null };
+}
+
+function openUnitActions(context) {
+    if (busy.value || dialog.value?.kind !== 'company' || !Object.values(props.permissions).some(Boolean)) return;
+    dialog.value = { kind: 'unit-actions', ...context, previous: { ...dialog.value, unitId: context.unitId } };
+}
+
+function chooseUnitAction(action) {
+    if (busy.value || dialog.value?.kind !== 'unit-actions' || !unit.value) return;
+    const permission = { edit: 'update', sale: 'create', delete: 'delete' }[action];
+    if (!permission || !props.permissions[permission]) return;
+    const { companyId, unitId, previous } = dialog.value;
+    dialog.value = previous;
+    if (action === 'delete') destroy('unit', { companyId, unitId });
+    else edit(action === 'edit' ? 'unit' : 'sale', { companyId, unitId });
 }
 
 function edit(kind, context = {}) {
@@ -963,7 +979,7 @@ watch(dialog, async (current) => {
             </template>
         </div>
 
-        <Modal class="nfc-dialog" :class="{ 'nfc-settings-dialog': dialog?.kind === 'settings' }" :max-width="dialog?.kind === 'settings' ? 'sm' : '2xl'" :show="dialog !== null" labelled-by="nfc-dialog-heading" :closeable="!busy" @close="closeDialog">
+        <Modal class="nfc-dialog" :class="{ 'nfc-settings-dialog': ['settings', 'unit-actions'].includes(dialog?.kind) }" :max-width="['settings', 'unit-actions'].includes(dialog?.kind) ? 'sm' : '2xl'" :show="dialog !== null" labelled-by="nfc-dialog-heading" :closeable="!busy" @close="closeDialog">
             <section v-if="dialog" class="nfc-dialog-content flex min-w-0 flex-col gap-4 p-4 sm:gap-5 sm:p-6">
                 <header class="flex min-w-0 items-start gap-2">
                     <button v-if="dialog.previous" type="button" class="nfc-button nfc-icon-button shrink-0" aria-label="Voltar" :disabled="busy" @click="goBack"><ArrowLeft :size="18" aria-hidden="true" /></button>
@@ -982,7 +998,12 @@ watch(dialog, async (current) => {
                     <button type="button" class="nfc-button w-full justify-start" :disabled="schema_pending" @click="openSettingsAction('report')"><FileDown :size="16" aria-hidden="true" /> Exportar PDF</button>
                     <button type="button" class="nfc-button nfc-danger w-full justify-start" :disabled="schema_pending || busy || shareBusy" @click="openSettingsAction('reset')"><Trash2 :size="16" aria-hidden="true" /> Zerar cadastros</button>
                 </div>
-                <CompanyDetails v-else-if="dialog.kind === 'company' && company" :company="company" :permissions="permissions" :hidden-values="hiddenValues" :highlight-sale-id="dialog.saleId" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @busy="busy = $event" @feedback="notify" />
+                <div v-else-if="dialog.kind === 'unit-actions' && unit" class="flex min-w-0 flex-col gap-2">
+                    <button v-if="permissions.update" type="button" class="nfc-button w-full justify-start" @click="chooseUnitAction('edit')"><Pencil :size="16" aria-hidden="true" /> Editar unidade</button>
+                    <button v-if="permissions.create" type="button" class="nfc-button w-full justify-start" @click="chooseUnitAction('sale')"><Plus :size="16" aria-hidden="true" /> Nova venda nesta unidade</button>
+                    <button v-if="permissions.delete" type="button" class="nfc-button nfc-danger w-full justify-start" @click="chooseUnitAction('delete')"><Trash2 :size="16" aria-hidden="true" /> Excluir unidade</button>
+                </div>
+                <CompanyDetails v-else-if="dialog.kind === 'company' && company" :company="company" :permissions="permissions" :hidden-values="hiddenValues" :highlight-sale-id="dialog.saleId" :highlight-unit-id="dialog.unitId" :nfc-route="nfcRoute" @unit-actions="openUnitActions" @edit="edit" @destroy="destroy" @busy="busy = $event" @feedback="notify" />
                 <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :permissions="permissions" :hidden-values="hiddenValues" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
                 <div v-else-if="dialog.kind === 'confirm-delete'" class="flex min-w-0 flex-col gap-4">
                     <p class="text-sm leading-6">{{ deleteDescriptions[dialog.deleteKind] }}</p>
