@@ -9,6 +9,7 @@ use App\Queries\NfcDashboardQuery;
 use App\Queries\NfcReportQuery;
 use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -25,6 +26,35 @@ class NfcWorkspaceTest extends TestCase
         parent::setUp();
 
         $this->withoutVite();
+    }
+
+    public function test_unit_images_are_private_and_scoped_to_the_correct_unit(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $unit = $company->payload['units'][0]['id'];
+        $otherUnit = (string) Str::uuid();
+        $this->post(route('nfc.units.store', ['company' => $company->id]), [
+            'operation_id' => $otherUnit,
+            'name' => 'Unidade 2',
+        ])->assertRedirect();
+        $this->post(route('nfc.units.images.store', ['company' => $company->id, 'unit' => $unit]), [
+            'images' => [UploadedFile::fake()->image('placa.png')],
+        ])->assertRedirect();
+        $entry = $company->fresh()->payload['units'][0]['images'][0];
+        Storage::disk('local')->assertExists($entry['path']);
+        $params = ['company' => $company->id, 'unit' => $unit, 'image' => $entry['id']];
+        $this->get(route('nfc.units.images.show', $params))->assertOk();
+        $this->get(route('nfc.units.images.show', [...$params, 'unit' => $otherUnit]))->assertNotFound();
+        $this->get(route('nfc.index'))->assertInertia(fn (Assert $page) => $page
+            ->has('companies.0.units.0.images', 1)
+            ->missing('companies.0.units.0.images.0.path')
+            ->has('companies.0.units.1.images', 0));
+        $this->actingAs(User::factory()->create())->get(route('nfc.units.images.show', $params))->assertNotFound();
+        $this->actingAs($owner)->delete(route('nfc.units.images.destroy', $params))->assertRedirect();
+        Storage::disk('local')->assertMissing($entry['path']);
+        $this->assertSame([], $company->fresh()->payload['units'][0]['images']);
     }
 
     public function test_operating_expense_reduces_available_cash_without_changing_production_cost(): void
