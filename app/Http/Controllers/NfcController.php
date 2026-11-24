@@ -330,14 +330,18 @@ class NfcController extends Controller
 
     public function deleteCompany(Request $request, ManageNfcRecords $records, int $company): RedirectResponse
     {
-        $records->deleteRecord($this->owner($request), $company, NfcRecord::COMPANY);
+        $owner = $this->owner($request);
+        $records->deleteRecord($owner, $company, NfcRecord::COMPANY);
+        Storage::disk('local')->deleteDirectory("nfc/units/{$owner->id}/{$company}");
 
         return $this->redirectToDashboard($request);
     }
 
     public function deleteUnit(Request $request, ManageNfcRecords $records, int $company, string $unit): RedirectResponse
     {
-        $records->deleteUnit($this->owner($request), $company, $unit);
+        $owner = $this->owner($request);
+        $records->deleteUnit($owner, $company, $unit);
+        Storage::disk('local')->deleteDirectory("nfc/units/{$owner->id}/{$company}/".strtolower($unit));
 
         return $this->redirectToDashboard($request);
     }
