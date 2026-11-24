@@ -216,6 +216,7 @@ class NfcController extends Controller
             'occurred_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
             'reason' => ['required', 'string', 'max:160'],
             'estimated_loss_cents' => ['nullable', 'integer', 'min:0', 'max:999999999'],
+            'discount_cents' => ['exclude_unless:target,plate', 'nullable', 'integer', 'min:0', 'max:999999999'],
         ]);
         $records->storeDamage($this->owner($request), $data);
 
