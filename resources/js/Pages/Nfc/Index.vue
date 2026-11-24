@@ -88,8 +88,6 @@ const dialogHeading = ref(null);
 const busy = ref(false);
 const shareBusy = ref(false);
 const shareScope = ref('view');
-const settingsOpen = ref(false);
-const settingsButton = ref(null);
 const resetConfirmation = ref('');
 const reportFrom = ref('');
 const reportName = ref('');
@@ -286,14 +284,8 @@ function openSettingsAction(kind) {
         reportFrom.value = props.today.slice(0, 7) + '-01';
         reportTo.value = props.today;
     }
-    settingsOpen.value = false;
     resetConfirmation.value = '';
-    dialog.value = { kind };
-}
-function closeSettings() {
-    if (!settingsOpen.value) return;
-    settingsOpen.value = false;
-    settingsButton.value?.focus();
+    dialog.value = { kind, previous: dialog.value };
 }
 function resetWorkspace() {
     if (props.shared || !authenticatedUser.value || props.schema_pending || busy.value || resetConfirmation.value !== 'ZERAR') return;
@@ -509,6 +501,7 @@ const batch = computed(() => props.production.find(item => item.id === dialog.va
 const manufacturer = computed(() => props.manufacturers.find(item => item.id === dialog.value?.manufacturerId));
 
 const titles = {
+    settings: 'Configurações NFC',
     notices: 'Avisos',
     'confirm-delete': 'Confirmar ação',
     history: 'Histórico de alterações',
@@ -649,7 +642,7 @@ watch(dialog, async (current, previous) => {
 <template>
     <component :is="shared ? NfcSharedLayout : AuthenticatedLayout">
         <Head title="Plaquinhas NFC" />
-        <div v-if="feedback" class="fixed bottom-4 left-4 right-4 z-[90] mx-auto w-[calc(100%-2rem)] max-w-sm rounded-xl border p-3 shadow-lg sm:bottom-6 sm:left-auto sm:right-6 sm:mx-0"
+        <div v-if="feedback && !dialog" class="fixed bottom-4 left-4 right-4 z-[90] mx-auto w-[calc(100%-2rem)] max-w-sm rounded-xl border p-3 shadow-lg sm:bottom-6 sm:left-auto sm:right-6 sm:mx-0"
             :class="feedback.type === 'error' ? 'nfc-feedback-error' : 'nfc-feedback-success'"
             :role="feedback.type === 'error' ? 'alert' : 'status'" aria-live="polite">
             <div class="flex items-start gap-2">
@@ -664,15 +657,7 @@ watch(dialog, async (current, previous) => {
             <header class="flex flex-wrap items-center justify-between gap-3">
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC <span v-if="read_only" class="nfc-muted block text-xs font-medium">Acesso somente para consulta</span></h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
-                    <div v-if="!shared && authenticatedUser" class="relative" @keydown.esc.stop="closeSettings" @focusout="event => { if (!event.currentTarget.contains(event.relatedTarget)) settingsOpen = false; }">
-                        <button ref="settingsButton" type="button" class="nfc-button nfc-icon-button" aria-label="Configurações NFC" :aria-expanded="settingsOpen" aria-controls="nfc-owner-settings" @click="settingsOpen = !settingsOpen"><EllipsisVertical :size="19" aria-hidden="true" /></button>
-                        <button v-if="settingsOpen" type="button" class="fixed inset-0 z-[95] cursor-default bg-transparent sm:hidden" aria-label="Fechar menu de configurações" @click="closeSettings"></button>
-                        <div v-if="settingsOpen" id="nfc-owner-settings" class="nfc-panel fixed inset-x-4 bottom-4 z-[100] flex max-h-[70dvh] min-w-0 flex-col gap-1 overflow-y-auto p-2 shadow-xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:z-30 sm:mt-2 sm:w-48 sm:p-1 sm:shadow-lg">
-                            <button type="button" class="nfc-button w-full justify-start" @click="openSettingsAction('share')"><Share2 :size="16" aria-hidden="true" /> Compartilhar</button>
-                            <button type="button" class="nfc-button w-full justify-start" :disabled="schema_pending" @click="openSettingsAction('report')"><FileDown :size="16" aria-hidden="true" /> Exportar PDF</button>
-                            <button type="button" class="nfc-button nfc-danger w-full justify-start" :disabled="schema_pending || busy || shareBusy" @click="openSettingsAction('reset')"><Trash2 :size="16" aria-hidden="true" /> Zerar</button>
-                        </div>
-                    </div>
+                    <button v-if="!shared && authenticatedUser" type="button" class="nfc-button nfc-icon-button" aria-label="Configurações NFC" title="Configurações NFC" aria-haspopup="dialog" @click="dialog = { kind: 'settings' }"><EllipsisVertical :size="19" aria-hidden="true" /></button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="hiddenValues ? 'Mostrar valores' : 'Ocultar valores'" :aria-pressed="hiddenValues" @click="togglePrivacy"><EyeOff v-if="hiddenValues" :size="18" aria-hidden="true" /><Eye v-else :size="18" aria-hidden="true" /></button>
                     <button v-if="!shared" type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
@@ -978,7 +963,7 @@ watch(dialog, async (current, previous) => {
             </template>
         </div>
 
-        <Modal class="nfc-dialog" :show="dialog !== null" labelled-by="nfc-dialog-heading" :closeable="!busy" @close="closeDialog">
+        <Modal class="nfc-dialog" :max-width="dialog?.kind === 'settings' ? 'sm' : '2xl'" :show="dialog !== null" labelled-by="nfc-dialog-heading" :closeable="!busy" @close="closeDialog">
             <section v-if="dialog" class="nfc-dialog-content flex min-w-0 flex-col gap-4 p-4 sm:gap-5 sm:p-6">
                 <header class="flex min-w-0 items-start gap-2">
                     <button v-if="dialog.previous" type="button" class="nfc-button nfc-icon-button shrink-0" aria-label="Voltar" :disabled="busy" @click="goBack"><ArrowLeft :size="18" aria-hidden="true" /></button>
@@ -986,7 +971,18 @@ watch(dialog, async (current, previous) => {
                     <button type="button" class="nfc-button nfc-icon-button shrink-0" aria-label="Fechar" :disabled="busy" @click="closeDialog"><X :size="18" aria-hidden="true" /></button>
                 </header>
 
-                <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :permissions="permissions" :hidden-values="hiddenValues" :highlight-sale-id="dialog.saleId" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @busy="busy = $event" @feedback="notify" />
+                <div v-if="feedback" class="rounded-xl border p-3 text-sm" :class="feedback.type === 'error' ? 'nfc-feedback-error' : 'nfc-feedback-success'" :role="feedback.type === 'error' ? 'alert' : 'status'" aria-live="polite">
+                    <div class="flex items-start gap-2">
+                        <p class="min-w-0 flex-1 break-words font-medium">{{ feedback.message }}</p>
+                        <button type="button" class="shrink-0 rounded-md p-1" aria-label="Fechar mensagem" @click="feedback = null"><X :size="16" aria-hidden="true" /></button>
+                    </div>
+                </div>
+                <div v-if="dialog.kind === 'settings'" class="flex min-w-0 flex-col gap-2">
+                    <button type="button" class="nfc-button w-full justify-start" @click="openSettingsAction('share')"><Share2 :size="16" aria-hidden="true" /> Compartilhar</button>
+                    <button type="button" class="nfc-button w-full justify-start" :disabled="schema_pending" @click="openSettingsAction('report')"><FileDown :size="16" aria-hidden="true" /> Exportar PDF</button>
+                    <button type="button" class="nfc-button nfc-danger w-full justify-start" :disabled="schema_pending || busy || shareBusy" @click="openSettingsAction('reset')"><Trash2 :size="16" aria-hidden="true" /> Zerar cadastros</button>
+                </div>
+                <CompanyDetails v-else-if="dialog.kind === 'company' && company" :company="company" :permissions="permissions" :hidden-values="hiddenValues" :highlight-sale-id="dialog.saleId" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @busy="busy = $event" @feedback="notify" />
                 <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :permissions="permissions" :hidden-values="hiddenValues" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
                 <div v-else-if="dialog.kind === 'confirm-delete'" class="flex min-w-0 flex-col gap-4">
                     <p class="text-sm leading-6">{{ deleteDescriptions[dialog.deleteKind] }}</p>
@@ -1193,7 +1189,7 @@ watch(dialog, async (current, previous) => {
                     </ul>
                     <p v-if="!share_links.length" class="nfc-muted text-sm">Nenhum link emitido.</p>
                 </div>
-                <div v-else-if="dialog.kind === 'history'" class="flex max-h-[65dvh] min-w-0 flex-col gap-3 overflow-y-auto">
+                <div v-else-if="dialog.kind === 'history'" class="flex min-w-0 flex-col gap-3">
                     <p class="nfc-muted text-sm">Últimos {{ history.length }} eventos. Criações, edições, resoluções e exclusões são registradas no módulo NFC.</p>
                     <ul class="flex flex-col gap-2">
                         <li v-for="entry in history" :key="entry.id" class="nfc-panel p-3 text-sm">
@@ -1206,11 +1202,11 @@ watch(dialog, async (current, previous) => {
                                 <dl class="mt-2 grid gap-2 sm:grid-cols-2">
                                     <div v-if="entry.before != null" class="min-w-0">
                                         <dt class="nfc-muted mb-1 text-xs font-semibold">Antes</dt>
-                                        <dd class="nfc-history-code max-h-44 overflow-auto rounded-md p-2 text-xs"><pre class="whitespace-pre-wrap break-all">{{ JSON.stringify(entry.before, null, 2) }}</pre></dd>
+                                        <dd class="nfc-history-code nfc-scrollbar max-h-44 overflow-auto rounded-md p-2 text-xs"><pre class="whitespace-pre-wrap break-all">{{ JSON.stringify(entry.before, null, 2) }}</pre></dd>
                                     </div>
                                     <div v-if="entry.after != null" class="min-w-0">
                                         <dt class="nfc-muted mb-1 text-xs font-semibold">Depois</dt>
-                                        <dd class="nfc-history-code max-h-44 overflow-auto rounded-md p-2 text-xs"><pre class="whitespace-pre-wrap break-all">{{ JSON.stringify(entry.after, null, 2) }}</pre></dd>
+                                        <dd class="nfc-history-code nfc-scrollbar max-h-44 overflow-auto rounded-md p-2 text-xs"><pre class="whitespace-pre-wrap break-all">{{ JSON.stringify(entry.after, null, 2) }}</pre></dd>
                                     </div>
                                 </dl>
                             </details>
