@@ -199,7 +199,9 @@ const damageForm = useForm({
     quantity: 1, occurred_on: props.today, reason: '', estimated_loss_cents: null,
 });
 const damageCompanies = computed(() => props.companies.filter(company => company.sales.some(sale => sale.plates.length)));
-const damageSales = computed(() => damageCompanies.value.find(company => String(company.id) === String(damageForm.company_id))?.sales ?? []);
+const damageCompany = computed(() => damageCompanies.value.find(company => String(company.id) === String(damageForm.company_id)));
+const damageSales = computed(() => (damageCompany.value?.sales ?? []).filter(sale => sale.plates.some(plate => !plate.defective)));
+const damageBatch = computed(() => props.production.find(batch => String(batch.id) === String(damageForm.production_id)));
 const damagePlates = computed(() => damageSales.value.find(sale => sale.id === damageForm.sale_id)?.plates.filter(plate => !plate.defective) ?? []);
 function openDamage() {
     if (!props.permissions.create || busy.value) return;
@@ -215,6 +217,10 @@ function openDamageForBatch(batchId) {
 }
 function saveDamage() {
     if (busy.value || damageForm.processing) return;
+    if (damageForm.target === 'production' && (!damageBatch.value || !Number.isInteger(Number(damageForm.quantity)) || Number(damageForm.quantity) < 1 || Number(damageForm.quantity) > damageBatch.value.usable_quantity)) {
+        damageForm.setError('quantity', 'Informe uma quantidade dentro do saldo do lote.');
+        return;
+    }
     const raw = damageAmount.value.trim().replace(',', '.');
     if (raw && !/^\d+(?:\.\d{1,2})?$/.test(raw)) {
         notify({ type: 'error', message: 'Informe um prejuízo válido, com até duas casas decimais.' });
@@ -407,7 +413,9 @@ const unitRows = computed(() => companiesShown.value.flatMap(company => {
             hasUnit: company.units.length > 0,
             productionId: unit.production_id ?? null,
             productionStatus: unit.production_status ?? null,
-            sold: sales.reduce((sum, sale) => sum + sale.plates.length, 0),
+            sold: unit.sold ?? 0,
+            defective: unit.defective ?? 0,
+            usableSold: unit.usable_sold ?? 0,
             total: sales.reduce((sum, sale) => sum + sale.total_cents, 0),
             received: sales.reduce((sum, sale) => sum + sale.paid_cents, 0),
             outstanding: sales.reduce((sum, sale) => sum + sale.balance_cents, 0),
@@ -466,13 +474,13 @@ const metricGroups = computed(() => {
             { label: 'Perda estimada', value: money(totals.estimated_loss_cents ?? 0), tone: 'text-[var(--fs-danger)]', detail: totals.unestimated_defects ? `${totals.unestimated_defects} defeito(s) sem estimativa` : 'Não descontada automaticamente da receita' },
         ] },
         { title: 'Produção', metrics: [
-            { label: 'Fabricadas', value: totals.manufactured ?? 0 },
+            { label: 'Fabricadas', value: totals.manufactured ?? 0, detail: `${totals.usable_manufactured ?? 0} aproveitáveis após avarias de fabricação` },
             { label: 'Em fabricação', value: totals.in_production ?? 0 },
             { label: 'Em customização', value: totals.in_customization ?? 0 },
             { label: 'Com defeito', value: totals.defective ?? 0, tone: 'text-[var(--fs-danger)]' },
         ] },
         { title: 'Vendas e clientes', metrics: [
-            { label: 'Vendidas', value: totals.sold ?? 0, detail: `${totals.sold_standard ?? 0} normais · ${totals.sold_custom ?? 0} personalizadas` },
+            { label: 'Vendidas', value: totals.sold ?? 0, detail: `${totals.usable_sold ?? 0} sem defeito · ${totals.sold_defective ?? 0} com defeito` },
             { label: 'Plaquinhas pagas', value: totals.paid_plates ?? 0, detail: 'Em vendas quitadas' },
             { label: 'Empresas interessadas', value: totals.interested ?? 0 },
         ] },
@@ -863,13 +871,13 @@ watch(dialog, async (current, previous) => {
                             </button>
                             <div class="nfc-rule border-t px-3 pb-3 pt-2">
                                 <div class="grid grid-cols-3 gap-2 text-xs">
-                                    <div class="min-w-0"><span class="nfc-muted block">Vendidas</span><strong class="tabular-nums">{{ company.sales.reduce((sum, sale) => sum + sale.plates.length, 0) }}</strong></div>
+                                    <div class="min-w-0"><span class="nfc-muted block">Vendidas</span><strong class="tabular-nums">{{ company.sold }}</strong></div>
                                     <div class="min-w-0"><span class="nfc-muted block">Recebido</span><strong class="tabular-nums">{{ money(company.sales.reduce((sum, sale) => sum + sale.paid_cents, 0)) }}</strong></div>
                                     <div class="min-w-0"><span class="nfc-muted block">A receber</span><strong class="tabular-nums" :class="company.sales.some(sale => sale.balance_cents > 0) ? 'text-[var(--fs-warning)]' : ''">{{ money(company.sales.reduce((sum, sale) => sum + sale.balance_cents, 0)) }}</strong></div>
                                 </div>
                                 <div class="mt-2 flex flex-wrap gap-1.5" aria-label="Unidades da empresa">
                                     <span v-if="!company.units.length" class="nfc-badge nfc-neutral">Sem unidade</span>
-                                    <span v-for="unit in company.units" :key="unit.id" class="nfc-badge nfc-neutral">{{ unit.name }}</span>
+                                    <span v-for="unit in company.units" :key="unit.id" class="nfc-badge nfc-neutral">{{ unit.name }} · {{ unit.sold ?? 0 }} vendida(s) · {{ unit.usable_sold ?? 0 }} sem defeito</span>
                                 </div>
                             </div>
                         </li>
@@ -884,7 +892,7 @@ watch(dialog, async (current, previous) => {
                                     <td class="px-4 py-3"><button type="button" class="font-semibold underline-offset-2 hover:underline" @click="showCompany(row.companyId)">{{ row.companyName }}</button><p class="nfc-muted text-xs">{{ row.identifier || '—' }}</p></td>
                                     <td class="px-3 py-3">{{ row.unitName }}</td>
                                     <td class="px-3 py-3"><span :class="row.productionStatus === 'in_progress' ? 'nfc-warning' : row.productionStatus ? 'nfc-success' : 'nfc-neutral'" class="nfc-badge">{{ !row.hasUnit ? 'Sem unidade' : row.productionStatus === 'in_progress' ? 'Em fabricação' : row.productionStatus ? 'Fabricado' : 'Sem lote' }}</span><span v-if="row.productionId" class="nfc-muted block text-xs">Lote #{{ row.productionId }}</span></td>
-                                    <td class="px-3 py-3 text-right tabular-nums">{{ row.sold }}</td>
+                                    <td class="px-3 py-3 text-right tabular-nums">{{ row.sold }}<span v-if="row.defective" class="nfc-muted block text-xs">{{ row.usableSold }} sem defeito · {{ row.defective }} avaria(s)</span></td>
                                     <td class="px-3 py-3 text-right tabular-nums">{{ money(row.total) }}</td>
                                     <td class="px-3 py-3 text-right tabular-nums">{{ money(row.received) }}</td>
                                     <td class="px-4 py-3 text-right font-semibold tabular-nums">{{ money(row.outstanding) }}</td>
@@ -914,6 +922,7 @@ watch(dialog, async (current, previous) => {
                             <p class="text-sm font-semibold">{{ item.initial ? 'Lote inicial' : item.produced_on ? date(item.produced_on) : 'Lote sem data' }} · {{ item.quantity }} plaquinhas</p>
                             <span class="nfc-badge" :class="item.status === 'in_progress' ? 'nfc-warning' : 'nfc-success'">{{ item.status === 'in_progress' ? 'Em fabricação' : 'Fabricado' }}</span>
                             <p class="nfc-muted text-sm">{{ item.customized_quantity === null ? 'Tipos a informar' : `${item.quantity - item.customized_quantity} normais · ${item.customized_quantity} personalizadas` }}</p>
+                            <p class="nfc-muted text-xs">{{ item.usable_quantity }} aproveitáveis · {{ item.damaged_quantity }} com defeito</p>
                             <p v-if="item.linkedUnits.length" class="nfc-muted mt-1 break-words text-xs">Vinculado a: {{ item.linkedUnits.join('; ') }}</p>
                         </div>
                         <span class="nfc-muted text-sm tabular-nums">{{ item.cost_cents === null ? 'Custo a informar' : money(item.cost_cents) }}</span>
@@ -981,7 +990,7 @@ watch(dialog, async (current, previous) => {
                     <label v-if="damageForm.target === 'production'" class="nfc-field">Lote de fabricação
                         <select v-model="damageForm.production_id" class="nfc-control" required :disabled="busy">
                             <option value="" disabled>Selecione o lote</option>
-                            <option v-for="item in production" :key="item.id" :value="item.id">Lote #{{ item.id }} · {{ item.quantity }} unidades</option>
+                            <option v-for="item in production" :key="item.id" :value="item.id">Lote #{{ item.id }} · {{ item.usable_quantity }} de {{ item.quantity }} sem avaria</option>
                         </select>
                     </label>
                     <template v-else>
@@ -994,7 +1003,7 @@ watch(dialog, async (current, previous) => {
                         <label class="nfc-field">Venda
                             <select v-model="damageForm.sale_id" class="nfc-control" required :disabled="busy" @change="damageForm.plate_id = ''">
                                 <option value="" disabled>Selecione a venda</option>
-                                <option v-for="item in damageSales" :key="item.id" :value="item.id">{{ date(item.sold_on) }} · {{ item.plates.length }} plaquinhas</option>
+                                <option v-for="item in damageSales" :key="item.id" :value="item.id">{{ damageCompany?.units.find(unit => unit.id === item.unit_id)?.name ?? 'Unidade' }} · {{ date(item.sold_on) }} · {{ item.plates.length }} plaquinhas</option>
                             </select>
                         </label>
                         <label class="nfc-field">Plaquinha
@@ -1005,7 +1014,7 @@ watch(dialog, async (current, previous) => {
                         </label>
                     </template>
                     <label v-if="damageForm.target === 'production'" class="nfc-field">Quantidade com defeito
-                        <input v-model.number="damageForm.quantity" type="number" min="1" max="10000" class="nfc-control" required :disabled="busy" />
+                        <input v-model.number="damageForm.quantity" type="number" min="1" :max="Math.min(10000, damageBatch?.usable_quantity ?? 0)" class="nfc-control" required :disabled="busy" />
                     </label>
                     <label class="nfc-field">Data da avaria
                         <input v-model="damageForm.occurred_on" type="date" :max="today" class="nfc-control" required :disabled="busy" />
@@ -1016,7 +1025,7 @@ watch(dialog, async (current, previous) => {
                     <label class="nfc-field">Possível prejuízo total (R$, opcional)
                         <input v-model.trim="damageAmount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" class="nfc-control" placeholder="Ex.: 15,00" :disabled="busy" />
                     </label>
-                    <p class="nfc-muted text-xs">Não altera automaticamente o caixa ou os custos já lançados. Informe apenas a perda estimada, sem duplicar custos.</p>
+                    <p class="nfc-muted text-xs">A avaria reduz a quantidade aproveitável, não apaga a venda nem o pagamento. Se houver desconto real ao cliente, ajuste o valor da venda; não duplique custos na estimativa.</p>
                     <p v-for="(error, field) in damageForm.errors" :key="field" class="text-xs text-[var(--fs-danger)]" role="alert">{{ error }}</p>
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
                         <button type="button" class="nfc-button" :disabled="busy" @click="closeDialog">Cancelar</button>
