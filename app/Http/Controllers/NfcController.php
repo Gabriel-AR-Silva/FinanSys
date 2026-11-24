@@ -98,6 +98,7 @@ class NfcController extends Controller
 
         // Private images are no longer addressable after their records are removed.
         Storage::disk('local')->deleteDirectory("nfc/manufacturers/{$user->id}");
+        Storage::disk('local')->deleteDirectory("nfc/units/{$user->id}");
 
         return to_route('nfc.index', status: 303);
     }
