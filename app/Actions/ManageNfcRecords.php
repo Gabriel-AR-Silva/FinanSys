@@ -154,16 +154,9 @@ class ManageNfcRecords
             $sale = $this->saleFields($payload['units'], $data);
             $standardQuantity = (int) $data['standard_quantity'];
             $customQuantity = (int) $data['custom_quantity'];
-            $inCustomization = (int) ($data['in_customization_quantity'] ?? 0);
 
             if ($standardQuantity + $customQuantity === 0) {
                 throw ValidationException::withMessages(['standard_quantity' => 'Informe pelo menos uma plaquinha.']);
-            }
-
-            if ($inCustomization > $customQuantity) {
-                throw ValidationException::withMessages([
-                    'in_customization_quantity' => 'A quantidade em customização não pode exceder a quantidade personalizada.',
-                ]);
             }
 
             $payments = array_map(
@@ -182,7 +175,7 @@ class ManageNfcRecords
             }
 
             for ($number = 1; $number <= $customQuantity; $number++) {
-                $plates[] = $this->newPlate('custom', "Personalizada {$number}", $number <= $inCustomization);
+                $plates[] = $this->newPlate('custom', "Personalizada {$number}");
             }
 
             $payload['sales'][] = [
@@ -238,7 +231,6 @@ class ManageNfcRecords
         $this->changeSale($user, $company, $sale, function (array $stored) use ($plate, $data): array {
             $index = $this->indexOrFail($stored['plates'], $plate);
             $changes = Arr::only($data, ['label', 'notes', 'type']);
-            $changes['customizing'] = $data['type'] === 'custom' && (bool) $data['customizing'] && (bool) $data['defective'] === false;
             $changes['defective'] = (bool) $data['defective'];
             $changes['estimated_loss_cents'] = $changes['defective'] ? ($data['estimated_loss_cents'] ?? NfcDashboardQuery::DEFAULT_DAMAGE_COST_CENTS) : null;
 
@@ -340,7 +332,6 @@ class ManageNfcRecords
             }
             $stored['total_cents'] -= $discount;
             $stored['plates'][$index]['defective'] = true;
-            $stored['plates'][$index]['customizing'] = false;
             $stored['plates'][$index]['defective_on'] = $data['occurred_on'];
             $stored['plates'][$index]['estimated_loss_cents'] = $data['estimated_loss_cents'] ?? NfcDashboardQuery::DEFAULT_DAMAGE_COST_CENTS;
             $description = trim($data['reason']);
@@ -716,14 +707,13 @@ class ManageNfcRecords
         return $productionId;
     }
 
-    private function newPlate(string $type, string $label, bool $customizing = false): array
+    private function newPlate(string $type, string $label): array
     {
         return [
             'id' => (string) Str::uuid(),
             'type' => $type,
             'label' => $label,
             'notes' => null,
-            'customizing' => $customizing,
             'defective' => false,
             'estimated_loss_cents' => null,
         ];
