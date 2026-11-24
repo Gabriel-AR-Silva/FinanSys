@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { EllipsisVertical } from '@lucide/vue';
 import UnitImages from './UnitImages.vue';
 import { date, money as formatMoney } from './format';
 
@@ -10,9 +11,10 @@ const props = defineProps({
     company: { type: Object, required: true },
     nfcRoute: { type: Function, required: true },
     highlightSaleId: { type: String, default: null },
+    highlightUnitId: { type: String, default: null },
 });
 const money = value => props.hiddenValues ? '••••••' : formatMoney(value);
-const emit = defineEmits(['edit', 'destroy', 'busy', 'feedback']);
+const emit = defineEmits(['edit', 'destroy', 'busy', 'feedback', 'unit-actions']);
 
 const units = computed(() => props.company.units.map(unit => ({
     ...unit,
@@ -59,17 +61,14 @@ function destroy(kind, context = {}) {
             </div>
         </dl>
 
-        <details v-for="unit in units" :key="unit.id" class="nfc-panel min-w-0" :open="units.length === 1 || unit.sales.some(sale => sale.id === highlightSaleId)">
-            <summary class="cursor-pointer break-words rounded-xl px-3 py-3 font-semibold">
+        <div v-for="unit in units" :key="unit.id" class="relative min-w-0">
+        <button v-if="permissions.update || permissions.create || permissions.delete" type="button" class="nfc-button nfc-icon-button absolute right-2 top-2 z-10" :aria-label="'Ações de ' + unit.name" :title="'Ações de ' + unit.name" aria-haspopup="dialog" @click="emit('unit-actions', { companyId: company.id, unitId: unit.id })"><EllipsisVertical :size="18" aria-hidden="true" /></button>
+        <details class="nfc-panel min-w-0" :open="units.length === 1 || unit.id === highlightUnitId || unit.sales.some(sale => sale.id === highlightSaleId)">
+            <summary class="min-h-14 cursor-pointer break-words rounded-xl px-3 py-3 font-semibold" :class="{ 'pr-16': permissions.update || permissions.create || permissions.delete }">
                 {{ unit.name }} <span class="nfc-muted text-sm font-normal">· {{ unit.sold }} plaquinha(s) vendida(s) · {{ unit.usable_sold }} sem defeito</span>
                 <span v-if="unit.production_id" class="nfc-badge ml-1" :class="unit.production_status === 'in_progress' ? 'nfc-warning' : 'nfc-success'">{{ unit.production_status === 'in_progress' ? 'Em fabricação' : 'Fabricado' }} · lote #{{ unit.production_id }}</span>
             </summary>
             <div class="nfc-rule flex min-w-0 flex-col gap-3 border-t p-2 sm:p-3">
-                <div class="flex flex-wrap gap-2">
-                    <button v-if="permissions.update" type="button" class="nfc-button" @click="edit('unit', { unitId: unit.id })">Editar unidade</button>
-                    <button v-if="permissions.create" type="button" class="nfc-button" @click="edit('sale', { unitId: unit.id })">Nova venda nesta unidade</button>
-                    <button v-if="permissions.delete" type="button" class="nfc-button nfc-danger" @click="destroy('unit', { unitId: unit.id })">Excluir unidade</button>
-                </div>
                 <details class="nfc-panel min-w-0">
                     <summary class="cursor-pointer rounded-xl p-3 text-sm font-semibold">Imagens da unidade <span class="nfc-muted font-normal">· {{ unit.images.length }}/10</span></summary>
                     <div class="nfc-rule border-t p-2 sm:p-3">
@@ -133,5 +132,6 @@ function destroy(kind, context = {}) {
                 </details>
             </div>
         </details>
+        </div>
     </div>
 </template>
