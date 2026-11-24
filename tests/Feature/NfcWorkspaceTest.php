@@ -1205,7 +1205,9 @@ class NfcWorkspaceTest extends TestCase
         $this->assertStringContainsString('R$ 40,00', $sharedPdf);
         $this->assertStringNotContainsString('R$ 70,00', $sharedPdf);
         $this->assertStringNotContainsString('R$ 90,00', $sharedPdf);
-        $this->actingAs($other->user)->get($sharedReport)->assertOk();
+        $loggedInPdf = $this->actingAs($other->user)->get($sharedReport)->assertOk()->getContent();
+        $this->assertStringContainsString('R$ 40,00', $loggedInPdf);
+        $this->assertStringNotContainsString('R$ 90,00', $loggedInPdf);
         Auth::logout();
 
         foreach (['view', 'c', 'u', 'd', 'cu', 'cd', 'ud'] as $scope) {
