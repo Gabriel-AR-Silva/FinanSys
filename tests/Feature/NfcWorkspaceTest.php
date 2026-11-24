@@ -51,6 +51,15 @@ class NfcWorkspaceTest extends TestCase
             ->has('companies.0.units.0.images', 1)
             ->missing('companies.0.units.0.images.0.path')
             ->has('companies.0.units.1.images', 0));
+        $this->post(route('nfc.share-links.store'), ['scope' => 'view'])->assertRedirect(route('nfc.index'));
+        preg_match('~/compartilhado/([^/?]+)~', session('nfc_share_url'), $matches);
+        $sharedParams = ['token' => $matches[1], ...$params];
+        Auth::logout();
+        $this->get(route('nfc.share.units.images.show', $sharedParams))->assertOk();
+        $this->delete(route('nfc.share.units.images.destroy', $sharedParams))->assertForbidden();
+        $this->post(route('nfc.share.units.images.store', ['token' => $matches[1], 'company' => $company->id, 'unit' => $unit]), [
+            'images' => [UploadedFile::fake()->image('outra.png')],
+        ])->assertForbidden();
         $this->actingAs(User::factory()->create())->get(route('nfc.units.images.show', $params))->assertNotFound();
         $this->actingAs($owner)->delete(route('nfc.units.images.destroy', $params))->assertRedirect();
         Storage::disk('local')->assertMissing($entry['path']);
