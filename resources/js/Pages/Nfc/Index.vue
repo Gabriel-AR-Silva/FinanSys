@@ -785,7 +785,7 @@ watch(dialog, async (current, previous) => {
                                 <li v-for="entry in expenses" :key="entry.id" class="nfc-panel flex flex-wrap items-center justify-between gap-2 p-3">
                                     <div class="min-w-0 flex-1">
                                         <p class="break-words text-sm font-medium">{{ entry.description }}</p>
-                                        <p class="nfc-muted text-xs">{{ date(entry.spent_on) }} · {{ expenseCategories[entry.category] || entry.category }}<span v-if="entry.production_id"> · Lote #{{ entry.production_id }}</span><span v-if="entry.damage_id"> · Avaria #{{ entry.damage_id }}</span></p>
+                                        <p class="nfc-muted text-xs">{{ date(entry.spent_on) }} · {{ expenseCategories[entry.category] || entry.category }}<span v-if="entry.production_id"> · Lote #{{ entry.production_id }}</span><span v-if="entry.damage_id"> · Avaria #{{ entry.damage_id }}</span><span v-if="entry.damage_missing || entry.production_missing"> · Vínculo excluído; despesa mantida no caixa</span></p>
                                     </div>
                                     <strong class="text-sm tabular-nums text-[var(--fs-warning)]">{{ money(entry.amount_cents) }}</strong>
                                     <button v-if="!shared && permissions.delete" type="button" class="nfc-button nfc-icon-button nfc-danger" :aria-label="'Excluir despesa: ' + entry.description" @click="destroy('expense', { expenseId: entry.id })"><Trash2 :size="16" aria-hidden="true" /></button>
@@ -1194,6 +1194,7 @@ watch(dialog, async (current, previous) => {
                         <li v-for="entry in history" :key="entry.id" class="nfc-panel p-3 text-sm">
                             <p class="font-semibold">{{ historyVerb[entry.event] || entry.event }} · {{ historyKind[entry.target_kind] || entry.target_kind }} #{{ entry.target_id }}</p>
                             <p v-if="entry.label" class="min-w-0 break-words">{{ entry.label }}</p>
+                            <p v-if="entry.context?.plate_id" class="nfc-muted text-xs break-all">Plaquinha: {{ entry.context.plate_id }}</p>
                             <p class="nfc-muted text-xs">{{ entry.actor }} · {{ datetime(entry.occurred_at) }}</p>
                             <details v-if="!hiddenValues" class="nfc-history-details mt-2 rounded-lg p-2">
                                 <summary class="cursor-pointer text-xs font-medium">Detalhes técnicos da alteração</summary>
