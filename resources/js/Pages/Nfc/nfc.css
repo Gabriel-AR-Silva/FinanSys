@@ -396,3 +396,23 @@
         transition: none;
     }
 }
+
+/* NFC dialogs keep long labels and actions within the viewport. */
+.nfc-dialog-content .nfc-button {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.nfc-dialog-content .nfc-button svg {
+    flex-shrink: 0;
+}
+.nfc-dialog-content summary {
+    overflow-wrap: anywhere;
+}
+.nfc-dialog-content textarea {
+    resize: vertical;
+}
+.nfc-dialog [scroll-region] > .shadow-xl {
+    scrollbar-width: thin;
+    scrollbar-color: var(--fs-border) var(--fs-surface-muted);
+}
