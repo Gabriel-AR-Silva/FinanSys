@@ -117,7 +117,12 @@ class NfcDashboardQuery
             ->sortByDesc('spent_on')->values();
 
         $expenses = $records->where('kind', NfcRecord::EXPENSE)
-            ->map(fn (NfcRecord $record): array => ['id' => $record->id, ...$record->payload])
+            ->map(fn (NfcRecord $record): array => [
+                'id' => $record->id,
+                ...$record->payload,
+                'damage_missing' => isset($record->payload['damage_id']) && $damages->firstWhere('id', $record->payload['damage_id']) === null,
+                'production_missing' => isset($record->payload['production_id']) && $production->firstWhere('id', $record->payload['production_id']) === null,
+            ])
             ->sortByDesc('spent_on')->values();
 
         $sales = $companies->flatMap(fn (array $company): array => $company['sales']);
