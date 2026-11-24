@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Queries\NfcDashboardQuery;
 use App\Queries\NfcReportQuery;
 use DateTimeImmutable;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
+use Mockery;
 use Tests\TestCase;
 
 class NfcWorkspaceTest extends TestCase
@@ -64,6 +66,32 @@ class NfcWorkspaceTest extends TestCase
         $this->actingAs($owner)->delete(route('nfc.units.images.destroy', $params))->assertRedirect();
         Storage::disk('local')->assertMissing($entry['path']);
         $this->assertSame([], $company->fresh()->payload['units'][0]['images']);
+    }
+
+    public function test_failed_image_file_deletion_does_not_remove_metadata_or_report_success(): void
+    {
+        $disk = Storage::fake('local');
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $unit = $company->payload['units'][0]['id'];
+        $this->post(route('nfc.units.images.store', ['company' => $company->id, 'unit' => $unit]), [
+            'images' => [UploadedFile::fake()->image('placa.png')],
+        ])->assertRedirect();
+
+        $entry = $company->fresh()->payload['units'][0]['images'][0];
+        $disk->assertExists($entry['path']);
+        $historyCount = NfcRecord::query()->whereBelongsTo($owner)->where('kind', NfcRecord::HISTORY)->count();
+        $failingDisk = Mockery::mock(FilesystemAdapter::class);
+        $failingDisk->shouldReceive('exists')->with($entry['path'])->andReturnTrue();
+        $failingDisk->shouldReceive('delete')->once()->with($entry['path'])->andReturnFalse();
+        Storage::shouldReceive('disk')->with('local')->andReturn($failingDisk);
+
+        $this->delete(route('nfc.units.images.destroy', ['company' => $company->id, 'unit' => $unit, 'image' => $entry['id']]))
+            ->assertSessionHasErrors('images');
+
+        $disk->assertExists($entry['path']);
+        $this->assertSame([$entry], $company->fresh()->payload['units'][0]['images']);
+        $this->assertSame($historyCount, NfcRecord::query()->whereBelongsTo($owner)->where('kind', NfcRecord::HISTORY)->count());
     }
 
     public function test_deleting_unit_or_company_removes_only_its_image_files(): void
