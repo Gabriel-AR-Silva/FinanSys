@@ -34,7 +34,7 @@ class NfcManufacturerController extends Controller
     {
         $paths = $records->deleteManufacturer($this->owner($request), $manufacturer);
         if ($paths !== [] && ! Storage::disk('local')->delete($paths)) {
-            throw ValidationException::withMessages(['images' => 'Fabricante removido, mas a limpeza dos arquivos falhou. A função Zerar pode repetir a limpeza.']);
+            throw ValidationException::withMessages(['images' => 'Fabricante removido, mas a limpeza dos arquivos falhou. Contate o suporte para limpar os arquivos restantes.']);
         }
 
         return $this->backToNfc($request);
