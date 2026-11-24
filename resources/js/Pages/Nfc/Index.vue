@@ -1038,7 +1038,8 @@ watch(dialog, async (current, previous) => {
                         <input v-model.trim="damageForm.reason" maxlength="160" class="nfc-control" required placeholder="Ex.: NFC não funciona, arte danificada" :disabled="busy" />
                     </label>
                     <label class="nfc-field">Possível prejuízo total (R$, opcional)
-                        <input v-model.trim="damageAmount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" class="nfc-control" placeholder="Ex.: 15,00" :disabled="busy" />
+                        <input v-model.trim="damageAmount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" class="nfc-control" placeholder="Automático: R$ 25 por unidade" :disabled="busy" />
+                        <span class="nfc-muted text-xs">Se deixar vazio: {{ money(2500 * (damageForm.target === 'plate' ? 1 : Math.max(0, Number(damageForm.quantity) || 0))) }} de perda estimada. Informe outro valor total se necessário.</span>
                     </label>
                     <label v-if="damageForm.target === 'plate'" class="nfc-field">Abatimento no saldo da venda (R$, opcional)
                         <input v-model.trim="damageDiscount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" class="nfc-control" placeholder="0,00" :disabled="busy" />
