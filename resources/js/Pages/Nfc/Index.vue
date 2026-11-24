@@ -491,7 +491,6 @@ const metricGroups = computed(() => {
         { title: 'Produção', metrics: [
             { label: 'Fabricadas', value: totals.manufactured ?? 0, detail: `${totals.usable_manufactured ?? 0} aproveitáveis após avarias de fabricação` },
             { label: 'Em fabricação', value: totals.in_production ?? 0 },
-            { label: 'Em customização', value: totals.in_customization ?? 0 },
             { label: 'Com defeito', value: totals.defective ?? 0, tone: 'text-[var(--fs-danger)]' },
         ] },
         { title: 'Vendas e clientes', metrics: [
@@ -996,45 +995,46 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </div>
                 <form v-else-if="dialog.kind === 'damage'" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveDamage">
-                    <label class="nfc-field">Onde ocorreu a avaria?
-                        <select v-model="damageForm.target" class="nfc-control" :disabled="busy">
+                    <p class="nfc-muted text-xs"><span class="text-[var(--fs-danger)]" aria-hidden="true">*</span> Campos obrigatórios</p>
+                    <label class="nfc-field"><span>Onde ocorreu a avaria? <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
+                        <select v-model="damageForm.target" class="nfc-control" :disabled="busy" required>
                             <option value="production">Em um lote de fabricação</option>
                             <option value="plate">Em uma plaquinha já cadastrada</option>
                         </select>
                     </label>
-                    <label v-if="damageForm.target === 'production'" class="nfc-field">Lote de fabricação
+                    <label v-if="damageForm.target === 'production'" class="nfc-field"><span>Lote de fabricação <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <select v-model="damageForm.production_id" class="nfc-control" required :disabled="busy">
                             <option value="" disabled>Selecione o lote</option>
                             <option v-for="item in production" :key="item.id" :value="item.id">Lote #{{ item.id }} · {{ item.usable_quantity }} de {{ item.quantity }} sem avaria</option>
                         </select>
                     </label>
                     <template v-else>
-                        <label class="nfc-field">Empresa
+                        <label class="nfc-field"><span>Empresa <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                             <select v-model="damageForm.company_id" class="nfc-control" required :disabled="busy" @change="damageForm.sale_id = ''; damageForm.plate_id = ''">
                                 <option value="" disabled>Selecione a empresa</option>
                                 <option v-for="item in damageCompanies" :key="item.id" :value="item.id">{{ item.name }}</option>
                             </select>
                         </label>
-                        <label class="nfc-field">Venda
+                        <label class="nfc-field"><span>Venda <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                             <select v-model="damageForm.sale_id" class="nfc-control" required :disabled="busy" @change="damageForm.plate_id = ''">
                                 <option value="" disabled>Selecione a venda</option>
                                 <option v-for="item in damageSales" :key="item.id" :value="item.id">{{ damageCompany?.units.find(unit => unit.id === item.unit_id)?.name ?? 'Unidade' }} · {{ date(item.sold_on) }} · {{ item.plates.length }} plaquinhas</option>
                             </select>
                         </label>
-                        <label class="nfc-field">Plaquinha
+                        <label class="nfc-field"><span>Plaquinha <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                             <select v-model="damageForm.plate_id" class="nfc-control" required :disabled="busy">
                                 <option value="" disabled>Selecione a plaquinha</option>
                                 <option v-for="item in damagePlates" :key="item.id" :value="item.id">{{ item.label || (item.type === 'custom' ? 'Personalizada' : 'Normal') }}</option>
                             </select>
                         </label>
                     </template>
-                    <label v-if="damageForm.target === 'production'" class="nfc-field">Quantidade com defeito
+                    <label v-if="damageForm.target === 'production'" class="nfc-field"><span>Quantidade com defeito <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model.number="damageForm.quantity" type="number" min="1" :max="Math.min(10000, damageBatch?.usable_quantity ?? 0)" class="nfc-control" required :disabled="busy" />
                     </label>
-                    <label class="nfc-field">Data da avaria
+                    <label class="nfc-field"><span>Data da avaria <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model="damageForm.occurred_on" type="date" :max="today" class="nfc-control" required :disabled="busy" />
                     </label>
-                    <label class="nfc-field">Descrição do defeito
+                    <label class="nfc-field"><span>Descrição do defeito <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model.trim="damageForm.reason" maxlength="160" class="nfc-control" required placeholder="Ex.: NFC não funciona, arte danificada" :disabled="busy" />
                     </label>
                     <label class="nfc-field">Possível prejuízo total (R$, opcional)
@@ -1053,19 +1053,20 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </form>
                 <form v-else-if="dialog.kind === 'expense' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveExpense">
+                    <p class="nfc-muted text-xs"><span class="text-[var(--fs-danger)]" aria-hidden="true">*</span> Campos obrigatórios</p>
                     <p class="nfc-muted text-sm">Registre gastos efetivamente pagos com o dinheiro recebido, como fita dupla face, tesoura e reposições por avaria.</p>
-                    <label class="nfc-field">Tipo de despesa
-                        <select v-model="expenseForm.category" class="nfc-control" :disabled="busy" @change="expenseForm.category !== 'rework' && (expenseForm.damage_id = '')">
+                    <label class="nfc-field"><span>Tipo de despesa <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
+                        <select v-model="expenseForm.category" class="nfc-control" :disabled="busy" @change="expenseForm.category !== 'rework' && (expenseForm.damage_id = '')" required>
                             <option v-for="(label, key) in expenseCategories" :key="key" :value="key">{{ label }}</option>
                         </select>
                     </label>
-                    <label class="nfc-field">Descrição
+                    <label class="nfc-field"><span>Descrição <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model.trim="expenseForm.description" class="nfc-control" maxlength="160" required placeholder="Ex.: Fita dupla face para novas plaquinhas" :disabled="busy" />
                     </label>
-                    <label class="nfc-field">Valor gasto (R$)
+                    <label class="nfc-field"><span>Valor gasto (R$) <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model.trim="expenseAmount" :type="hiddenValues ? 'password' : 'text'" class="nfc-control" inputmode="decimal" placeholder="Ex.: 12,50" required :disabled="busy" />
                     </label>
-                    <label class="nfc-field">Data
+                    <label class="nfc-field"><span>Data <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model="expenseForm.spent_on" type="date" :max="today" class="nfc-control" required :disabled="busy" />
                     </label>
                     <label class="nfc-field">Lote relacionado (opcional)
@@ -1088,16 +1089,17 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </form>
                 <form v-else-if="dialog.kind === 'reinvestment' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveReinvestment">
+                    <p class="nfc-muted text-xs"><span class="text-[var(--fs-danger)]" aria-hidden="true">*</span> Campos obrigatórios</p>
                     <p class="nfc-muted text-sm">Registre o dinheiro que saiu do caixa das vendas para fabricar novas plaquinhas. Não é aporte nem um segundo custo de fabricação.</p>
-                    <label class="nfc-field">Valor retirado (R$)
+                    <label class="nfc-field"><span>Valor retirado (R$) <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model.trim="reinvestmentAmount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" class="nfc-control" required placeholder="Ex.: 75,50" autocomplete="off" :disabled="reinvestmentForm.processing" />
                         <span v-if="reinvestmentForm.errors.amount_cents" role="alert" class="text-xs text-[var(--fs-danger)]">{{ reinvestmentForm.errors.amount_cents }}</span>
                     </label>
-                    <label class="nfc-field">Data da retirada
+                    <label class="nfc-field"><span>Data da retirada <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model="reinvestmentForm.spent_on" type="date" class="nfc-control" required :max="today" :disabled="reinvestmentForm.processing" />
                         <span v-if="reinvestmentForm.errors.spent_on" role="alert" class="text-xs text-[var(--fs-danger)]">{{ reinvestmentForm.errors.spent_on }}</span>
                     </label>
-                    <label class="nfc-field">Para que foi utilizado?
+                    <label class="nfc-field"><span>Para que foi utilizado? <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model.trim="reinvestmentForm.description" type="text" maxlength="160" class="nfc-control" required placeholder="Ex.: Produção personalizada para loja" :disabled="reinvestmentForm.processing" />
                         <span v-if="reinvestmentForm.errors.description" role="alert" class="text-xs text-[var(--fs-danger)]">{{ reinvestmentForm.errors.description }}</span>
                     </label>
@@ -1118,18 +1120,18 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </form>
                 <div v-else-if="dialog.kind === 'report' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
-                    <p class="nfc-muted text-sm">Escolha o período e os indicadores. O arquivo contém somente dados do seu plugin NFC.</p>
+                    <p class="nfc-muted text-sm">Escolha o período e ao menos um indicador. O arquivo contém somente dados do seu plugin NFC.</p>
                     <label class="nfc-field">Nome do relatório / arquivo (opcional)
                         <input v-model.trim="reportName" type="text" class="nfc-control" maxlength="80" placeholder="Ex.: Vendas NFC - Novembro 2026" autocomplete="off" />
                         <span class="nfc-muted text-xs font-normal">Será usado como título do PDF e nome do arquivo baixado. Se ficar vazio, o nome será automático.</span>
                         <span v-if="reportName && !/^[\p{L}\p{N}\s._-]*$/u.test(reportName)" class="text-xs text-[var(--fs-danger)]">Use apenas letras, números, espaços, ponto, hífen ou sublinhado.</span>
                     </label>
                     <div class="grid gap-3 sm:grid-cols-2">
-                        <label class="nfc-field">Data inicial<input v-model="reportFrom" type="date" class="nfc-control" :max="reportTo || undefined" /></label>
-                        <label class="nfc-field">Data final<input v-model="reportTo" type="date" class="nfc-control" :min="reportFrom || undefined" /></label>
+                        <label class="nfc-field"><span>Data inicial <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span><input v-model="reportFrom" type="date" class="nfc-control" :max="reportTo || undefined" required /></label>
+                        <label class="nfc-field"><span>Data final <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span><input v-model="reportTo" type="date" class="nfc-control" :min="reportFrom || undefined" required /></label>
                     </div>
                     <fieldset class="nfc-panel flex flex-col gap-3 p-3">
-                        <legend class="px-1 text-sm font-semibold">Indicadores do relatório</legend>
+                        <legend class="px-1 text-sm font-semibold">Indicadores do relatório <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></legend>
                         <div class="flex flex-wrap gap-2">
                             <button type="button" class="nfc-button text-xs" @click="reportMetrics = reportOptions.map(item => item.key)">Selecionar todos</button>
                             <button type="button" class="nfc-button text-xs" @click="reportMetrics = []">Limpar seleção</button>
@@ -1149,10 +1151,11 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </div>
                 <form v-else-if="dialog.kind === 'reset' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="resetWorkspace">
+                    <p class="nfc-muted text-xs"><span class="text-[var(--fs-danger)]" aria-hidden="true">*</span> Campos obrigatórios</p>
                     <p class="text-sm leading-6">Esta ação excluirá permanentemente todas as empresas, unidades, fabricantes, lotes, vendas, plaquinhas, pagamentos, reinvestimentos, despesas, avarias, avisos, imagens e histórico da sua área NFC.</p>
                     <p class="nfc-muted text-sm">Os links de acesso e os dados dos demais módulos do FinanSys serão preservados. Esta ação não pode ser desfeita.</p>
-                    <label class="nfc-field">Digite ZERAR para confirmar
-                        <input v-model="resetConfirmation" class="nfc-control" type="text" autocomplete="off" :disabled="busy" />
+                    <label class="nfc-field"><span>Digite ZERAR para confirmar <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
+                        <input v-model="resetConfirmation" class="nfc-control" type="text" autocomplete="off" :disabled="busy" required />
                     </label>
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
                         <button type="button" class="nfc-button" :disabled="busy" @click="closeDialog">Cancelar</button>
@@ -1162,8 +1165,8 @@ watch(dialog, async (current, previous) => {
                 <div v-else-if="dialog.kind === 'share' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
                     <p v-if="!share_links_enabled" class="nfc-warning rounded-lg p-3 text-sm">Aplique a migration de permissões dos links NFC para habilitar a emissão e edição de links.</p>
                     <p class="nfc-muted text-sm">Links válidos por sete dias. Escolha as operações permitidas. Cada link mantém sua própria configuração.</p>
-                    <label class="nfc-field">Permissão do link
-                        <select v-model="shareScope" class="nfc-control" :disabled="shareBusy || !share_links_enabled"><option v-for="option in scopeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
+                    <label class="nfc-field"><span>Permissão do link <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
+                        <select v-model="shareScope" class="nfc-control" :disabled="shareBusy || !share_links_enabled" required><option v-for="option in scopeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
                     </label>
                     <button type="button" class="nfc-button nfc-primary self-start" :disabled="shareBusy || !share_links_enabled" @click="createShare">Gerar novo link</button>
                     <div v-if="created_share_url" class="nfc-panel flex min-w-0 flex-col gap-2 p-3">
@@ -1182,7 +1185,7 @@ watch(dialog, async (current, previous) => {
                                 <span v-else-if="new Date(link.expires_at) <= new Date()" class="nfc-badge nfc-warning">Expirado</span>
                                 <span v-else class="nfc-badge nfc-success">Ativo</span>
                             </div>
-                            <label v-if="!link.revoked_at && new Date(link.expires_at) > new Date() && share_links_enabled" class="nfc-field">Permissões<select class="nfc-control" :value="link.scope === 'edit' ? 'cud' : link.scope" :disabled="shareBusy" @change="updateShare(link, $event.target.value)"><option v-for="option in scopeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
+                            <label v-if="!link.revoked_at && new Date(link.expires_at) > new Date() && share_links_enabled" class="nfc-field"><span>Permissões <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span><select class="nfc-control" :value="link.scope === 'edit' ? 'cud' : link.scope" :disabled="shareBusy" @change="updateShare(link, $event.target.value)"><option v-for="option in scopeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
                             <button v-if="!link.revoked_at" type="button" class="nfc-button nfc-danger" :disabled="shareBusy" @click="revokeShare(link)">Revogar</button>
                         </li>
                     </ul>
