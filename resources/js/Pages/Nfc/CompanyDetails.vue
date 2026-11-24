@@ -112,7 +112,6 @@ function destroy(kind, context = {}) {
                             <li v-for="plate in sale.plates" :key="plate.id" class="nfc-rule flex min-w-0 flex-wrap items-center justify-between gap-2 border-b py-2 last:border-b-0">
                                 <div class="min-w-0 flex-1 text-sm">
                                     <p class="break-words font-semibold">{{ plate.label || (plate.type === 'custom' ? 'Personalizada' : 'Normal') }}</p>
-                                    <p v-if="plate.customizing" class="nfc-muted">Em customização</p>
                                     <p v-if="plate.defective" class="nfc-badge nfc-danger">Defeituosa · {{ plate.estimated_loss_cents == null ? 'prejuízo a estimar' : money(plate.estimated_loss_cents) }}</p>
                                     <p v-if="plate.notes" class="nfc-muted whitespace-pre-wrap break-words">{{ plate.notes }}</p>
                                 </div>
