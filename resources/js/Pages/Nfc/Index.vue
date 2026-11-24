@@ -535,7 +535,7 @@ const title = computed(() => {
     }
 });
 
-const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído', revoked: 'Revogado', damage_registered: 'Avaria registrada' };
+const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído', revoked: 'Revogado', images_added: 'Imagens adicionadas', image_removed: 'Imagem excluída', damage_registered: 'Avaria registrada' };
 const historyKind = { manufacturer: 'Fabricante', company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial', reinvestment: 'Reinvestimento', expense: 'Despesa', damage: 'Avaria', share_link: 'Link compartilhado' };
 const datetime = text => new Date(text).toLocaleString('pt-BR');
 const deleteDescriptions = {
@@ -547,6 +547,7 @@ const deleteDescriptions = {
     batch: 'O lote será removido. Se estiver vinculado a unidades ou avarias, a operação será impedida.',
     manufacturer: 'O fabricante e suas imagens serão removidos. Lotes vinculados podem impedir a exclusão.',
     image: 'Esta imagem será removida permanentemente da galeria do fabricante.',
+    'unit-image': 'Esta imagem será removida da galeria desta unidade.',
     notice: 'O aviso será excluído da lista de pendências.',
     reinvestment: 'Esta retirada será removida e o dinheiro voltará a aparecer no saldo disponível do caixa NFC.',
     expense: 'Esta despesa será removida e o valor retornará ao saldo disponível do caixa.',
@@ -571,6 +572,7 @@ function confirmDestroy() {
         batch: ['nfc.production.destroy', { production: context.batchId }],
         manufacturer: ['nfc.manufacturers.destroy', { manufacturer: context.manufacturerId }],
         image: ['nfc.manufacturers.images.destroy', { manufacturer: context.manufacturerId, image: context.imageId }],
+        'unit-image': ['nfc.units.images.destroy', { company: context.companyId, unit: context.unitId, image: context.imageId }],
         notice: ['nfc.notices.destroy', { notice: context.noticeId }],
         reinvestment: ['nfc.reinvestments.destroy', { reinvestment: context.reinvestmentId }],
         expense: ['nfc.expenses.destroy', { expense: context.expenseId }],
@@ -984,7 +986,7 @@ watch(dialog, async (current, previous) => {
                     <button type="button" class="nfc-button nfc-icon-button shrink-0" aria-label="Fechar" :disabled="busy" @click="closeDialog"><X :size="18" aria-hidden="true" /></button>
                 </header>
 
-                <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :permissions="permissions" :hidden-values="hiddenValues" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
+                <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :permissions="permissions" :hidden-values="hiddenValues" :highlight-sale-id="dialog.saleId" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @busy="busy = $event" @feedback="notify" />
                 <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :permissions="permissions" :hidden-values="hiddenValues" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
                 <div v-else-if="dialog.kind === 'confirm-delete'" class="flex min-w-0 flex-col gap-4">
                     <p class="text-sm leading-6">{{ deleteDescriptions[dialog.deleteKind] }}</p>
