@@ -47,7 +47,7 @@ function destroy(kind, context = {}) {
             <button v-if="permissions.create" type="button" class="nfc-button nfc-primary" @click="edit('sale')">Nova venda</button>
             <button v-if="permissions.delete" type="button" class="nfc-button nfc-danger" @click="destroy('company')">Excluir empresa</button>
         </div>
-        <dl class="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Resumo da empresa">
+        <dl class="grid min-w-0 grid-cols-2 gap-2" aria-label="Resumo da empresa">
             <div class="nfc-panel flex min-w-0 flex-col gap-1 p-3">
                 <dt class="nfc-muted text-xs">Plaquinhas vendidas</dt>
                 <dd class="text-lg font-semibold tabular-nums">{{ company.sold }}</dd>
@@ -64,7 +64,7 @@ function destroy(kind, context = {}) {
                 {{ unit.name }} <span class="nfc-muted text-sm font-normal">· {{ unit.sold }} plaquinha(s) vendida(s) · {{ unit.usable_sold }} sem defeito</span>
                 <span v-if="unit.production_id" class="nfc-badge ml-1" :class="unit.production_status === 'in_progress' ? 'nfc-warning' : 'nfc-success'">{{ unit.production_status === 'in_progress' ? 'Em fabricação' : 'Fabricado' }} · lote #{{ unit.production_id }}</span>
             </summary>
-            <div class="nfc-rule flex min-w-0 flex-col gap-3 border-t p-3">
+            <div class="nfc-rule flex min-w-0 flex-col gap-3 border-t p-2 sm:p-3">
                 <div class="flex flex-wrap gap-2">
                     <button v-if="permissions.update" type="button" class="nfc-button" @click="edit('unit', { unitId: unit.id })">Editar unidade</button>
                     <button v-if="permissions.create" type="button" class="nfc-button" @click="edit('sale', { unitId: unit.id })">Nova venda nesta unidade</button>
