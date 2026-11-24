@@ -43,6 +43,7 @@ class NfcController extends Controller
             'shared' => $shared,
             'read_only' => ! in_array(true, $permissions, true),
             'permissions' => $permissions,
+            'can_export_report' => $this->canExportReport($request),
             'privacy_key' => $shared ? 'link-'.$request->attributes->get('nfc_share_link')->id : 'owner-'.$request->user()->id,
             'share_token' => $shared ? (string) $request->attributes->get('nfc_share_token') : null,
             'created_share_url' => $shared ? null : $request->session()->get('nfc_share_url'),
@@ -58,9 +59,8 @@ class NfcController extends Controller
 
     public function exportReport(Request $request, NfcDashboardQuery $dashboard, NfcReportQuery $query, NfcReportPdf $pdf): \Illuminate\Http\Response
     {
-        abort_if($request->attributes->has('nfc_share_owner'), 403);
-        $user = $request->user();
-        abort_unless($user instanceof User, 403);
+        abort_unless($this->canExportReport($request), 403);
+        $user = $this->owner($request);
 
         $data = $request->validate([
             'from' => ['required', 'date_format:Y-m-d'],
@@ -82,6 +82,7 @@ class NfcController extends Controller
             'Content-Disposition' => 'attachment; filename="'.$filename.'.pdf"',
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
+            'Referrer-Policy' => 'no-referrer',
         ]);
     }
 
@@ -389,6 +390,17 @@ class NfcController extends Controller
         $records->deleteRecord($this->owner($request), $notice, NfcRecord::NOTICE);
 
         return $this->redirectToDashboard($request);
+    }
+
+    private function canExportReport(Request $request): bool
+    {
+        if (! $request->attributes->has('nfc_share_owner')) {
+            return $request->user() instanceof User;
+        }
+
+        $permissions = $request->attributes->get('nfc_share_permissions', []);
+
+        return ($permissions['create'] ?? false) && ($permissions['update'] ?? false) && ($permissions['delete'] ?? false);
     }
 
     private function owner(Request $request): User
