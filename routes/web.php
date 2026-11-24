@@ -61,6 +61,9 @@ Route::prefix('plaquinhas-nfc/compartilhado/{token}')->name('nfc.share.')->middl
     Route::patch('/empresas/{company}', 'updateCompany')->whereNumber('company')->name('companies.update');
     Route::post('/empresas/{company}/unidades', 'storeUnit')->whereNumber('company')->name('units.store');
     Route::patch('/empresas/{company}/unidades/{unit}', 'updateUnit')->whereNumber('company')->whereUuid('unit')->name('units.update');
+    Route::post('/empresas/{company}/unidades/{unit}/imagens', [NfcManufacturerController::class, 'uploadUnitImages'])->whereNumber('company')->whereUuid('unit')->name('units.images.store');
+    Route::get('/empresas/{company}/unidades/{unit}/imagens/{image}', [NfcManufacturerController::class, 'showUnitImage'])->whereNumber('company')->whereUuid(['unit', 'image'])->name('units.images.show');
+    Route::delete('/empresas/{company}/unidades/{unit}/imagens/{image}', [NfcManufacturerController::class, 'deleteUnitImage'])->whereNumber('company')->whereUuid(['unit', 'image'])->name('units.images.destroy');
     Route::post('/empresas/{company}/vendas', 'storeSale')->whereNumber('company')->name('sales.store');
     Route::patch('/empresas/{company}/vendas/{sale}', 'updateSale')->whereNumber('company')->whereUuid('sale')->name('sales.update');
     Route::post('/empresas/{company}/vendas/{sale}/pagamentos', 'storePayment')->whereNumber('company')->whereUuid('sale')->name('payments.store');
@@ -101,6 +104,9 @@ Route::middleware('auth')->group(function () {
         Route::patch('/empresas/{company}', 'updateCompany')->whereNumber('company')->name('companies.update');
         Route::post('/empresas/{company}/unidades', 'storeUnit')->whereNumber('company')->name('units.store');
         Route::patch('/empresas/{company}/unidades/{unit}', 'updateUnit')->whereNumber('company')->whereUuid('unit')->name('units.update');
+        Route::post('/empresas/{company}/unidades/{unit}/imagens', [NfcManufacturerController::class, 'uploadUnitImages'])->whereNumber('company')->whereUuid('unit')->name('units.images.store');
+        Route::get('/empresas/{company}/unidades/{unit}/imagens/{image}', [NfcManufacturerController::class, 'showUnitImage'])->whereNumber('company')->whereUuid(['unit', 'image'])->name('units.images.show');
+        Route::delete('/empresas/{company}/unidades/{unit}/imagens/{image}', [NfcManufacturerController::class, 'deleteUnitImage'])->whereNumber('company')->whereUuid(['unit', 'image'])->name('units.images.destroy');
         Route::post('/empresas/{company}/vendas', 'storeSale')->whereNumber('company')->name('sales.store');
         Route::patch('/empresas/{company}/vendas/{sale}', 'updateSale')->whereNumber('company')->whereUuid('sale')->name('sales.update');
         Route::post('/empresas/{company}/vendas/{sale}/pagamentos', 'storePayment')->whereNumber('company')->whereUuid('sale')->name('payments.store');

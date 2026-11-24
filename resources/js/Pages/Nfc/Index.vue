@@ -3,7 +3,7 @@ import Modal from '@/Components/Modal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import NfcSharedLayout from '@/Layouts/NfcSharedLayout.vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, Eye, EyeOff, EllipsisVertical, Share2, Trash2, FileDown, X } from '@lucide/vue';
+import { ArrowLeft, Bell, Building2, ChevronRight, Factory, History, Plus, Eye, EyeOff, EllipsisVertical, Share2, Trash2, FileDown, Pencil, X } from '@lucide/vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import CompanyDetails from './CompanyDetails.vue';
 import ManufacturerDetails from './ManufacturerDetails.vue';
@@ -88,8 +88,6 @@ const dialogHeading = ref(null);
 const busy = ref(false);
 const shareBusy = ref(false);
 const shareScope = ref('view');
-const settingsOpen = ref(false);
-const settingsButton = ref(null);
 const resetConfirmation = ref('');
 const reportFrom = ref('');
 const reportName = ref('');
@@ -193,13 +191,16 @@ function saveExpense() {
 }
 
 const damageAmount = ref('');
+const damageDiscount = ref('');
 const damageForm = useForm({
     operation_id: crypto.randomUUID(), target: 'production',
     production_id: '', company_id: '', sale_id: '', plate_id: '',
     quantity: 1, occurred_on: props.today, reason: '', estimated_loss_cents: null,
 });
 const damageCompanies = computed(() => props.companies.filter(company => company.sales.some(sale => sale.plates.length)));
-const damageSales = computed(() => damageCompanies.value.find(company => String(company.id) === String(damageForm.company_id))?.sales ?? []);
+const damageCompany = computed(() => damageCompanies.value.find(company => String(company.id) === String(damageForm.company_id)));
+const damageSales = computed(() => (damageCompany.value?.sales ?? []).filter(sale => sale.plates.some(plate => !plate.defective)));
+const damageBatch = computed(() => props.production.find(batch => String(batch.id) === String(damageForm.production_id)));
 const damagePlates = computed(() => damageSales.value.find(sale => sale.id === damageForm.sale_id)?.plates.filter(plate => !plate.defective) ?? []);
 function openDamage() {
     if (!props.permissions.create || busy.value) return;
@@ -207,6 +208,7 @@ function openDamage() {
     damageForm.operation_id = crypto.randomUUID();
     damageForm.occurred_on = props.today;
     damageAmount.value = '';
+    damageDiscount.value = '';
     dialog.value = { kind: 'damage' };
 }
 function openDamageForBatch(batchId) {
@@ -215,6 +217,10 @@ function openDamageForBatch(batchId) {
 }
 function saveDamage() {
     if (busy.value || damageForm.processing) return;
+    if (damageForm.target === 'production' && (!damageBatch.value || !Number.isInteger(Number(damageForm.quantity)) || Number(damageForm.quantity) < 1 || Number(damageForm.quantity) > damageBatch.value.usable_quantity)) {
+        damageForm.setError('quantity', 'Informe uma quantidade dentro do saldo do lote.');
+        return;
+    }
     const raw = damageAmount.value.trim().replace(',', '.');
     if (raw && !/^\d+(?:\.\d{1,2})?$/.test(raw)) {
         notify({ type: 'error', message: 'Informe um prejuízo válido, com até duas casas decimais.' });
@@ -226,6 +232,18 @@ function saveDamage() {
         notify({ type: 'error', message: 'Valor de prejuízo fora do limite permitido.' });
         return;
     }
+    const discountRaw = damageForm.target === 'plate' ? damageDiscount.value.trim().replace(',', '.') : '';
+    if (discountRaw && !/^\d+(?:\.\d{1,2})?$/.test(discountRaw)) {
+        damageForm.setError('discount_cents', 'Informe um desconto válido.');
+        return;
+    }
+    const [discountWhole, discountFraction = ''] = discountRaw ? discountRaw.split('.') : ['0', ''];
+    const discountCents = Number(discountWhole) * 100 + Number(discountFraction.padEnd(2, '0'));
+    const selectedSale = damageSales.value.find(sale => sale.id === damageForm.sale_id);
+    if (damageForm.target === 'plate' && (!Number.isSafeInteger(discountCents) || discountCents > 999999999 || discountCents > (selectedSale?.balance_cents ?? 0))) {
+        damageForm.setError('discount_cents', 'O desconto não pode superar o saldo a receber.');
+        return;
+    }
     damageForm.transform(data => ({
         ...data, quantity: data.target === 'plate' ? 1 : Number(data.quantity),
         production_id: data.target === 'production' ? Number(data.production_id) : null,
@@ -233,6 +251,7 @@ function saveDamage() {
         sale_id: data.target === 'plate' ? data.sale_id : null,
         plate_id: data.target === 'plate' ? data.plate_id : null,
         estimated_loss_cents: raw ? cents : null,
+        discount_cents: data.target === 'plate' ? discountCents : null,
     })).post(nfcRoute('nfc.damages.store'), {
         preserveScroll: true,
         onStart: () => { busy.value = true; },
@@ -265,14 +284,8 @@ function openSettingsAction(kind) {
         reportFrom.value = props.today.slice(0, 7) + '-01';
         reportTo.value = props.today;
     }
-    settingsOpen.value = false;
     resetConfirmation.value = '';
-    dialog.value = { kind };
-}
-function closeSettings() {
-    if (!settingsOpen.value) return;
-    settingsOpen.value = false;
-    settingsButton.value?.focus();
+    dialog.value = { kind, previous: dialog.value };
 }
 function resetWorkspace() {
     if (props.shared || !authenticatedUser.value || props.schema_pending || busy.value || resetConfirmation.value !== 'ZERAR') return;
@@ -407,7 +420,9 @@ const unitRows = computed(() => companiesShown.value.flatMap(company => {
             hasUnit: company.units.length > 0,
             productionId: unit.production_id ?? null,
             productionStatus: unit.production_status ?? null,
-            sold: sales.reduce((sum, sale) => sum + sale.plates.length, 0),
+            sold: unit.sold ?? 0,
+            defective: unit.defective ?? 0,
+            usableSold: unit.usable_sold ?? 0,
             total: sales.reduce((sum, sale) => sum + sale.total_cents, 0),
             received: sales.reduce((sum, sale) => sum + sale.paid_cents, 0),
             outstanding: sales.reduce((sum, sale) => sum + sale.balance_cents, 0),
@@ -466,13 +481,12 @@ const metricGroups = computed(() => {
             { label: 'Perda estimada', value: money(totals.estimated_loss_cents ?? 0), tone: 'text-[var(--fs-danger)]', detail: totals.unestimated_defects ? `${totals.unestimated_defects} defeito(s) sem estimativa` : 'Não descontada automaticamente da receita' },
         ] },
         { title: 'Produção', metrics: [
-            { label: 'Fabricadas', value: totals.manufactured ?? 0 },
+            { label: 'Fabricadas', value: totals.manufactured ?? 0, detail: `${totals.usable_manufactured ?? 0} aproveitáveis após avarias de fabricação` },
             { label: 'Em fabricação', value: totals.in_production ?? 0 },
-            { label: 'Em customização', value: totals.in_customization ?? 0 },
             { label: 'Com defeito', value: totals.defective ?? 0, tone: 'text-[var(--fs-danger)]' },
         ] },
         { title: 'Vendas e clientes', metrics: [
-            { label: 'Vendidas', value: totals.sold ?? 0, detail: `${totals.sold_standard ?? 0} normais · ${totals.sold_custom ?? 0} personalizadas` },
+            { label: 'Vendidas', value: totals.sold ?? 0, detail: `${totals.usable_sold ?? 0} sem defeito · ${totals.sold_defective ?? 0} com defeito` },
             { label: 'Plaquinhas pagas', value: totals.paid_plates ?? 0, detail: 'Em vendas quitadas' },
             { label: 'Empresas interessadas', value: totals.interested ?? 0 },
         ] },
@@ -487,6 +501,7 @@ const batch = computed(() => props.production.find(item => item.id === dialog.va
 const manufacturer = computed(() => props.manufacturers.find(item => item.id === dialog.value?.manufacturerId));
 
 const titles = {
+    settings: 'Configurações NFC',
     notices: 'Avisos',
     'confirm-delete': 'Confirmar ação',
     history: 'Histórico de alterações',
@@ -506,6 +521,7 @@ const title = computed(() => {
         case 'manufacturer': return manufacturer.value?.name;
         case 'manufacturer-form': return manufacturer.value ? 'Editar fabricante' : 'Novo fabricante';
         case 'company-form': return company.value ? 'Editar empresa' : 'Nova empresa';
+        case 'unit-actions': return unit.value?.name ? 'Ações · ' + unit.value.name : 'Ações da unidade';
         case 'unit': return unit.value ? 'Editar unidade' : 'Nova unidade';
         case 'sale': return sale.value ? 'Editar venda' : 'Nova venda';
         case 'batch': return batch.value ? 'Editar lote' : dialog.value.initial ? 'Registrar lote inicial' : 'Novo lote';
@@ -513,7 +529,7 @@ const title = computed(() => {
     }
 });
 
-const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído', revoked: 'Revogado' };
+const historyVerb = { created: 'Cadastrado', updated: 'Atualizado', deleted: 'Excluído', revoked: 'Revogado', images_added: 'Imagens adicionadas', image_removed: 'Imagem excluída', damage_registered: 'Avaria registrada' };
 const historyKind = { manufacturer: 'Fabricante', company: 'Empresa', notice: 'Aviso', production: 'Fabricação', initial_production: 'Lote inicial', reinvestment: 'Reinvestimento', expense: 'Despesa', damage: 'Avaria', share_link: 'Link compartilhado' };
 const datetime = text => new Date(text).toLocaleString('pt-BR');
 const deleteDescriptions = {
@@ -522,9 +538,10 @@ const deleteDescriptions = {
     sale: 'A venda, os pagamentos e as plaquinhas vinculadas serão removidos dos indicadores.',
     plate: 'A plaquinha será removida e os indicadores de vendas e defeitos serão recalculados.',
     payment: 'O pagamento será removido e o valor a receber será recalculado.',
-    batch: 'O lote será removido. Se estiver vinculado a unidades, a operação será impedida.',
+    batch: 'O lote será removido. Se estiver vinculado a unidades ou avarias, a operação será impedida.',
     manufacturer: 'O fabricante e suas imagens serão removidos. Lotes vinculados podem impedir a exclusão.',
     image: 'Esta imagem será removida permanentemente da galeria do fabricante.',
+    'unit-image': 'Esta imagem será removida da galeria desta unidade.',
     notice: 'O aviso será excluído da lista de pendências.',
     reinvestment: 'Esta retirada será removida e o dinheiro voltará a aparecer no saldo disponível do caixa NFC.',
     expense: 'Esta despesa será removida e o valor retornará ao saldo disponível do caixa.',
@@ -549,6 +566,7 @@ function confirmDestroy() {
         batch: ['nfc.production.destroy', { production: context.batchId }],
         manufacturer: ['nfc.manufacturers.destroy', { manufacturer: context.manufacturerId }],
         image: ['nfc.manufacturers.images.destroy', { manufacturer: context.manufacturerId, image: context.imageId }],
+        'unit-image': ['nfc.units.images.destroy', { company: context.companyId, unit: context.unitId, image: context.imageId }],
         notice: ['nfc.notices.destroy', { notice: context.noticeId }],
         reinvestment: ['nfc.reinvestments.destroy', { reinvestment: context.reinvestmentId }],
         expense: ['nfc.expenses.destroy', { expense: context.expenseId }],
@@ -572,6 +590,21 @@ function confirmDestroy() {
 
 function showCompany(companyId, saleId = null) {
     dialog.value = { kind: 'company', companyId, saleId, previous: dialog.value?.kind === 'notices' ? dialog.value : null };
+}
+
+function openUnitActions(context) {
+    if (busy.value || dialog.value?.kind !== 'company' || !Object.values(props.permissions).some(Boolean)) return;
+    dialog.value = { kind: 'unit-actions', ...context, previous: { ...dialog.value, unitId: context.unitId } };
+}
+
+function chooseUnitAction(action) {
+    if (busy.value || dialog.value?.kind !== 'unit-actions' || !unit.value) return;
+    const permission = { edit: 'update', sale: 'create', delete: 'delete' }[action];
+    if (!permission || !props.permissions[permission]) return;
+    const { companyId, unitId, previous } = dialog.value;
+    dialog.value = previous;
+    if (action === 'delete') destroy('unit', { companyId, unitId });
+    else edit(action === 'edit' ? 'unit' : 'sale', { companyId, unitId });
 }
 
 function edit(kind, context = {}) {
@@ -612,11 +645,11 @@ function closeDialog() {
 }
 
 watch(() => props.created_share_url, value => {
-    if (value && !props.shared && props.share_links_enabled && authenticatedUser.value) dialog.value = { kind: 'share' };
+    if (value && !props.shared && props.share_links_enabled && authenticatedUser.value && dialog.value?.kind !== 'share') dialog.value = { kind: 'share' };
 }, { immediate: true });
 
-watch(dialog, async (current, previous) => {
-    if (!current || !previous) return;
+watch(dialog, async (current) => {
+    if (!current) return;
     await nextTick();
     dialogHeading.value?.focus();
 });
@@ -625,7 +658,7 @@ watch(dialog, async (current, previous) => {
 <template>
     <component :is="shared ? NfcSharedLayout : AuthenticatedLayout">
         <Head title="Plaquinhas NFC" />
-        <div v-if="feedback" class="fixed bottom-4 left-4 right-4 z-[90] mx-auto w-[calc(100%-2rem)] max-w-sm rounded-xl border p-3 shadow-lg sm:bottom-6 sm:left-auto sm:right-6 sm:mx-0"
+        <div v-if="feedback && !dialog" class="fixed bottom-4 left-4 right-4 z-[90] mx-auto w-[calc(100%-2rem)] max-w-sm rounded-xl border p-3 shadow-lg sm:bottom-6 sm:left-auto sm:right-6 sm:mx-0"
             :class="feedback.type === 'error' ? 'nfc-feedback-error' : 'nfc-feedback-success'"
             :role="feedback.type === 'error' ? 'alert' : 'status'" aria-live="polite">
             <div class="flex items-start gap-2">
@@ -640,15 +673,7 @@ watch(dialog, async (current, previous) => {
             <header class="flex flex-wrap items-center justify-between gap-3">
                 <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Plaquinhas NFC <span v-if="read_only" class="nfc-muted block text-xs font-medium">Acesso somente para consulta</span></h1>
                 <div v-if="!schema_pending" class="flex flex-wrap items-center gap-2">
-                    <div v-if="!shared && authenticatedUser" class="relative" @keydown.esc.stop="closeSettings" @focusout="event => { if (!event.currentTarget.contains(event.relatedTarget)) settingsOpen = false; }">
-                        <button ref="settingsButton" type="button" class="nfc-button nfc-icon-button" aria-label="Configurações NFC" :aria-expanded="settingsOpen" aria-controls="nfc-owner-settings" @click="settingsOpen = !settingsOpen"><EllipsisVertical :size="19" aria-hidden="true" /></button>
-                        <button v-if="settingsOpen" type="button" class="fixed inset-0 z-[95] cursor-default bg-transparent sm:hidden" aria-label="Fechar menu de configurações" @click="closeSettings"></button>
-                        <div v-if="settingsOpen" id="nfc-owner-settings" class="nfc-panel fixed inset-x-4 bottom-4 z-[100] flex max-h-[70dvh] min-w-0 flex-col gap-1 overflow-y-auto p-2 shadow-xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:z-30 sm:mt-2 sm:w-48 sm:p-1 sm:shadow-lg">
-                            <button type="button" class="nfc-button w-full justify-start" @click="openSettingsAction('share')"><Share2 :size="16" aria-hidden="true" /> Compartilhar</button>
-                            <button type="button" class="nfc-button w-full justify-start" :disabled="schema_pending" @click="openSettingsAction('report')"><FileDown :size="16" aria-hidden="true" /> Exportar PDF</button>
-                            <button type="button" class="nfc-button nfc-danger w-full justify-start" :disabled="schema_pending || busy || shareBusy" @click="openSettingsAction('reset')"><Trash2 :size="16" aria-hidden="true" /> Zerar</button>
-                        </div>
-                    </div>
+                    <button v-if="!shared && authenticatedUser" type="button" class="nfc-button nfc-icon-button" aria-label="Configurações NFC" title="Configurações NFC" aria-haspopup="dialog" @click="dialog = { kind: 'settings' }"><EllipsisVertical :size="19" aria-hidden="true" /></button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="hiddenValues ? 'Mostrar valores' : 'Ocultar valores'" :aria-pressed="hiddenValues" @click="togglePrivacy"><EyeOff v-if="hiddenValues" :size="18" aria-hidden="true" /><Eye v-else :size="18" aria-hidden="true" /></button>
                     <button v-if="!shared" type="button" class="nfc-button" @click="dialog = { kind: 'history' }"><History :size="17" aria-hidden="true" /> Histórico</button>
                     <button type="button" class="nfc-button nfc-icon-button" :aria-label="`Avisos (${noticeCount})`" @click="dialog = { kind: 'notices' }">
@@ -762,7 +787,7 @@ watch(dialog, async (current, previous) => {
                                 <li v-for="entry in expenses" :key="entry.id" class="nfc-panel flex flex-wrap items-center justify-between gap-2 p-3">
                                     <div class="min-w-0 flex-1">
                                         <p class="break-words text-sm font-medium">{{ entry.description }}</p>
-                                        <p class="nfc-muted text-xs">{{ date(entry.spent_on) }} · {{ expenseCategories[entry.category] || entry.category }}<span v-if="entry.production_id"> · Lote #{{ entry.production_id }}</span><span v-if="entry.damage_id"> · Avaria #{{ entry.damage_id }}</span></p>
+                                        <p class="nfc-muted text-xs">{{ date(entry.spent_on) }} · {{ expenseCategories[entry.category] || entry.category }}<span v-if="entry.production_id"> · Lote #{{ entry.production_id }}</span><span v-if="entry.damage_id"> · Avaria #{{ entry.damage_id }}</span><span v-if="entry.damage_missing || entry.production_missing"> · Vínculo excluído; despesa mantida no caixa</span></p>
                                     </div>
                                     <strong class="text-sm tabular-nums text-[var(--fs-warning)]">{{ money(entry.amount_cents) }}</strong>
                                     <button v-if="!shared && permissions.delete" type="button" class="nfc-button nfc-icon-button nfc-danger" :aria-label="'Excluir despesa: ' + entry.description" @click="destroy('expense', { expenseId: entry.id })"><Trash2 :size="16" aria-hidden="true" /></button>
@@ -809,7 +834,7 @@ watch(dialog, async (current, previous) => {
                     </section>
                 </section>
                 <section v-show="activeDashboardTab === 'evolution'" id="nfc-dashboard-panel-evolution" role="tabpanel" aria-labelledby="nfc-dashboard-tab-evolution" tabindex="0" class="min-w-0">
-                    <PerformanceChart :hidden-values="hiddenValues" :companies="companies" :production="production" :today="today" />
+                    <PerformanceChart :hidden-values="hiddenValues" :companies="companies" :production="production" :damages="damages" :today="today" />
                 </section>
                 <section v-show="activeDashboardTab === 'registry'" id="nfc-dashboard-panel-registry" role="tabpanel" aria-labelledby="nfc-dashboard-tab-registry" tabindex="0" class="flex min-w-0 flex-col gap-3">
             <div role="tablist" aria-label="Tipos de cadastro"
@@ -863,13 +888,13 @@ watch(dialog, async (current, previous) => {
                             </button>
                             <div class="nfc-rule border-t px-3 pb-3 pt-2">
                                 <div class="grid grid-cols-3 gap-2 text-xs">
-                                    <div class="min-w-0"><span class="nfc-muted block">Vendidas</span><strong class="tabular-nums">{{ company.sales.reduce((sum, sale) => sum + sale.plates.length, 0) }}</strong></div>
+                                    <div class="min-w-0"><span class="nfc-muted block">Vendidas</span><strong class="tabular-nums">{{ company.sold }}</strong></div>
                                     <div class="min-w-0"><span class="nfc-muted block">Recebido</span><strong class="tabular-nums">{{ money(company.sales.reduce((sum, sale) => sum + sale.paid_cents, 0)) }}</strong></div>
                                     <div class="min-w-0"><span class="nfc-muted block">A receber</span><strong class="tabular-nums" :class="company.sales.some(sale => sale.balance_cents > 0) ? 'text-[var(--fs-warning)]' : ''">{{ money(company.sales.reduce((sum, sale) => sum + sale.balance_cents, 0)) }}</strong></div>
                                 </div>
                                 <div class="mt-2 flex flex-wrap gap-1.5" aria-label="Unidades da empresa">
                                     <span v-if="!company.units.length" class="nfc-badge nfc-neutral">Sem unidade</span>
-                                    <span v-for="unit in company.units" :key="unit.id" class="nfc-badge nfc-neutral">{{ unit.name }}</span>
+                                    <span v-for="unit in company.units" :key="unit.id" class="nfc-badge nfc-neutral">{{ unit.name }} · {{ unit.sold ?? 0 }} vendida(s) · {{ unit.usable_sold ?? 0 }} sem defeito</span>
                                 </div>
                             </div>
                         </li>
@@ -884,7 +909,7 @@ watch(dialog, async (current, previous) => {
                                     <td class="px-4 py-3"><button type="button" class="font-semibold underline-offset-2 hover:underline" @click="showCompany(row.companyId)">{{ row.companyName }}</button><p class="nfc-muted text-xs">{{ row.identifier || '—' }}</p></td>
                                     <td class="px-3 py-3">{{ row.unitName }}</td>
                                     <td class="px-3 py-3"><span :class="row.productionStatus === 'in_progress' ? 'nfc-warning' : row.productionStatus ? 'nfc-success' : 'nfc-neutral'" class="nfc-badge">{{ !row.hasUnit ? 'Sem unidade' : row.productionStatus === 'in_progress' ? 'Em fabricação' : row.productionStatus ? 'Fabricado' : 'Sem lote' }}</span><span v-if="row.productionId" class="nfc-muted block text-xs">Lote #{{ row.productionId }}</span></td>
-                                    <td class="px-3 py-3 text-right tabular-nums">{{ row.sold }}</td>
+                                    <td class="px-3 py-3 text-right tabular-nums">{{ row.sold }}<span v-if="row.defective" class="nfc-muted block text-xs">{{ row.usableSold }} sem defeito · {{ row.defective }} avaria(s)</span></td>
                                     <td class="px-3 py-3 text-right tabular-nums">{{ money(row.total) }}</td>
                                     <td class="px-3 py-3 text-right tabular-nums">{{ money(row.received) }}</td>
                                     <td class="px-4 py-3 text-right font-semibold tabular-nums">{{ money(row.outstanding) }}</td>
@@ -914,6 +939,7 @@ watch(dialog, async (current, previous) => {
                             <p class="text-sm font-semibold">{{ item.initial ? 'Lote inicial' : item.produced_on ? date(item.produced_on) : 'Lote sem data' }} · {{ item.quantity }} plaquinhas</p>
                             <span class="nfc-badge" :class="item.status === 'in_progress' ? 'nfc-warning' : 'nfc-success'">{{ item.status === 'in_progress' ? 'Em fabricação' : 'Fabricado' }}</span>
                             <p class="nfc-muted text-sm">{{ item.customized_quantity === null ? 'Tipos a informar' : `${item.quantity - item.customized_quantity} normais · ${item.customized_quantity} personalizadas` }}</p>
+                            <p class="nfc-muted text-xs">{{ item.usable_quantity }} aproveitáveis · {{ item.damaged_quantity }} com defeito</p>
                             <p v-if="item.linkedUnits.length" class="nfc-muted mt-1 break-words text-xs">Vinculado a: {{ item.linkedUnits.join('; ') }}</p>
                         </div>
                         <span class="nfc-muted text-sm tabular-nums">{{ item.cost_cents === null ? 'Custo a informar' : money(item.cost_cents) }}</span>
@@ -953,7 +979,7 @@ watch(dialog, async (current, previous) => {
             </template>
         </div>
 
-        <Modal class="nfc-dialog" :show="dialog !== null" labelled-by="nfc-dialog-heading" :closeable="!busy" @close="closeDialog">
+        <Modal class="nfc-dialog" :class="{ 'nfc-settings-dialog': ['settings', 'unit-actions'].includes(dialog?.kind) }" :max-width="['settings', 'unit-actions'].includes(dialog?.kind) ? 'sm' : '2xl'" :show="dialog !== null" labelled-by="nfc-dialog-heading" :closeable="!busy" @close="closeDialog">
             <section v-if="dialog" class="nfc-dialog-content flex min-w-0 flex-col gap-4 p-4 sm:gap-5 sm:p-6">
                 <header class="flex min-w-0 items-start gap-2">
                     <button v-if="dialog.previous" type="button" class="nfc-button nfc-icon-button shrink-0" aria-label="Voltar" :disabled="busy" @click="goBack"><ArrowLeft :size="18" aria-hidden="true" /></button>
@@ -961,7 +987,23 @@ watch(dialog, async (current, previous) => {
                     <button type="button" class="nfc-button nfc-icon-button shrink-0" aria-label="Fechar" :disabled="busy" @click="closeDialog"><X :size="18" aria-hidden="true" /></button>
                 </header>
 
-                <CompanyDetails v-if="dialog.kind === 'company' && company" :company="company" :permissions="permissions" :hidden-values="hiddenValues" :highlight-sale-id="dialog.saleId" @edit="edit" @destroy="destroy" />
+                <div v-if="feedback" class="rounded-xl border p-3 text-sm" :class="feedback.type === 'error' ? 'nfc-feedback-error' : 'nfc-feedback-success'" :role="feedback.type === 'error' ? 'alert' : 'status'" aria-live="polite">
+                    <div class="flex items-start gap-2">
+                        <p class="min-w-0 flex-1 break-words font-medium">{{ feedback.message }}</p>
+                        <button type="button" class="shrink-0 rounded-md p-1" aria-label="Fechar mensagem" @click="feedback = null"><X :size="16" aria-hidden="true" /></button>
+                    </div>
+                </div>
+                <div v-if="dialog.kind === 'settings'" class="flex min-w-0 flex-col gap-2">
+                    <button type="button" class="nfc-button w-full justify-start" @click="openSettingsAction('share')"><Share2 :size="16" aria-hidden="true" /> Compartilhar</button>
+                    <button type="button" class="nfc-button w-full justify-start" :disabled="schema_pending" @click="openSettingsAction('report')"><FileDown :size="16" aria-hidden="true" /> Exportar PDF</button>
+                    <button type="button" class="nfc-button nfc-danger w-full justify-start" :disabled="schema_pending || busy || shareBusy" @click="openSettingsAction('reset')"><Trash2 :size="16" aria-hidden="true" /> Zerar cadastros</button>
+                </div>
+                <div v-else-if="dialog.kind === 'unit-actions' && unit" class="flex min-w-0 flex-col gap-2">
+                    <button v-if="permissions.update" type="button" class="nfc-button w-full justify-start" @click="chooseUnitAction('edit')"><Pencil :size="16" aria-hidden="true" /> Editar unidade</button>
+                    <button v-if="permissions.create" type="button" class="nfc-button w-full justify-start" @click="chooseUnitAction('sale')"><Plus :size="16" aria-hidden="true" /> Nova venda nesta unidade</button>
+                    <button v-if="permissions.delete" type="button" class="nfc-button nfc-danger w-full justify-start" @click="chooseUnitAction('delete')"><Trash2 :size="16" aria-hidden="true" /> Excluir unidade</button>
+                </div>
+                <CompanyDetails v-else-if="dialog.kind === 'company' && company" :company="company" :permissions="permissions" :hidden-values="hiddenValues" :highlight-sale-id="dialog.saleId" :highlight-unit-id="dialog.unitId" :nfc-route="nfcRoute" @unit-actions="openUnitActions" @edit="edit" @destroy="destroy" @busy="busy = $event" @feedback="notify" />
                 <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :permissions="permissions" :hidden-values="hiddenValues" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
                 <div v-else-if="dialog.kind === 'confirm-delete'" class="flex min-w-0 flex-col gap-4">
                     <p class="text-sm leading-6">{{ deleteDescriptions[dialog.deleteKind] }}</p>
@@ -972,51 +1014,57 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </div>
                 <form v-else-if="dialog.kind === 'damage'" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveDamage">
-                    <label class="nfc-field">Onde ocorreu a avaria?
-                        <select v-model="damageForm.target" class="nfc-control" :disabled="busy">
+                    <p class="nfc-muted text-xs"><span class="text-[var(--fs-danger)]" aria-hidden="true">*</span> Campos obrigatórios</p>
+                    <label class="nfc-field"><span>Onde ocorreu a avaria? <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
+                        <select v-model="damageForm.target" class="nfc-control" :disabled="busy" required>
                             <option value="production">Em um lote de fabricação</option>
                             <option value="plate">Em uma plaquinha já cadastrada</option>
                         </select>
                     </label>
-                    <label v-if="damageForm.target === 'production'" class="nfc-field">Lote de fabricação
+                    <label v-if="damageForm.target === 'production'" class="nfc-field"><span>Lote de fabricação <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <select v-model="damageForm.production_id" class="nfc-control" required :disabled="busy">
                             <option value="" disabled>Selecione o lote</option>
-                            <option v-for="item in production" :key="item.id" :value="item.id">Lote #{{ item.id }} · {{ item.quantity }} unidades</option>
+                            <option v-for="item in production" :key="item.id" :value="item.id">Lote #{{ item.id }} · {{ item.usable_quantity }} de {{ item.quantity }} sem avaria</option>
                         </select>
                     </label>
                     <template v-else>
-                        <label class="nfc-field">Empresa
+                        <label class="nfc-field"><span>Empresa <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                             <select v-model="damageForm.company_id" class="nfc-control" required :disabled="busy" @change="damageForm.sale_id = ''; damageForm.plate_id = ''">
                                 <option value="" disabled>Selecione a empresa</option>
                                 <option v-for="item in damageCompanies" :key="item.id" :value="item.id">{{ item.name }}</option>
                             </select>
                         </label>
-                        <label class="nfc-field">Venda
+                        <label class="nfc-field"><span>Venda <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                             <select v-model="damageForm.sale_id" class="nfc-control" required :disabled="busy" @change="damageForm.plate_id = ''">
                                 <option value="" disabled>Selecione a venda</option>
-                                <option v-for="item in damageSales" :key="item.id" :value="item.id">{{ date(item.sold_on) }} · {{ item.plates.length }} plaquinhas</option>
+                                <option v-for="item in damageSales" :key="item.id" :value="item.id">{{ damageCompany?.units.find(unit => unit.id === item.unit_id)?.name ?? 'Unidade' }} · {{ date(item.sold_on) }} · {{ item.plates.length }} plaquinhas</option>
                             </select>
                         </label>
-                        <label class="nfc-field">Plaquinha
+                        <label class="nfc-field"><span>Plaquinha <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                             <select v-model="damageForm.plate_id" class="nfc-control" required :disabled="busy">
                                 <option value="" disabled>Selecione a plaquinha</option>
                                 <option v-for="item in damagePlates" :key="item.id" :value="item.id">{{ item.label || (item.type === 'custom' ? 'Personalizada' : 'Normal') }}</option>
                             </select>
                         </label>
                     </template>
-                    <label v-if="damageForm.target === 'production'" class="nfc-field">Quantidade com defeito
-                        <input v-model.number="damageForm.quantity" type="number" min="1" max="10000" class="nfc-control" required :disabled="busy" />
+                    <label v-if="damageForm.target === 'production'" class="nfc-field"><span>Quantidade com defeito <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
+                        <input v-model.number="damageForm.quantity" type="number" min="1" :max="Math.min(10000, damageBatch?.usable_quantity ?? 0)" class="nfc-control" required :disabled="busy" />
                     </label>
-                    <label class="nfc-field">Data da avaria
+                    <label class="nfc-field"><span>Data da avaria <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model="damageForm.occurred_on" type="date" :max="today" class="nfc-control" required :disabled="busy" />
                     </label>
-                    <label class="nfc-field">Descrição do defeito
+                    <label class="nfc-field"><span>Descrição do defeito <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model.trim="damageForm.reason" maxlength="160" class="nfc-control" required placeholder="Ex.: NFC não funciona, arte danificada" :disabled="busy" />
                     </label>
                     <label class="nfc-field">Possível prejuízo total (R$, opcional)
-                        <input v-model.trim="damageAmount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" class="nfc-control" placeholder="Ex.: 15,00" :disabled="busy" />
+                        <input v-model.trim="damageAmount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" class="nfc-control" placeholder="Automático: R$ 25 por unidade" :disabled="busy" />
+                        <span class="nfc-muted text-xs">Se deixar vazio: {{ money(2500 * (damageForm.target === 'plate' ? 1 : Math.max(0, Number(damageForm.quantity) || 0))) }} de perda estimada. Informe outro valor total se necessário.</span>
                     </label>
-                    <p class="nfc-muted text-xs">Não altera automaticamente o caixa ou os custos já lançados. Informe apenas a perda estimada, sem duplicar custos.</p>
+                    <label v-if="damageForm.target === 'plate'" class="nfc-field">Abatimento no saldo da venda (R$, opcional)
+                        <input v-model.trim="damageDiscount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" class="nfc-control" placeholder="0,00" :disabled="busy" />
+                        <span class="nfc-muted text-xs">Saldo atual: {{ money(damageSales.find(sale => sale.id === damageForm.sale_id)?.balance_cents ?? 0) }}. Use somente se o cliente realmente receber desconto.</span>
+                    </label>
+                    <p class="nfc-muted text-xs">A avaria reduz a quantidade aproveitável. Só o abatimento informado reduz o valor da venda. Pagamentos registrados permanecem intactos; não duplique custos na estimativa de perda.</p>
                     <p v-for="(error, field) in damageForm.errors" :key="field" class="text-xs text-[var(--fs-danger)]" role="alert">{{ error }}</p>
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
                         <button type="button" class="nfc-button" :disabled="busy" @click="closeDialog">Cancelar</button>
@@ -1024,19 +1072,20 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </form>
                 <form v-else-if="dialog.kind === 'expense' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveExpense">
+                    <p class="nfc-muted text-xs"><span class="text-[var(--fs-danger)]" aria-hidden="true">*</span> Campos obrigatórios</p>
                     <p class="nfc-muted text-sm">Registre gastos efetivamente pagos com o dinheiro recebido, como fita dupla face, tesoura e reposições por avaria.</p>
-                    <label class="nfc-field">Tipo de despesa
-                        <select v-model="expenseForm.category" class="nfc-control" :disabled="busy" @change="expenseForm.category !== 'rework' && (expenseForm.damage_id = '')">
+                    <label class="nfc-field"><span>Tipo de despesa <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
+                        <select v-model="expenseForm.category" class="nfc-control" :disabled="busy" @change="expenseForm.category !== 'rework' && (expenseForm.damage_id = '')" required>
                             <option v-for="(label, key) in expenseCategories" :key="key" :value="key">{{ label }}</option>
                         </select>
                     </label>
-                    <label class="nfc-field">Descrição
+                    <label class="nfc-field"><span>Descrição <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model.trim="expenseForm.description" class="nfc-control" maxlength="160" required placeholder="Ex.: Fita dupla face para novas plaquinhas" :disabled="busy" />
                     </label>
-                    <label class="nfc-field">Valor gasto (R$)
+                    <label class="nfc-field"><span>Valor gasto (R$) <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model.trim="expenseAmount" :type="hiddenValues ? 'password' : 'text'" class="nfc-control" inputmode="decimal" placeholder="Ex.: 12,50" required :disabled="busy" />
                     </label>
-                    <label class="nfc-field">Data
+                    <label class="nfc-field"><span>Data <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model="expenseForm.spent_on" type="date" :max="today" class="nfc-control" required :disabled="busy" />
                     </label>
                     <label class="nfc-field">Lote relacionado (opcional)
@@ -1059,16 +1108,17 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </form>
                 <form v-else-if="dialog.kind === 'reinvestment' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveReinvestment">
+                    <p class="nfc-muted text-xs"><span class="text-[var(--fs-danger)]" aria-hidden="true">*</span> Campos obrigatórios</p>
                     <p class="nfc-muted text-sm">Registre o dinheiro que saiu do caixa das vendas para fabricar novas plaquinhas. Não é aporte nem um segundo custo de fabricação.</p>
-                    <label class="nfc-field">Valor retirado (R$)
+                    <label class="nfc-field"><span>Valor retirado (R$) <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model.trim="reinvestmentAmount" :type="hiddenValues ? 'password' : 'text'" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" class="nfc-control" required placeholder="Ex.: 75,50" autocomplete="off" :disabled="reinvestmentForm.processing" />
                         <span v-if="reinvestmentForm.errors.amount_cents" role="alert" class="text-xs text-[var(--fs-danger)]">{{ reinvestmentForm.errors.amount_cents }}</span>
                     </label>
-                    <label class="nfc-field">Data da retirada
+                    <label class="nfc-field"><span>Data da retirada <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model="reinvestmentForm.spent_on" type="date" class="nfc-control" required :max="today" :disabled="reinvestmentForm.processing" />
                         <span v-if="reinvestmentForm.errors.spent_on" role="alert" class="text-xs text-[var(--fs-danger)]">{{ reinvestmentForm.errors.spent_on }}</span>
                     </label>
-                    <label class="nfc-field">Para que foi utilizado?
+                    <label class="nfc-field"><span>Para que foi utilizado? <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model.trim="reinvestmentForm.description" type="text" maxlength="160" class="nfc-control" required placeholder="Ex.: Produção personalizada para loja" :disabled="reinvestmentForm.processing" />
                         <span v-if="reinvestmentForm.errors.description" role="alert" class="text-xs text-[var(--fs-danger)]">{{ reinvestmentForm.errors.description }}</span>
                     </label>
@@ -1089,18 +1139,18 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </form>
                 <div v-else-if="dialog.kind === 'report' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
-                    <p class="nfc-muted text-sm">Escolha o período e os indicadores. O arquivo contém somente dados do seu plugin NFC.</p>
+                    <p class="nfc-muted text-sm">Escolha o período e ao menos um indicador. O arquivo contém somente dados do seu plugin NFC.</p>
                     <label class="nfc-field">Nome do relatório / arquivo (opcional)
                         <input v-model.trim="reportName" type="text" class="nfc-control" maxlength="80" placeholder="Ex.: Vendas NFC - Novembro 2026" autocomplete="off" />
                         <span class="nfc-muted text-xs font-normal">Será usado como título do PDF e nome do arquivo baixado. Se ficar vazio, o nome será automático.</span>
                         <span v-if="reportName && !/^[\p{L}\p{N}\s._-]*$/u.test(reportName)" class="text-xs text-[var(--fs-danger)]">Use apenas letras, números, espaços, ponto, hífen ou sublinhado.</span>
                     </label>
                     <div class="grid gap-3 sm:grid-cols-2">
-                        <label class="nfc-field">Data inicial<input v-model="reportFrom" type="date" class="nfc-control" :max="reportTo || undefined" /></label>
-                        <label class="nfc-field">Data final<input v-model="reportTo" type="date" class="nfc-control" :min="reportFrom || undefined" /></label>
+                        <label class="nfc-field"><span>Data inicial <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span><input v-model="reportFrom" type="date" class="nfc-control" :max="reportTo || undefined" required /></label>
+                        <label class="nfc-field"><span>Data final <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span><input v-model="reportTo" type="date" class="nfc-control" :min="reportFrom || undefined" required /></label>
                     </div>
                     <fieldset class="nfc-panel flex flex-col gap-3 p-3">
-                        <legend class="px-1 text-sm font-semibold">Indicadores do relatório</legend>
+                        <legend class="px-1 text-sm font-semibold">Indicadores do relatório <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></legend>
                         <div class="flex flex-wrap gap-2">
                             <button type="button" class="nfc-button text-xs" @click="reportMetrics = reportOptions.map(item => item.key)">Selecionar todos</button>
                             <button type="button" class="nfc-button text-xs" @click="reportMetrics = []">Limpar seleção</button>
@@ -1120,10 +1170,11 @@ watch(dialog, async (current, previous) => {
                     </div>
                 </div>
                 <form v-else-if="dialog.kind === 'reset' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4" @submit.prevent="resetWorkspace">
+                    <p class="nfc-muted text-xs"><span class="text-[var(--fs-danger)]" aria-hidden="true">*</span> Campos obrigatórios</p>
                     <p class="text-sm leading-6">Esta ação excluirá permanentemente todas as empresas, unidades, fabricantes, lotes, vendas, plaquinhas, pagamentos, reinvestimentos, despesas, avarias, avisos, imagens e histórico da sua área NFC.</p>
                     <p class="nfc-muted text-sm">Os links de acesso e os dados dos demais módulos do FinanSys serão preservados. Esta ação não pode ser desfeita.</p>
-                    <label class="nfc-field">Digite ZERAR para confirmar
-                        <input v-model="resetConfirmation" class="nfc-control" type="text" autocomplete="off" :disabled="busy" />
+                    <label class="nfc-field"><span>Digite ZERAR para confirmar <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
+                        <input v-model="resetConfirmation" class="nfc-control" type="text" autocomplete="off" :disabled="busy" required />
                     </label>
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
                         <button type="button" class="nfc-button" :disabled="busy" @click="closeDialog">Cancelar</button>
@@ -1133,8 +1184,8 @@ watch(dialog, async (current, previous) => {
                 <div v-else-if="dialog.kind === 'share' && !shared && authenticatedUser" class="flex min-w-0 flex-col gap-4">
                     <p v-if="!share_links_enabled" class="nfc-warning rounded-lg p-3 text-sm">Aplique a migration de permissões dos links NFC para habilitar a emissão e edição de links.</p>
                     <p class="nfc-muted text-sm">Links válidos por sete dias. Escolha as operações permitidas. Cada link mantém sua própria configuração.</p>
-                    <label class="nfc-field">Permissão do link
-                        <select v-model="shareScope" class="nfc-control" :disabled="shareBusy || !share_links_enabled"><option v-for="option in scopeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
+                    <label class="nfc-field"><span>Permissão do link <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
+                        <select v-model="shareScope" class="nfc-control" :disabled="shareBusy || !share_links_enabled" required><option v-for="option in scopeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
                     </label>
                     <button type="button" class="nfc-button nfc-primary self-start" :disabled="shareBusy || !share_links_enabled" @click="createShare">Gerar novo link</button>
                     <div v-if="created_share_url" class="nfc-panel flex min-w-0 flex-col gap-2 p-3">
@@ -1153,29 +1204,30 @@ watch(dialog, async (current, previous) => {
                                 <span v-else-if="new Date(link.expires_at) <= new Date()" class="nfc-badge nfc-warning">Expirado</span>
                                 <span v-else class="nfc-badge nfc-success">Ativo</span>
                             </div>
-                            <label v-if="!link.revoked_at && new Date(link.expires_at) > new Date() && share_links_enabled" class="nfc-field">Permissões<select class="nfc-control" :value="link.scope === 'edit' ? 'cud' : link.scope" :disabled="shareBusy" @change="updateShare(link, $event.target.value)"><option v-for="option in scopeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
+                            <label v-if="!link.revoked_at && new Date(link.expires_at) > new Date() && share_links_enabled" class="nfc-field"><span>Permissões <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span><select class="nfc-control" :value="link.scope === 'edit' ? 'cud' : link.scope" :disabled="shareBusy" @change="updateShare(link, $event.target.value)"><option v-for="option in scopeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
                             <button v-if="!link.revoked_at" type="button" class="nfc-button nfc-danger" :disabled="shareBusy" @click="revokeShare(link)">Revogar</button>
                         </li>
                     </ul>
                     <p v-if="!share_links.length" class="nfc-muted text-sm">Nenhum link emitido.</p>
                 </div>
-                <div v-else-if="dialog.kind === 'history'" class="flex max-h-[65dvh] min-w-0 flex-col gap-3 overflow-y-auto">
+                <div v-else-if="dialog.kind === 'history'" class="flex min-w-0 flex-col gap-3">
                     <p class="nfc-muted text-sm">Últimos {{ history.length }} eventos. Criações, edições, resoluções e exclusões são registradas no módulo NFC.</p>
                     <ul class="flex flex-col gap-2">
                         <li v-for="entry in history" :key="entry.id" class="nfc-panel p-3 text-sm">
                             <p class="font-semibold">{{ historyVerb[entry.event] || entry.event }} · {{ historyKind[entry.target_kind] || entry.target_kind }} #{{ entry.target_id }}</p>
                             <p v-if="entry.label" class="min-w-0 break-words">{{ entry.label }}</p>
+                            <p v-if="entry.context?.plate_id" class="nfc-muted text-xs break-all">Plaquinha: {{ entry.context.plate_id }}</p>
                             <p class="nfc-muted text-xs">{{ entry.actor }} · {{ datetime(entry.occurred_at) }}</p>
                             <details v-if="!hiddenValues" class="nfc-history-details mt-2 rounded-lg p-2">
                                 <summary class="cursor-pointer text-xs font-medium">Detalhes técnicos da alteração</summary>
                                 <dl class="mt-2 grid gap-2 sm:grid-cols-2">
                                     <div v-if="entry.before != null" class="min-w-0">
                                         <dt class="nfc-muted mb-1 text-xs font-semibold">Antes</dt>
-                                        <dd class="nfc-history-code max-h-44 overflow-auto rounded-md p-2 text-xs"><pre class="whitespace-pre-wrap break-all">{{ JSON.stringify(entry.before, null, 2) }}</pre></dd>
+                                        <dd class="nfc-history-code nfc-scrollbar max-h-44 overflow-auto rounded-md p-2 text-xs"><pre class="whitespace-pre-wrap break-all">{{ JSON.stringify(entry.before, null, 2) }}</pre></dd>
                                     </div>
                                     <div v-if="entry.after != null" class="min-w-0">
                                         <dt class="nfc-muted mb-1 text-xs font-semibold">Depois</dt>
-                                        <dd class="nfc-history-code max-h-44 overflow-auto rounded-md p-2 text-xs"><pre class="whitespace-pre-wrap break-all">{{ JSON.stringify(entry.after, null, 2) }}</pre></dd>
+                                        <dd class="nfc-history-code nfc-scrollbar max-h-44 overflow-auto rounded-md p-2 text-xs"><pre class="whitespace-pre-wrap break-all">{{ JSON.stringify(entry.after, null, 2) }}</pre></dd>
                                     </div>
                                 </dl>
                             </details>

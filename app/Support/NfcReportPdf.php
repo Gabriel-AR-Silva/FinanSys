@@ -9,7 +9,7 @@ class NfcReportPdf
         'received' => 'Recebido',
         'pending' => 'Saldo a receber',
         'cost' => 'Custo de fabricação informado',
-        'loss' => 'Perdas estimadas informadas',
+        'loss' => 'Perdas estimadas',
         'result' => 'Diferença entre vendas e custos',
         'sold' => 'Plaquinhas vendidas',
         'manufactured' => 'Plaquinhas fabricadas',
@@ -307,7 +307,14 @@ class NfcReportPdf
             $notes[] = 'Fabricação: '.$report['undatedBatches'].' lote(s) sem data; '.$report['unknownCosts'].' sem custo no período.';
         }
         if (in_array('loss', $metrics, true)) {
-            $notes[] = 'Perdas: estimativas por data da venda; '.$report['unknownLosses'].' defeito(s) sem valor.';
+            $notes[] = 'Perdas: R$ 25,00 por unidade quando não houver outro valor informado.';
+            $notes[] = 'Data da avaria; defeitos antigos sem data usam a data da venda. Não é saída de caixa.';
+        }
+        if (in_array('sold', $metrics, true)) {
+            $notes[] = 'Vendas do período: '.($report['usableSold'] ?? $values['sold']).' unidade(s) atualmente sem defeito.';
+        }
+        if (in_array('manufactured', $metrics, true)) {
+            $notes[] = 'Fabricação do período: '.($report['usableManufactured'] ?? $values['manufactured']).' unidade(s) atualmente aproveitáveis.';
         }
         if (in_array('result', $metrics, true)) {
             $notes[] = 'Diferença = vendas menos custos de lotes; margem = diferença / vendas.';
