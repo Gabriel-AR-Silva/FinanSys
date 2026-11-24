@@ -142,6 +142,37 @@ class ManageNfcRecords
         });
     }
 
+    public function attachUnitImages(User $user, int $company, string $unit, array $images): void
+    {
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($unit, $images): array {
+            $index = $this->indexOrFail($payload['units'], $unit);
+            $existing = $payload['units'][$index]['images'] ?? [];
+            if (count($existing) + count($images) > 10) {
+                throw ValidationException::withMessages(['images' => 'Cada unidade aceita no máximo 10 imagens.']);
+            }
+            $payload['units'][$index]['images'] = [...$existing, ...$images];
+
+            return $payload;
+        }, 'images_added', ['unit_id' => $unit]);
+    }
+
+    public function removeUnitImage(User $user, int $company, string $unit, string $image): string
+    {
+        $path = '';
+        $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($unit, $image, &$path): array {
+            $index = $this->indexOrFail($payload['units'], $unit);
+            $images = $payload['units'][$index]['images'] ?? [];
+            $imageIndex = $this->indexOrFail($images, $image);
+            $path = $images[$imageIndex]['path'];
+            array_splice($images, $imageIndex, 1);
+            $payload['units'][$index]['images'] = $images;
+
+            return $payload;
+        }, 'image_removed', ['unit_id' => $unit, 'image_id' => $image]);
+
+        return $path;
+    }
+
     public function storeSale(User $user, int $company, array $data): void
     {
         $this->changeRecord($user, $company, NfcRecord::COMPANY, function (array $payload) use ($data): array {
