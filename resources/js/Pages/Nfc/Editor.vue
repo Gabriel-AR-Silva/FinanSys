@@ -58,7 +58,7 @@ function fields() {
             return { ...(!unit && { operation_id: crypto.randomUUID() }), name: unit?.name ?? '', production_id: unit?.production_id ?? null };
         case 'sale':
             return {
-                ...(!sale && { operation_id: crypto.randomUUID(), standard_quantity: 1, custom_quantity: 0, in_customization_quantity: 0, payments: [] }),
+                ...(!sale && { operation_id: crypto.randomUUID(), standard_quantity: 0, custom_quantity: 0, in_customization_quantity: 0, payments: [] }),
                 unit_id: sale?.unit_id ?? context.unitId ?? company?.units[0]?.id ?? '',
                 sold_on: sale?.sold_on ?? today,
                 warranty_starts_on: sale?.warranty_starts_on ?? '',
@@ -368,6 +368,7 @@ function submit() {
                         <input v-model.number="form.in_customization_quantity" class="nfc-control" type="number" inputmode="numeric" min="0" :max="form.custom_quantity" step="1" required />
                     </label>
                 </div>
+                <p class="nfc-panel p-3 text-sm" aria-live="polite">Total desta venda: <strong>{{ Number(form.standard_quantity || 0) + Number(form.custom_quantity || 0) }} plaquinha(s)</strong>. Em customização faz parte das personalizadas, não é uma quantidade adicional.</p>
                 <fieldset class="nfc-rule flex min-w-0 flex-col gap-3 border-t pt-3">
                     <legend class="pr-2 text-sm font-semibold">Pagamentos recebidos</legend>
                     <div v-for="(payment, index) in form.payments" :key="payment.key" class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
