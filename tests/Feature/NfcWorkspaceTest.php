@@ -1161,7 +1161,7 @@ class NfcWorkspaceTest extends TestCase
             ->assertUnprocessable();
     }
 
-    public function test_report_pdf_filters_metrics_dates_and_owner_and_is_not_available_to_shared_links(): void
+    public function test_report_pdf_filters_metrics_dates_owner_and_requires_full_shared_access(): void
     {
         $this->travelTo(new DateTimeImmutable('2026-11-22T15:00:00Z'));
         $owner = User::factory()->create();
@@ -1192,9 +1192,34 @@ class NfcWorkspaceTest extends TestCase
 
         $this->post(route('nfc.share-links.store'), ['scope' => 'cud'])->assertRedirect();
         $shared = session('nfc_share_url');
+        $token = basename($shared);
+        $link = NfcAccessLink::query()->whereBelongsTo($owner)->where('token_hash', hash('sha256', $token))->firstOrFail();
+        $sharedReport = route('nfc.share.report.export', ['token' => $token, ...$params]);
+
         Auth::logout();
         $this->get($url)->assertRedirect(route('login'));
-        $this->get($shared.'/relatorio.pdf?'.http_build_query($params))->assertNotFound();
+        $this->get($shared)->assertInertia(fn (Assert $page) => $page
+            ->where('can_export_report', true)
+            ->where('auth.user', null));
+        $sharedPdf = $this->get($sharedReport)->assertOk()->assertHeader('Content-Type', 'application/pdf')->getContent();
+        $this->assertStringContainsString('R$ 40,00', $sharedPdf);
+        $this->assertStringNotContainsString('R$ 70,00', $sharedPdf);
+        $this->assertStringNotContainsString('R$ 90,00', $sharedPdf);
+        $this->actingAs($other->user)->get($sharedReport)->assertOk();
+        Auth::logout();
+
+        foreach (['view', 'c', 'u', 'd', 'cu', 'cd', 'ud'] as $scope) {
+            $link->update(['scope' => $scope]);
+            $this->get($shared)->assertInertia(fn (Assert $page) => $page->where('can_export_report', false));
+            $this->get($sharedReport)->assertForbidden();
+        }
+
+        $link->update(['scope' => 'edit']);
+        $this->get($sharedReport)->assertOk();
+        $link->update(['revoked_at' => now()]);
+        $this->get($sharedReport)->assertNotFound();
+        $link->update(['revoked_at' => null, 'expires_at' => now()->subSecond()]);
+        $this->get($sharedReport)->assertNotFound();
     }
 
     private function createCompany(User $user, string $name = 'Pontasso'): NfcRecord
