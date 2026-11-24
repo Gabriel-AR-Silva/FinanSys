@@ -629,11 +629,11 @@ function closeDialog() {
 }
 
 watch(() => props.created_share_url, value => {
-    if (value && !props.shared && props.share_links_enabled && authenticatedUser.value) dialog.value = { kind: 'share' };
+    if (value && !props.shared && props.share_links_enabled && authenticatedUser.value && dialog.value?.kind !== 'share') dialog.value = { kind: 'share' };
 }, { immediate: true });
 
-watch(dialog, async (current, previous) => {
-    if (!current || !previous) return;
+watch(dialog, async (current) => {
+    if (!current) return;
     await nextTick();
     dialogHeading.value?.focus();
 });
@@ -963,7 +963,7 @@ watch(dialog, async (current, previous) => {
             </template>
         </div>
 
-        <Modal class="nfc-dialog" :max-width="dialog?.kind === 'settings' ? 'sm' : '2xl'" :show="dialog !== null" labelled-by="nfc-dialog-heading" :closeable="!busy" @close="closeDialog">
+        <Modal class="nfc-dialog" :class="{ 'nfc-settings-dialog': dialog?.kind === 'settings' }" :max-width="dialog?.kind === 'settings' ? 'sm' : '2xl'" :show="dialog !== null" labelled-by="nfc-dialog-heading" :closeable="!busy" @close="closeDialog">
             <section v-if="dialog" class="nfc-dialog-content flex min-w-0 flex-col gap-4 p-4 sm:gap-5 sm:p-6">
                 <header class="flex min-w-0 items-start gap-2">
                     <button v-if="dialog.previous" type="button" class="nfc-button nfc-icon-button shrink-0" aria-label="Voltar" :disabled="busy" @click="goBack"><ArrowLeft :size="18" aria-hidden="true" /></button>
