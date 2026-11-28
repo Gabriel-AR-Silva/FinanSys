@@ -1224,6 +1224,58 @@ class NfcWorkspaceTest extends TestCase
         $this->get($sharedReport)->assertNotFound();
     }
 
+    public function test_last_plate_deletion_removes_sale_and_payment_but_respects_cash(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-24T12:00:00Z'));
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $sale = $this->createSale($company, [
+            'sold_on' => '2026-11-10',
+            'payments' => [['method' => 'pix', 'amount_cents' => 10000, 'received_on' => '2026-11-10']],
+        ]);
+        $this->post(route('nfc.reinvestments.store'), [
+            'operation_id' => (string) Str::uuid(),
+            'spent_on' => '2026-11-12',
+            'amount_cents' => 2500,
+            'description' => 'Nova plaquinha',
+        ])->assertRedirect(route('nfc.index'));
+        $reinvestment = NfcRecord::query()->whereBelongsTo($owner)->where('kind', NfcRecord::REINVESTMENT)->firstOrFail();
+        $plateUrl = route('nfc.plates.destroy', ['company' => $company->id, 'sale' => $sale['id'], 'plate' => $sale['plates'][0]['id']]);
+        $paymentUrl = route('nfc.payments.destroy', ['company' => $company->id, 'sale' => $sale['id'], 'payment' => $sale['payments'][0]['id']]);
+        $this->delete($paymentUrl)->assertSessionHasErrors('cash');
+        $this->delete($plateUrl)->assertSessionHasErrors('cash');
+        $this->delete(route('nfc.sales.destroy', ['company' => $company->id, 'sale' => $sale['id']]))->assertSessionHasErrors('cash');
+        $this->delete(route('nfc.companies.destroy', ['company' => $company->id]))->assertSessionHasErrors('cash');
+        $this->assertSame(7500, app(NfcDashboardQuery::class)->forUser($owner)['summary']['cash_available_cents']);
+        $this->delete(route('nfc.reinvestments.destroy', ['reinvestment' => $reinvestment->id]))->assertRedirect(route('nfc.index'));
+        $this->delete($plateUrl)->assertRedirect(route('nfc.index'));
+        $this->assertSame([], $company->fresh()->payload['sales']);
+        $this->assertSame(0, app(NfcDashboardQuery::class)->forUser($owner)['summary']['cash_available_cents']);
+    }
+
+    public function test_create_only_link_cannot_change_an_existing_plate_through_damage(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-24T12:00:00Z'));
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $sale = $this->createSale($company, ['sold_on' => '2026-11-10']);
+        $this->post(route('nfc.share-links.store'), ['scope' => 'c'])->assertRedirect();
+        $token = basename(session('nfc_share_url'));
+        $link = NfcAccessLink::query()->whereBelongsTo($owner)->latest('id')->firstOrFail();
+        Auth::logout();
+        $url = route('nfc.share.damages.store', ['token' => $token]);
+        $payload = [
+            'operation_id' => (string) Str::uuid(), 'target' => 'plate', 'company_id' => $company->id,
+            'sale_id' => $sale['id'], 'plate_id' => $sale['plates'][0]['id'], 'quantity' => 1,
+            'occurred_on' => '2026-11-21', 'reason' => 'Defeito', 'discount_cents' => 2500,
+        ];
+        $this->post($url, $payload)->assertForbidden();
+        $this->assertSame(10000, $company->fresh()->payload['sales'][0]['total_cents']);
+        $link->update(['scope' => 'cu']);
+        $this->post($url, $payload)->assertRedirect();
+        $this->assertSame(7500, $company->fresh()->payload['sales'][0]['total_cents']);
+    }
+
     private function createCompany(User $user, string $name = 'Pontasso'): NfcRecord
     {
         $operationId = (string) Str::uuid();
