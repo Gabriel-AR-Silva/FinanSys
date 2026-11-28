@@ -93,6 +93,12 @@ const resetConfirmation = ref('');
 const reportFrom = ref('');
 const reportName = ref('');
 const reportTo = ref('');
+const reportCompanyId = ref('');
+const reportUnitId = ref('');
+const reportPaymentStatus = ref('');
+const reportUnits = computed(() => props.companies.find(item => String(item.id) === String(reportCompanyId.value))?.units ?? []);
+const reportScoped = computed(() => !!(reportCompanyId.value || reportUnitId.value || reportPaymentStatus.value));
+watch(reportCompanyId, () => { reportUnitId.value = ''; });
 const reportChart = ref(true);
 const reportReinvestments = ref(true);
 const reinvestmentAmount = ref('');
@@ -217,7 +223,11 @@ function openDamageForBatch(batchId) {
     if (dialog.value?.kind === 'damage') damageForm.production_id = batchId;
 }
 function saveDamage() {
-    if (busy.value || damageForm.processing) return;
+    if (busy.value || damageForm.processing || !props.permissions.create) return;
+    if (damageForm.target === 'plate' && !props.permissions.update) {
+        damageForm.setError('target', 'É necessária permissão de alteração para registrar avaria em uma plaquinha existente.');
+        return;
+    }
     if (damageForm.target === 'production' && (!damageBatch.value || !Number.isInteger(Number(damageForm.quantity)) || Number(damageForm.quantity) < 1 || Number(damageForm.quantity) > damageBatch.value.usable_quantity)) {
         damageForm.setError('quantity', 'Informe uma quantidade dentro do saldo do lote.');
         return;
@@ -273,10 +283,17 @@ const reportOptions = [
     { key: 'defective', label: 'Plaquinhas defeituosas' },
 ];
 const reportMetrics = ref(reportOptions.map(item => item.key));
-const reportValid = computed(() => !!reportFrom.value && !!reportTo.value && reportFrom.value <= reportTo.value && reportMetrics.value.length > 0 && reportName.value.length <= 80 && /^[\p{L}\p{N}\s._-]*$/u.test(reportName.value));
+const reportAvailableOptions = computed(() => reportScoped.value
+    ? reportOptions.filter(item => !['cost', 'manufactured', 'result'].includes(item.key))
+    : reportOptions);
+const reportSelectedMetrics = computed(() => reportMetrics.value.filter(key => reportAvailableOptions.value.some(item => item.key === key)));
+const reportValid = computed(() => !!reportFrom.value && !!reportTo.value && reportFrom.value <= reportTo.value && reportSelectedMetrics.value.length > 0 && reportName.value.length <= 80 && /^[\p{L}\p{N}\s._-]*$/u.test(reportName.value));
 const reportUrl = computed(() => {
     if (!reportValid.value || !props.can_export_report || props.schema_pending) return '';
-    return nfcRoute('nfc.report.export', { from: reportFrom.value, to: reportTo.value, metrics: reportMetrics.value, chart: reportChart.value ? 1 : 0, reinvestments: reportReinvestments.value ? 1 : 0, ...(reportName.value.trim() ? { name: reportName.value.trim() } : {}) });
+    return nfcRoute('nfc.report.export', { from: reportFrom.value, to: reportTo.value, metrics: reportSelectedMetrics.value, chart: reportChart.value ? 1 : 0, reinvestments: !reportScoped.value && reportReinvestments.value ? 1 : 0,
+        ...(reportCompanyId.value ? { company_id: reportCompanyId.value } : {}),
+        ...(reportUnitId.value ? { unit_id: reportUnitId.value } : {}),
+        ...(reportPaymentStatus.value ? { payment_status: reportPaymentStatus.value } : {}), ...(reportName.value.trim() ? { name: reportName.value.trim() } : {}) });
 });
 function openSettingsAction(kind) {
     if (busy.value || shareBusy.value) return;
@@ -538,7 +555,7 @@ const deleteDescriptions = {
     company: 'A empresa, suas unidades, vendas, pagamentos e plaquinhas deixarão de aparecer no painel.',
     unit: 'A unidade será removida. Se houver vendas vinculadas, a operação será impedida.',
     sale: 'A venda, os pagamentos e as plaquinhas vinculadas serão removidos dos indicadores.',
-    plate: 'A plaquinha será removida e os indicadores de vendas e defeitos serão recalculados.',
+    plate: 'A plaquinha será removida. Se for a última da venda, a venda e seus pagamentos também serão removidos.',
     payment: 'O pagamento será removido e o valor a receber será recalculado.',
     batch: 'O lote será removido. Se estiver vinculado a unidades ou avarias, a operação será impedida.',
     manufacturer: 'O fabricante e suas imagens serão removidos. Lotes vinculados podem impedir a exclusão.',
@@ -550,14 +567,133 @@ const deleteDescriptions = {
     damage: 'Esta avaria será removida e os indicadores de defeitos serão recalculados.',
     'share-link': 'O link deixará de permitir acesso imediatamente, inclusive para quem já o recebeu.',
 };
+
+const deleteImpact = computed(() => {
+    const kind = dialog.value?.deleteKind;
+    const ctx = dialog.value?.deleteContext ?? {};
+    const company = props.companies.find(item => item.id === ctx.companyId);
+    const unit = company?.units.find(item => item.id === ctx.unitId);
+    const sale = company?.sales.find(item => item.id === ctx.saleId);
+    const plate = sale?.plates.find(item => item.id === ctx.plateId);
+    const payment = sale?.payments.find(item => item.id === ctx.paymentId);
+    const batch = props.production.find(item => item.id === ctx.batchId);
+    const manufacturer = props.manufacturers.find(item => item.id === ctx.manufacturerId);
+    const damage = props.damages.find(item => item.id === ctx.damageId);
+    const groups = [];
+    const relatedGroups = [];
+    const changes = [];
+    const blockers = [];
+    const add = (label, items) => { if (items.length) groups.push({ label, items }); };
+    const sum = (items, key) => items.reduce((total, item) => total + Number(item[key] ?? 0), 0);
+    const describeSale = item => date(item.sold_on) + ' · ' + money(item.total_cents);
+    const describePayment = item => date(item.received_on) + ' · ' + money(item.amount_cents);
+    const removedSales = kind === 'company' ? company?.sales ?? []
+        : (kind === 'sale' || (kind === 'plate' && sale?.plates.length === 1)) && sale ? [sale] : [];
+    const removedPlates = removedSales.length ? removedSales.flatMap(item => item.plates) : kind === 'plate' && plate ? [plate] : [];
+    const removedPayments = removedSales.length ? removedSales.flatMap(item => item.payments) : kind === 'payment' && payment ? [payment] : [];
+    const received = sum(removedPayments, 'amount_cents');
+    const currentCash = Number(props.summary.cash_available_cents ?? 0);
+    let cashAfter = currentCash - received;
+    if (kind === 'company' && company) {
+        add('Empresa', [company.name]);
+        add('Unidades', company.units.map(item => item.name));
+        add('Imagens', company.units.flatMap(item => (item.images ?? []).map(image => item.name + ' · ' + image.name)));
+    }
+    if (kind === 'unit' && unit) {
+        add('Unidade', [unit.name]);
+        add('Imagens', (unit.images ?? []).map(item => item.name));
+        const linked = company.sales.filter(item => item.unit_id === unit.id);
+        if (linked.length) {
+            blockers.push('Existem ' + linked.length + ' vendas nesta unidade. Transfira ou exclua essas vendas primeiro.');
+            relatedGroups.push({ label: 'Vendas que impedem a exclusão', items: linked.map(describeSale) });
+        }
+    }
+    add('Vendas', removedSales.map(describeSale));
+    add('Plaquinhas', removedPlates.map(item => item.label || item.id));
+    add('Pagamentos', removedPayments.map(describePayment));
+    if (removedSales.length) changes.push('Valor vendido: −' + money(sum(removedSales, 'total_cents')));
+    if (removedPlates.length) changes.push('Plaquinhas vendidas: −' + removedPlates.length);
+    const defective = removedPlates.filter(item => item.defective);
+    if (defective.length) changes.push('Avarias: −' + defective.length + ' · perdas estimadas: −' + money(defective.reduce((total, item) => total + Number(item.estimated_loss_cents ?? 2500), 0)));
+    if (received) changes.push('Recebido: −' + money(received));
+    const pendingDelta = received - sum(removedSales, 'total_cents');
+    if (pendingDelta) changes.push('Saldo a receber: ' + (pendingDelta > 0 ? '+' : '−') + money(Math.abs(pendingDelta)));
+    if (kind === 'plate' && removedSales.length) changes.push('A última plaquinha remove também a venda e seus pagamentos.');
+    if (kind === 'plate' && sale && !removedSales.length) changes.push('O valor da venda permanece; ajuste-o separadamente se necessário.');
+    if (kind === 'batch' && batch) {
+        add('Lote', [date(batch.produced_on) + ' · ' + batch.quantity + ' unidades']);
+        const linked = props.companies.flatMap(item => item.units.filter(u => u.production_id === batch.id).map(u => item.name + ' · ' + u.name));
+        const damages = props.damages.filter(item => item.production_id === batch.id);
+        if (linked.length) {
+            blockers.push('Desvincule as unidades antes de excluir o lote.');
+            relatedGroups.push({ label: 'Unidades vinculadas ao lote', items: linked });
+        }
+        if (damages.length) {
+            blockers.push('Remova as avarias vinculadas antes de excluir o lote.');
+            relatedGroups.push({ label: 'Avarias vinculadas', items: damages.map(item => item.reason + ' · ' + item.quantity + ' unidades') });
+        }
+        changes.push((batch.status === 'completed' ? 'Fabricadas' : 'Em fabricação') + ': −' + batch.quantity);
+        if (batch.cost_cents != null) changes.push('Custo de fabricação: −' + money(batch.cost_cents));
+        const withdrawals = [...props.reinvestments, ...props.expenses].filter(item => item.production_id === batch.id);
+        if (withdrawals.length) {
+            changes.push('Retiradas e despesas permanecem registradas; seus vínculos precisam ser revisados.');
+            relatedGroups.push({ label: 'Retiradas e despesas vinculadas', items: withdrawals.map(item => item.description + ' · ' + money(item.amount_cents)) });
+        }
+    }
+    if (kind === 'manufacturer' && manufacturer) {
+        add('Fabricante', [manufacturer.name]);
+        add('Imagens', (manufacturer.images ?? []).map(item => item.name));
+        if (manufacturer.batches.length) {
+            blockers.push('Desvincule os ' + manufacturer.batches.length + ' lotes antes de excluir o fabricante.');
+            relatedGroups.push({ label: 'Lotes vinculados', items: manufacturer.batches.map(item => 'Lote #' + item.id + ' · ' + item.quantity + ' unidades') });
+        }
+    }
+    if (kind === 'image' || kind === 'unit-image') {
+        const image = (kind === 'image' ? manufacturer?.images : unit?.images)?.find(item => item.id === ctx.imageId);
+        if (image) add('Imagem', [image.name]);
+    }
+    if (kind === 'notice') {
+        const notice = props.notices.find(item => item.id === ctx.noticeId);
+        if (notice) add('Aviso', [notice.text]);
+    }
+    if (kind === 'damage' && damage) {
+        add('Avaria', [damage.reason + ' · ' + damage.quantity + ' unidades']);
+        changes.push('Avarias: −' + damage.quantity + ' · perdas estimadas: −' + money(damage.estimated_loss_cents ?? 2500 * damage.quantity));
+        const linkedExpenses = props.expenses.filter(item => item.damage_id === damage.id);
+        if (linkedExpenses.length) {
+            changes.push('Despesas vinculadas permanecem registradas e precisam ser revisadas.');
+            relatedGroups.push({ label: 'Despesas vinculadas', items: linkedExpenses.map(item => item.description + ' · ' + money(item.amount_cents)) });
+        }
+    }
+    if (kind === 'reinvestment' || kind === 'expense') {
+        const item = (kind === 'reinvestment' ? props.reinvestments : props.expenses).find(item => item.id === (kind === 'reinvestment' ? ctx.reinvestmentId : ctx.expenseId));
+        if (item) {
+            add(kind === 'reinvestment' ? 'Reinvestimento' : 'Despesa', [item.description + ' · ' + money(item.amount_cents)]);
+            cashAfter += Number(item.amount_cents);
+            changes.push('Custo de fabricação permanece inalterado.');
+        }
+    }
+    if (kind === 'share-link') add('Link de acesso', ['Link #' + ctx.linkId + ' será revogado.']);
+    const affectedNotices = props.notices.filter(item => (kind === 'company' && item.company_id === company?.id) || removedPlates.some(p => p.id === item.plate_id));
+    if (affectedNotices.length) {
+        changes.push(affectedNotices.length + ' aviso(s) permanecem registrados, com referência ausente.');
+        relatedGroups.push({ label: 'Avisos que perderão referência', items: affectedNotices.map(item => item.text) });
+    }
+    if (removedSales.length) changes.push('As garantias associadas deixam de aparecer; o histórico de alterações permanece.');
+    if (removedPayments.length && sale?.payment_status === 'paid' && kind === 'payment') changes.push('A venda deixa de estar quitada.');
+    if (cashAfter !== currentCash) changes.push('Caixa: ' + money(currentCash) + ' → ' + money(cashAfter));
+    if (received > 0 && cashAfter < 0) blockers.push('A exclusão deixaria o caixa negativo. Corrija as despesas ou reinvestimentos primeiro.');
+    return { groups, relatedGroups, changes, blockers };
+});
+
 const confirmDeleteLabel = computed(() => dialog.value?.deleteKind === 'share-link' ? 'Revogar link' : 'Excluir registro');
 function destroy(kind, context = {}) {
-    if ((kind === 'reinvestment' && props.shared) || (kind !== 'share-link' && !props.permissions.delete)) return;
+    if ((['reinvestment', 'expense', 'share-link'].includes(kind) && props.shared) || (kind !== 'share-link' && !props.permissions.delete)) return;
     if (busy.value || shareBusy.value || !Object.hasOwn(deleteDescriptions, kind)) return;
     dialog.value = { kind: 'confirm-delete', deleteKind: kind, deleteContext: context, previous: dialog.value };
 }
 function confirmDestroy() {
-    if (busy.value || dialog.value?.kind !== 'confirm-delete') return;
+    if (busy.value || dialog.value?.kind !== 'confirm-delete' || deleteImpact.value.blockers.length) return;
     const { deleteKind: kind, deleteContext: context } = dialog.value;
     const routeNames = {
         company: ['nfc.companies.destroy', { company: context.companyId }],
@@ -689,6 +825,9 @@ watch(dialog, async (current) => {
             <p v-if="schema_pending" class="nfc-panel nfc-warning p-4 text-sm" role="status">Aplique a migration de Plaquinhas NFC para liberar os cadastros.</p>
 
             <template v-else>
+                <p v-if="(summary.sold ?? 0) > (summary.usable_manufactured ?? 0)" class="nfc-warning rounded-lg p-3 text-sm" role="status">
+                    Atenção: existem {{ (summary.sold ?? 0) - (summary.usable_manufactured ?? 0) }} plaquinhas vendidas além da fabricação aproveitável registrada. Confira lotes e vendas antecipadas.
+                </p>
                 <nav role="tablist" aria-label="Áreas do painel NFC" class="nfc-panel grid grid-cols-3 gap-1 p-1">
                     <button v-for="tab in dashboardTabs" :id="'nfc-dashboard-tab-' + tab.key" :key="tab.key" type="button" role="tab"
                         :aria-controls="'nfc-dashboard-panel-' + tab.key"
@@ -1010,10 +1149,35 @@ watch(dialog, async (current) => {
                 <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :permissions="permissions" :hidden-values="hiddenValues" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
                 <div v-else-if="dialog.kind === 'confirm-delete'" class="flex min-w-0 flex-col gap-4">
                     <p class="text-sm leading-6">{{ deleteDescriptions[dialog.deleteKind] }}</p>
-                    <p class="nfc-muted text-sm">Esta ação pode afetar indicadores ou registros vinculados. Confira antes de continuar.</p>
+                    <p class="nfc-muted text-sm">Prévia baseada nos dados exibidos. O servidor revalida os vínculos e o saldo ao confirmar.</p>
+                    <section v-if="deleteImpact.groups.length" class="nfc-panel flex flex-col gap-2 p-3">
+                        <h3 class="text-sm font-semibold">Registros que serão removidos</h3>
+                        <details v-for="group in deleteImpact.groups" :key="group.label" class="nfc-rule border-t pt-2">
+                            <summary class="cursor-pointer break-words text-sm font-medium">{{ group.label }} ({{ group.items.length }})</summary>
+                            <ul class="mt-2 max-h-40 list-disc overflow-y-auto break-words pl-5 text-sm">
+                                <li v-for="(item, index) in group.items" :key="index">{{ item }}</li>
+                            </ul>
+                        </details>
+                    </section>
+                    <section v-if="deleteImpact.relatedGroups.length" class="nfc-panel flex flex-col gap-2 p-3">
+                        <h3 class="text-sm font-semibold">Registros relacionados que permanecem</h3>
+                        <details v-for="group in deleteImpact.relatedGroups" :key="group.label" class="nfc-rule border-t pt-2">
+                            <summary class="cursor-pointer break-words text-sm font-medium">{{ group.label }} ({{ group.items.length }})</summary>
+                            <ul class="mt-2 max-h-40 list-disc overflow-y-auto break-words pl-5 text-sm">
+                                <li v-for="(item, index) in group.items" :key="index">{{ item }}</li>
+                            </ul>
+                        </details>
+                    </section>
+                    <details v-if="deleteImpact.changes.length" open class="nfc-panel p-3">
+                        <summary class="cursor-pointer text-sm font-semibold">Alterações nos indicadores e vínculos</summary>
+                        <ul class="mt-2 list-disc space-y-1 break-words pl-5 text-sm"><li v-for="change in deleteImpact.changes" :key="change">{{ change }}</li></ul>
+                    </details>
+                    <div v-if="deleteImpact.blockers.length" role="alert" class="nfc-warning rounded-lg p-3 text-sm">
+                        <p v-for="blocker in deleteImpact.blockers" :key="blocker">{{ blocker }}</p>
+                    </div>
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
                         <button type="button" class="nfc-button" :disabled="busy" @click="goBack">Cancelar</button>
-                        <button type="button" class="nfc-button nfc-danger" :disabled="busy" @click="confirmDestroy">{{ busy ? 'Processando…' : confirmDeleteLabel }}</button>
+                        <button type="button" class="nfc-button nfc-danger" :disabled="busy || deleteImpact.blockers.length > 0" @click="confirmDestroy">{{ busy ? 'Processando…' : confirmDeleteLabel }}</button>
                     </div>
                 </div>
                 <form v-else-if="dialog.kind === 'damage'" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveDamage">
@@ -1021,7 +1185,7 @@ watch(dialog, async (current) => {
                     <label class="nfc-field"><span>Onde ocorreu a avaria? <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <select v-model="damageForm.target" class="nfc-control" :disabled="busy" required>
                             <option value="production">Em um lote de fabricação</option>
-                            <option value="plate">Em uma plaquinha já cadastrada</option>
+                            <option v-if="permissions.update" value="plate">Em uma plaquinha já cadastrada</option>
                         </select>
                     </label>
                     <label v-if="damageForm.target === 'production'" class="nfc-field"><span>Lote de fabricação <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
@@ -1153,17 +1317,42 @@ watch(dialog, async (current) => {
                         <label class="nfc-field"><span>Data final <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span><input v-model="reportTo" type="date" class="nfc-control" :min="reportFrom || undefined" required /></label>
                     </div>
                     <fieldset class="nfc-panel flex flex-col gap-3 p-3">
+                        <legend class="px-1 text-sm font-semibold">Filtros de vendas</legend>
+                        <label class="nfc-field">Empresa
+                            <select v-model="reportCompanyId" class="nfc-control">
+                                <option value="">Todas</option>
+                                <option v-for="item in companies" :key="item.id" :value="item.id">{{ item.name }}</option>
+                            </select>
+                        </label>
+                        <label class="nfc-field">Unidade
+                            <select v-model="reportUnitId" class="nfc-control" :disabled="!reportCompanyId">
+                                <option value="">Todas</option>
+                                <option v-for="item in reportUnits" :key="item.id" :value="item.id">{{ item.name }}</option>
+                            </select>
+                        </label>
+                        <label class="nfc-field">Situação atual do pagamento
+                            <select v-model="reportPaymentStatus" class="nfc-control">
+                                <option value="">Todas</option>
+                                <option value="paid">Quitadas</option>
+                                <option value="partial">Parcialmente pagas</option>
+                                <option value="pending">Sem recebimento</option>
+                                <option value="outstanding">Com saldo a receber</option>
+                            </select>
+                        </label>
+                        <p v-if="reportScoped" class="nfc-muted text-xs">Os filtros recortam vendas, recebimentos e avarias de plaquinhas vendidas. Custos compartilhados, fabricação, margem e caixa geral não são atribuídos a uma empresa ou situação.</p>
+                    </fieldset>
+                    <fieldset class="nfc-panel flex flex-col gap-3 p-3">
                         <legend class="px-1 text-sm font-semibold">Indicadores do relatório <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></legend>
                         <div class="flex flex-wrap gap-2">
-                            <button type="button" class="nfc-button text-xs" @click="reportMetrics = reportOptions.map(item => item.key)">Selecionar todos</button>
+                            <button type="button" class="nfc-button text-xs" @click="reportMetrics = reportAvailableOptions.map(item => item.key)">Selecionar todos</button>
                             <button type="button" class="nfc-button text-xs" @click="reportMetrics = []">Limpar seleção</button>
                         </div>
                         <div class="grid gap-2 sm:grid-cols-2">
-                            <label v-for="item in reportOptions" :key="item.key" class="flex items-start gap-2 text-sm"><input v-model="reportMetrics" type="checkbox" :value="item.key" />{{ item.label }}</label>
+                            <label v-for="item in reportAvailableOptions" :key="item.key" class="flex items-start gap-2 text-sm"><input v-model="reportMetrics" type="checkbox" :value="item.key" />{{ item.label }}</label>
                         </div>
                     </fieldset>
                     <label class="flex items-center gap-2 text-sm"><input v-model="reportChart" type="checkbox" /> Incluir gráficos comparativos quando aplicável</label>
-                    <label class="flex min-h-11 items-center gap-2 text-sm"><input v-model="reportReinvestments" type="checkbox" /> Incluir demonstrativo de caixa, despesas e reinvestimentos no PDF</label>
+                    <label v-if="!reportScoped" class="flex min-h-11 items-center gap-2 text-sm"><input v-model="reportReinvestments" type="checkbox" /> Incluir demonstrativo de caixa, despesas e reinvestimentos no PDF</label>
                     <p class="nfc-muted text-xs">A margem compara vendas e custos de fabricação no intervalo; não representa lucro contábil. O saldo a receber é o saldo atual das vendas do período. Quando selecionado, o demonstrativo de caixa usa recebimentos, reinvestimentos e despesas com data no período.</p>
                     <p v-if="hiddenValues" class="nfc-warning rounded-lg p-3 text-sm">O PDF inclui os valores reais dos indicadores selecionados, mesmo com o olho fechado.</p>
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
@@ -1176,6 +1365,26 @@ watch(dialog, async (current) => {
                     <p class="nfc-muted text-xs"><span class="text-[var(--fs-danger)]" aria-hidden="true">*</span> Campos obrigatórios</p>
                     <p class="text-sm leading-6">Esta ação excluirá permanentemente todas as empresas, unidades, fabricantes, lotes, vendas, plaquinhas, pagamentos, reinvestimentos, despesas, avarias, avisos, imagens e histórico da sua área NFC.</p>
                     <p class="nfc-muted text-sm">Os links de acesso e os dados dos demais módulos do FinanSys serão preservados. Esta ação não pode ser desfeita.</p>
+                    <details class="nfc-panel p-3">
+                        <summary class="cursor-pointer text-sm font-semibold">Ver registros e indicadores afetados</summary>
+                        <ul class="mt-2 list-disc space-y-1 break-words pl-5 text-sm">
+                            <li>
+                                <details>
+                                    <summary class="cursor-pointer">{{ companies.length }} empresas · {{ companies.reduce((n, c) => n + c.units.length, 0) }} unidades</summary>
+                                    <ul class="mt-1 max-h-40 list-disc overflow-y-auto pl-5">
+                                        <li v-for="item in companies" :key="item.id">{{ item.name }} — {{ item.units.map(unit => unit.name).join(', ') || 'sem unidade' }}</li>
+                                    </ul>
+                                </details>
+                            </li>
+                            <li>{{ companies.reduce((n, c) => n + c.sales.length, 0) }} vendas · {{ summary.sold ?? 0 }} plaquinhas</li>
+                            <li>{{ production.length }} lotes · {{ manufacturers.length }} fabricantes</li>
+                            <li>{{ damages.length }} avarias de fabricação · {{ notices.length }} avisos</li>
+                            <li>{{ reinvestments.length }} reinvestimentos · {{ expenses.length }} despesas</li>
+                            <li>Recebido: {{ money(summary.received_cents ?? 0) }} → {{ money(0) }}</li>
+                            <li>Caixa: {{ money(summary.cash_available_cents ?? 0) }} → {{ money(0) }}</li>
+                            <li>Imagens e histórico NFC serão eliminados integralmente.</li>
+                        </ul>
+                    </details>
                     <label class="nfc-field"><span>Digite ZERAR para confirmar <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model="resetConfirmation" class="nfc-control" type="text" autocomplete="off" :disabled="busy" required />
                     </label>
