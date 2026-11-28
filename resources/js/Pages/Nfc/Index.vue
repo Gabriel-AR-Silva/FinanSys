@@ -550,14 +550,107 @@ const deleteDescriptions = {
     damage: 'Esta avaria será removida e os indicadores de defeitos serão recalculados.',
     'share-link': 'O link deixará de permitir acesso imediatamente, inclusive para quem já o recebeu.',
 };
+
+const deleteImpact = computed(() => {
+    const kind = dialog.value?.deleteKind;
+    const ctx = dialog.value?.deleteContext ?? {};
+    const company = props.companies.find(item => item.id === ctx.companyId);
+    const unit = company?.units.find(item => item.id === ctx.unitId);
+    const sale = company?.sales.find(item => item.id === ctx.saleId);
+    const plate = sale?.plates.find(item => item.id === ctx.plateId);
+    const payment = sale?.payments.find(item => item.id === ctx.paymentId);
+    const batch = props.production.find(item => item.id === ctx.batchId);
+    const manufacturer = props.manufacturers.find(item => item.id === ctx.manufacturerId);
+    const damage = props.damages.find(item => item.id === ctx.damageId);
+    const groups = [];
+    const changes = [];
+    const blockers = [];
+    const add = (label, items) => { if (items.length) groups.push({ label, items }); };
+    const sum = (items, key) => items.reduce((total, item) => total + Number(item[key] ?? 0), 0);
+    const describeSale = item => date(item.sold_on) + ' · ' + money(item.total_cents);
+    const describePayment = item => date(item.received_on) + ' · ' + money(item.amount_cents);
+    const removedSales = kind === 'company' ? company?.sales ?? []
+        : (kind === 'sale' || (kind === 'plate' && sale?.plates.length === 1)) && sale ? [sale] : [];
+    const removedPlates = removedSales.length ? removedSales.flatMap(item => item.plates) : kind === 'plate' && plate ? [plate] : [];
+    const removedPayments = removedSales.length ? removedSales.flatMap(item => item.payments) : kind === 'payment' && payment ? [payment] : [];
+    const received = sum(removedPayments, 'amount_cents');
+    const currentCash = Number(props.summary.cash_available_cents ?? 0);
+    let cashAfter = currentCash - received;
+    if (kind === 'company' && company) {
+        add('Empresa', [company.name]);
+        add('Unidades', company.units.map(item => item.name));
+        add('Imagens', company.units.flatMap(item => (item.images ?? []).map(image => item.name + ' · ' + image.name)));
+    }
+    if (kind === 'unit' && unit) {
+        add('Unidade', [unit.name]);
+        add('Imagens', (unit.images ?? []).map(item => item.name));
+        const linked = company.sales.filter(item => item.unit_id === unit.id);
+        if (linked.length) blockers.push('Existem ' + linked.length + ' vendas nesta unidade. Transfira ou exclua essas vendas primeiro.');
+    }
+    add('Vendas', removedSales.map(describeSale));
+    add('Plaquinhas', removedPlates.map(item => item.label || item.id));
+    add('Pagamentos', removedPayments.map(describePayment));
+    if (removedSales.length) changes.push('Valor vendido: −' + money(sum(removedSales, 'total_cents')));
+    if (removedPlates.length) changes.push('Plaquinhas vendidas: −' + removedPlates.length);
+    const defective = removedPlates.filter(item => item.defective);
+    if (defective.length) changes.push('Avarias: −' + defective.length + ' · perdas estimadas: −' + money(defective.reduce((total, item) => total + Number(item.estimated_loss_cents ?? 2500), 0)));
+    if (received) changes.push('Recebido: −' + money(received));
+    const pendingDelta = received - sum(removedSales, 'total_cents');
+    if (pendingDelta) changes.push('Saldo a receber: ' + (pendingDelta > 0 ? '+' : '−') + money(Math.abs(pendingDelta)));
+    if (kind === 'plate' && removedSales.length) changes.push('A última plaquinha remove também a venda e seus pagamentos.');
+    if (kind === 'plate' && sale && !removedSales.length) changes.push('O valor da venda permanece; ajuste-o separadamente se necessário.');
+    if (kind === 'batch' && batch) {
+        add('Lote', [date(batch.produced_on) + ' · ' + batch.quantity + ' unidades']);
+        const linked = props.companies.flatMap(item => item.units.filter(u => u.production_id === batch.id).map(u => item.name + ' · ' + u.name));
+        const damages = props.damages.filter(item => item.production_id === batch.id);
+        if (linked.length) { blockers.push('Desvincule as unidades antes de excluir o lote.'); changes.push('Unidades vinculadas: ' + linked.join(', ')); }
+        if (damages.length) blockers.push('Remova as avarias vinculadas antes de excluir o lote.');
+        changes.push((batch.status === 'completed' ? 'Fabricadas' : 'Em fabricação') + ': −' + batch.quantity);
+        if (batch.cost_cents != null) changes.push('Custo de fabricação: −' + money(batch.cost_cents));
+        if (props.reinvestments.some(item => item.production_id === batch.id) || props.expenses.some(item => item.production_id === batch.id)) changes.push('Retiradas e despesas permanecem registradas; seus vínculos precisam ser revisados.');
+    }
+    if (kind === 'manufacturer' && manufacturer) {
+        add('Fabricante', [manufacturer.name]);
+        add('Imagens', (manufacturer.images ?? []).map(item => item.name));
+        if (manufacturer.batches.length) blockers.push('Desvincule os ' + manufacturer.batches.length + ' lotes antes de excluir o fabricante.');
+    }
+    if (kind === 'image' || kind === 'unit-image') {
+        const image = (kind === 'image' ? manufacturer?.images : unit?.images)?.find(item => item.id === ctx.imageId);
+        if (image) add('Imagem', [image.name]);
+    }
+    if (kind === 'notice') {
+        const notice = props.notices.find(item => item.id === ctx.noticeId);
+        if (notice) add('Aviso', [notice.text]);
+    }
+    if (kind === 'damage' && damage) {
+        add('Avaria', [damage.reason + ' · ' + damage.quantity + ' unidades']);
+        changes.push('Avarias: −' + damage.quantity + ' · perdas estimadas: −' + money(damage.estimated_loss_cents ?? 2500 * damage.quantity));
+        if (props.expenses.some(item => item.damage_id === damage.id)) changes.push('Despesas vinculadas permanecem registradas e precisam ser revisadas.');
+    }
+    if (kind === 'reinvestment' || kind === 'expense') {
+        const item = (kind === 'reinvestment' ? props.reinvestments : props.expenses).find(item => item.id === (kind === 'reinvestment' ? ctx.reinvestmentId : ctx.expenseId));
+        if (item) {
+            add(kind === 'reinvestment' ? 'Reinvestimento' : 'Despesa', [item.description + ' · ' + money(item.amount_cents)]);
+            cashAfter += Number(item.amount_cents);
+            changes.push('Custo de fabricação permanece inalterado.');
+        }
+    }
+    if (kind === 'share-link') add('Link de acesso', ['Link #' + ctx.linkId + ' será revogado.']);
+    const affectedNotices = props.notices.filter(item => (kind === 'company' && item.company_id === company?.id) || removedPlates.some(p => p.id === item.plate_id));
+    if (affectedNotices.length) changes.push(affectedNotices.length + ' aviso(s) permanecem no histórico/lista com referência ausente.');
+    if (cashAfter !== currentCash) changes.push('Caixa: ' + money(currentCash) + ' → ' + money(cashAfter));
+    if (received > 0 && cashAfter < 0) blockers.push('A exclusão deixaria o caixa negativo. Corrija as despesas ou reinvestimentos primeiro.');
+    return { groups, changes, blockers };
+});
+
 const confirmDeleteLabel = computed(() => dialog.value?.deleteKind === 'share-link' ? 'Revogar link' : 'Excluir registro');
 function destroy(kind, context = {}) {
-    if ((kind === 'reinvestment' && props.shared) || (kind !== 'share-link' && !props.permissions.delete)) return;
+    if ((['reinvestment', 'expense', 'share-link'].includes(kind) && props.shared) || (kind !== 'share-link' && !props.permissions.delete)) return;
     if (busy.value || shareBusy.value || !Object.hasOwn(deleteDescriptions, kind)) return;
     dialog.value = { kind: 'confirm-delete', deleteKind: kind, deleteContext: context, previous: dialog.value };
 }
 function confirmDestroy() {
-    if (busy.value || dialog.value?.kind !== 'confirm-delete') return;
+    if (busy.value || dialog.value?.kind !== 'confirm-delete' || deleteImpact.value.blockers.length) return;
     const { deleteKind: kind, deleteContext: context } = dialog.value;
     const routeNames = {
         company: ['nfc.companies.destroy', { company: context.companyId }],
@@ -1010,10 +1103,26 @@ watch(dialog, async (current) => {
                 <ManufacturerDetails v-else-if="dialog.kind === 'manufacturer' && manufacturer" :manufacturer="manufacturer" :permissions="permissions" :hidden-values="hiddenValues" :nfc-route="nfcRoute" @edit="edit" @destroy="destroy" @request-delete-image="image => destroy('image', { manufacturerId: manufacturer.id, imageId: image.id })" @busy="busy = $event" @feedback="notify" />
                 <div v-else-if="dialog.kind === 'confirm-delete'" class="flex min-w-0 flex-col gap-4">
                     <p class="text-sm leading-6">{{ deleteDescriptions[dialog.deleteKind] }}</p>
-                    <p class="nfc-muted text-sm">Esta ação pode afetar indicadores ou registros vinculados. Confira antes de continuar.</p>
+                    <p class="nfc-muted text-sm">Prévia baseada nos dados exibidos. O servidor revalida os vínculos e o saldo ao confirmar.</p>
+                    <section v-if="deleteImpact.groups.length" class="nfc-panel flex flex-col gap-2 p-3">
+                        <h3 class="text-sm font-semibold">Registros que serão removidos</h3>
+                        <details v-for="group in deleteImpact.groups" :key="group.label" class="nfc-rule border-t pt-2">
+                            <summary class="cursor-pointer break-words text-sm font-medium">{{ group.label }} ({{ group.items.length }})</summary>
+                            <ul class="mt-2 max-h-40 list-disc overflow-y-auto break-words pl-5 text-sm">
+                                <li v-for="(item, index) in group.items" :key="index">{{ item }}</li>
+                            </ul>
+                        </details>
+                    </section>
+                    <details v-if="deleteImpact.changes.length" open class="nfc-panel p-3">
+                        <summary class="cursor-pointer text-sm font-semibold">Alterações nos indicadores e vínculos</summary>
+                        <ul class="mt-2 list-disc space-y-1 break-words pl-5 text-sm"><li v-for="change in deleteImpact.changes" :key="change">{{ change }}</li></ul>
+                    </details>
+                    <div v-if="deleteImpact.blockers.length" role="alert" class="nfc-warning rounded-lg p-3 text-sm">
+                        <p v-for="blocker in deleteImpact.blockers" :key="blocker">{{ blocker }}</p>
+                    </div>
                     <div class="nfc-rule flex flex-wrap justify-end gap-2 border-t pt-4">
                         <button type="button" class="nfc-button" :disabled="busy" @click="goBack">Cancelar</button>
-                        <button type="button" class="nfc-button nfc-danger" :disabled="busy" @click="confirmDestroy">{{ busy ? 'Processando…' : confirmDeleteLabel }}</button>
+                        <button type="button" class="nfc-button nfc-danger" :disabled="busy || deleteImpact.blockers.length > 0" @click="confirmDestroy">{{ busy ? 'Processando…' : confirmDeleteLabel }}</button>
                     </div>
                 </div>
                 <form v-else-if="dialog.kind === 'damage'" class="flex min-w-0 flex-col gap-4" @submit.prevent="saveDamage">
@@ -1176,6 +1285,19 @@ watch(dialog, async (current) => {
                     <p class="nfc-muted text-xs"><span class="text-[var(--fs-danger)]" aria-hidden="true">*</span> Campos obrigatórios</p>
                     <p class="text-sm leading-6">Esta ação excluirá permanentemente todas as empresas, unidades, fabricantes, lotes, vendas, plaquinhas, pagamentos, reinvestimentos, despesas, avarias, avisos, imagens e histórico da sua área NFC.</p>
                     <p class="nfc-muted text-sm">Os links de acesso e os dados dos demais módulos do FinanSys serão preservados. Esta ação não pode ser desfeita.</p>
+                    <details class="nfc-panel p-3">
+                        <summary class="cursor-pointer text-sm font-semibold">Ver registros e indicadores afetados</summary>
+                        <ul class="mt-2 list-disc space-y-1 break-words pl-5 text-sm">
+                            <li>{{ companies.length }} empresas · {{ companies.reduce((n, c) => n + c.units.length, 0) }} unidades</li>
+                            <li>{{ companies.reduce((n, c) => n + c.sales.length, 0) }} vendas · {{ summary.sold ?? 0 }} plaquinhas</li>
+                            <li>{{ production.length }} lotes · {{ manufacturers.length }} fabricantes</li>
+                            <li>{{ damages.length }} avarias de fabricação · {{ notices.length }} avisos</li>
+                            <li>{{ reinvestments.length }} reinvestimentos · {{ expenses.length }} despesas</li>
+                            <li>Recebido: {{ money(summary.received_cents ?? 0) }} → {{ money(0) }}</li>
+                            <li>Caixa: {{ money(summary.cash_available_cents ?? 0) }} → {{ money(0) }}</li>
+                            <li>Imagens e histórico NFC serão eliminados integralmente.</li>
+                        </ul>
+                    </details>
                     <label class="nfc-field"><span>Digite ZERAR para confirmar <span class="text-[var(--fs-danger)]" aria-hidden="true">*</span></span>
                         <input v-model="resetConfirmation" class="nfc-control" type="text" autocomplete="off" :disabled="busy" required />
                     </label>
