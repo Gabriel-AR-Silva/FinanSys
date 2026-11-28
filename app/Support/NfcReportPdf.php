@@ -290,8 +290,11 @@ class NfcReportPdf
         $y -= 17;
         $text(50, $y, 'OBSERVAÇÕES E LIMITAÇÕES', 11, true);
         $y -= 23;
-        $notes = [];
-        if (($cash['reinvested_cents'] ?? 0) > 0 || ($cash['received_cents'] ?? 0) > 0 || ($cash['expenses_cents'] ?? 0) > 0) {
+        $notes = $report['scope'] ?? [];
+        if ($notes !== []) {
+            $notes[] = 'Recorte de vendas: custos, avarias de fabricação e caixa geral não são atribuídos.';
+        }
+        if (($report['scope'] ?? []) === [] && (($cash['reinvested_cents'] ?? 0) > 0 || ($cash['received_cents'] ?? 0) > 0 || ($cash['expenses_cents'] ?? 0) > 0)) {
             $notes[] = 'Movimento líquido = recebimentos menos reinvestimentos e outras despesas. Não é lucro.';
             if ($report['undatedPayments'] > 0) {
                 $notes[] = 'Pagamentos sem data não entram no movimento do período: '.$report['undatedPayments'].'.';
