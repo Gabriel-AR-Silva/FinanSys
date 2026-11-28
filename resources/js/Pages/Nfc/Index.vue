@@ -634,7 +634,11 @@ const deleteImpact = computed(() => {
         }
         changes.push((batch.status === 'completed' ? 'Fabricadas' : 'Em fabricação') + ': −' + batch.quantity);
         if (batch.cost_cents != null) changes.push('Custo de fabricação: −' + money(batch.cost_cents));
-        if (props.reinvestments.some(item => item.production_id === batch.id) || props.expenses.some(item => item.production_id === batch.id)) changes.push('Retiradas e despesas permanecem registradas; seus vínculos precisam ser revisados.');
+        const withdrawals = [...props.reinvestments, ...props.expenses].filter(item => item.production_id === batch.id);
+        if (withdrawals.length) {
+            changes.push('Retiradas e despesas permanecem registradas; seus vínculos precisam ser revisados.');
+            relatedGroups.push({ label: 'Retiradas e despesas vinculadas', items: withdrawals.map(item => item.description + ' · ' + money(item.amount_cents)) });
+        }
     }
     if (kind === 'manufacturer' && manufacturer) {
         add('Fabricante', [manufacturer.name]);
@@ -655,7 +659,11 @@ const deleteImpact = computed(() => {
     if (kind === 'damage' && damage) {
         add('Avaria', [damage.reason + ' · ' + damage.quantity + ' unidades']);
         changes.push('Avarias: −' + damage.quantity + ' · perdas estimadas: −' + money(damage.estimated_loss_cents ?? 2500 * damage.quantity));
-        if (props.expenses.some(item => item.damage_id === damage.id)) changes.push('Despesas vinculadas permanecem registradas e precisam ser revisadas.');
+        const linkedExpenses = props.expenses.filter(item => item.damage_id === damage.id);
+        if (linkedExpenses.length) {
+            changes.push('Despesas vinculadas permanecem registradas e precisam ser revisadas.');
+            relatedGroups.push({ label: 'Despesas vinculadas', items: linkedExpenses.map(item => item.description + ' · ' + money(item.amount_cents)) });
+        }
     }
     if (kind === 'reinvestment' || kind === 'expense') {
         const item = (kind === 'reinvestment' ? props.reinvestments : props.expenses).find(item => item.id === (kind === 'reinvestment' ? ctx.reinvestmentId : ctx.expenseId));
@@ -817,6 +825,9 @@ watch(dialog, async (current) => {
             <p v-if="schema_pending" class="nfc-panel nfc-warning p-4 text-sm" role="status">Aplique a migration de Plaquinhas NFC para liberar os cadastros.</p>
 
             <template v-else>
+                <p v-if="(summary.sold ?? 0) > (summary.usable_manufactured ?? 0)" class="nfc-warning rounded-lg p-3 text-sm" role="status">
+                    Atenção: existem {{ (summary.sold ?? 0) - (summary.usable_manufactured ?? 0) }} plaquinhas vendidas além da fabricação aproveitável registrada. Confira lotes e vendas antecipadas.
+                </p>
                 <nav role="tablist" aria-label="Áreas do painel NFC" class="nfc-panel grid grid-cols-3 gap-1 p-1">
                     <button v-for="tab in dashboardTabs" :id="'nfc-dashboard-tab-' + tab.key" :key="tab.key" type="button" role="tab"
                         :aria-controls="'nfc-dashboard-panel-' + tab.key"
@@ -1357,7 +1368,14 @@ watch(dialog, async (current) => {
                     <details class="nfc-panel p-3">
                         <summary class="cursor-pointer text-sm font-semibold">Ver registros e indicadores afetados</summary>
                         <ul class="mt-2 list-disc space-y-1 break-words pl-5 text-sm">
-                            <li>{{ companies.length }} empresas · {{ companies.reduce((n, c) => n + c.units.length, 0) }} unidades</li>
+                            <li>
+                                <details>
+                                    <summary class="cursor-pointer">{{ companies.length }} empresas · {{ companies.reduce((n, c) => n + c.units.length, 0) }} unidades</summary>
+                                    <ul class="mt-1 max-h-40 list-disc overflow-y-auto pl-5">
+                                        <li v-for="item in companies" :key="item.id">{{ item.name }} — {{ item.units.map(unit => unit.name).join(', ') || 'sem unidade' }}</li>
+                                    </ul>
+                                </details>
+                            </li>
                             <li>{{ companies.reduce((n, c) => n + c.sales.length, 0) }} vendas · {{ summary.sold ?? 0 }} plaquinhas</li>
                             <li>{{ production.length }} lotes · {{ manufacturers.length }} fabricantes</li>
                             <li>{{ damages.length }} avarias de fabricação · {{ notices.length }} avisos</li>
