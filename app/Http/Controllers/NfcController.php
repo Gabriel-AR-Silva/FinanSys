@@ -224,6 +224,9 @@ class NfcController extends Controller
             'estimated_loss_cents' => ['nullable', 'integer', 'min:0', 'max:999999999'],
             'discount_cents' => ['exclude_unless:target,plate', 'nullable', 'integer', 'min:0', 'max:999999999'],
         ]);
+        if ($data['target'] === 'plate' && $request->attributes->has('nfc_share_owner')) {
+            abort_unless($request->attributes->get('nfc_share_permissions', [])['update'] ?? false, 403, 'Registrar avaria em uma plaquinha existente exige permissão de alteração.');
+        }
         $records->storeDamage($this->owner($request), $data);
 
         return $this->redirectToDashboard($request);
