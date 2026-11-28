@@ -1224,6 +1224,46 @@ class NfcWorkspaceTest extends TestCase
         $this->get($sharedReport)->assertNotFound();
     }
 
+    public function test_pdf_filters_company_unit_and_payment_status_without_allocating_general_costs(): void
+    {
+        $this->travelTo(new DateTimeImmutable('2026-11-24T12:00:00Z'));
+        $owner = User::factory()->create();
+        $company = $this->createCompany($owner);
+        $unit = $company->payload['units'][0]['id'];
+        $this->createSale($company, [
+            'sold_on' => '2026-11-10',
+            'total_cents' => 6000,
+            'payments' => [['method' => 'pix', 'amount_cents' => 6000, 'received_on' => '2026-11-10']],
+        ]);
+        $this->createSale($company, [
+            'sold_on' => '2026-11-11',
+            'total_cents' => 9000,
+        ]);
+        $otherCompany = $this->createCompany($owner, 'Outra unidade comercial');
+        $this->createSale($otherCompany, [
+            'sold_on' => '2026-11-12',
+            'total_cents' => 8000,
+            'payments' => [['method' => 'pix', 'amount_cents' => 8000, 'received_on' => '2026-11-12']],
+        ]);
+        $otherOwnerCompany = $this->createCompany(User::factory()->create(), 'Conta alheia');
+        $this->actingAs($owner);
+        $params = [
+            'from' => '2026-11-01', 'to' => '2026-11-24', 'metrics' => ['sales', 'received'],
+            'company_id' => $company->id, 'unit_id' => $unit, 'payment_status' => 'paid', 'chart' => 0,
+        ];
+        $pdf = $this->get(route('nfc.report.export', $params))->assertOk()->getContent();
+        $this->assertStringContainsString('R$ 60,00', $pdf);
+        $this->assertStringNotContainsString('R$ 80,00', $pdf);
+        $this->assertStringNotContainsString('R$ 90,00', $pdf);
+        $this->assertStringNotContainsString('MOVIMENTAÇÃO DO CAIXA NFC', $pdf);
+        $this->getJson(route('nfc.report.export', array_replace($params, ['company_id' => $otherOwnerCompany->id])))
+            ->assertUnprocessable()->assertJsonValidationErrors('company_id');
+        $this->getJson(route('nfc.report.export', array_replace($params, ['unit_id' => $otherCompany->payload['units'][0]['id']])))
+            ->assertUnprocessable()->assertJsonValidationErrors('unit_id');
+        $this->getJson(route('nfc.report.export', array_replace($params, ['metrics' => ['result']])))
+            ->assertUnprocessable()->assertJsonValidationErrors('metrics');
+    }
+
     public function test_last_plate_deletion_removes_sale_and_payment_but_respects_cash(): void
     {
         $this->travelTo(new DateTimeImmutable('2026-11-24T12:00:00Z'));
