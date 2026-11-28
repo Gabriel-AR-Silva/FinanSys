@@ -67,17 +67,24 @@ class NfcController extends Controller
             'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
             'metrics' => ['required', 'array', 'list', 'min:1', 'max:9'],
             'metrics.*' => ['required', 'distinct', Rule::in(NfcReportQuery::METRICS)],
+            'company_id' => ['required_with:unit_id', 'nullable', 'integer', 'min:1'],
+            'unit_id' => ['sometimes', 'uuid'],
+            'payment_status' => ['sometimes', Rule::in(['paid', 'partial', 'pending', 'outstanding'])],
             'chart' => ['sometimes', 'boolean'],
             'reinvestments' => ['sometimes', 'boolean'],
             'name' => ['sometimes', 'nullable', 'string', 'max:80', 'regex:/^[\p{L}\p{N}\s._-]+$/u'],
         ]);
-        $report = $query->calculate($dashboard->forUser($user, false), $data['from'], $data['to']);
+        $report = $query->calculate($dashboard->forUser($user, false), $data['from'], $data['to'], $data);
+        $scoped = $report['scope'] !== [];
+        if ($scoped && array_intersect($data['metrics'], ['cost', 'manufactured', 'result'])) {
+            throw ValidationException::withMessages(['metrics' => 'Custos gerais, fabricação e margem não podem ser atribuídos ao recorte de vendas.']);
+        }
         $title = trim($data['name'] ?? '');
         $fallback = 'nfc-relatorio-'.$data['from'].'-'.$data['to'];
         $slug = $title === '' ? $fallback : Str::slug($title);
         $filename = Str::limit($slug ?: $fallback, 80, '');
 
-        return response($pdf->render($report, $data['metrics'], $data['from'], $data['to'], $request->boolean('chart'), $title, $request->boolean('reinvestments', true)), 200, [
+        return response($pdf->render($report, $data['metrics'], $data['from'], $data['to'], $request->boolean('chart'), $title, ! $scoped && $request->boolean('reinvestments', true)), 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="'.$filename.'.pdf"',
             'Cache-Control' => 'private, no-store, max-age=0',
