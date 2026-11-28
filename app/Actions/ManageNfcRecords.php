@@ -619,6 +619,12 @@ class ManageNfcRecords
                 fn (array $item): bool => $item['id'] !== strtolower($plate),
             ));
 
+            // No sale without plates: the last plate removes the entire sale.
+            // changeRecord validates the resulting cash before persisting.
+            if ($payload['sales'][$saleIndex]['plates'] === []) {
+                array_splice($payload['sales'], $saleIndex, 1);
+            }
+
             return $payload;
         });
     }
@@ -643,6 +649,8 @@ class ManageNfcRecords
     private function changeRecord(User $user, int $id, string|array $kinds, Closure $change, string $event = 'updated', array $context = []): void
     {
         DB::transaction(function () use ($user, $id, $kinds, $change, $event, $context): void {
+            // Serialize income removal with expenses and reinvestments.
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             $record = NfcRecord::query()->whereBelongsTo($user)->whereIn('kind', (array) $kinds)
                 ->lockForUpdate()->findOrFail($id);
             $before = $record->payload;
@@ -650,6 +658,17 @@ class ManageNfcRecords
             $after = $change($before);
 
             if ($after !== $before) {
+                if ($record->kind === NfcRecord::COMPANY) {
+                    $received = fn (array $payload): int => empty($payload['deleted_at'])
+                        ? array_sum(array_map(fn (array $sale): int => $this->receivedCents($sale['payments']), $payload['sales'] ?? []))
+                        : 0;
+                    $removed = $received($before) - $received($after);
+                    if ($removed > 0 && $removed > app(NfcDashboardQuery::class)->forUser($user, false)['summary']['cash_available_cents']) {
+                        throw ValidationException::withMessages([
+                            'cash' => 'Esta exclusão deixaria o caixa negativo. Corrija primeiro as despesas ou reinvestimentos relacionados.',
+                        ]);
+                    }
+                }
                 $record->update(['payload' => $after]);
                 $this->recordHistory($user, $event, $record, $before, $after, $context);
             }

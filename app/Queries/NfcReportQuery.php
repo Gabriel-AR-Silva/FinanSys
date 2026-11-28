@@ -3,13 +3,63 @@
 namespace App\Queries;
 
 use DateTimeImmutable;
+use Illuminate\Validation\ValidationException;
 
 class NfcReportQuery
 {
     public const METRICS = ['sales', 'received', 'pending', 'cost', 'loss', 'result', 'sold', 'manufactured', 'defective'];
 
-    public function calculate(array $dashboard, string $from, string $to): array
+    public function calculate(array $dashboard, string $from, string $to, array $filters = []): array
     {
+        // Sales filters must never attribute shared production costs or cash
+        // withdrawals to one customer without a reliable allocation.
+        $scope = [];
+        $companyId = isset($filters['company_id']) ? (int) $filters['company_id'] : null;
+        $unitId = isset($filters['unit_id']) ? strtolower($filters['unit_id']) : null;
+        $status = $filters['payment_status'] ?? null;
+        if ($companyId !== null) {
+            $company = collect($dashboard['companies'])->firstWhere('id', $companyId);
+            if ($company === null) {
+                throw ValidationException::withMessages(['company_id' => 'Selecione uma empresa válida.']);
+            }
+            $scope[] = 'Empresa: '.$company['name'];
+            $dashboard['companies'] = [$company];
+            if ($unitId !== null) {
+                $unit = collect($company['units'])->firstWhere('id', $unitId);
+                if ($unit === null) {
+                    throw ValidationException::withMessages(['unit_id' => 'Selecione uma unidade desta empresa.']);
+                }
+                $scope[] = 'Unidade: '.$unit['name'];
+            }
+        } elseif ($unitId !== null) {
+            throw ValidationException::withMessages(['company_id' => 'Selecione uma empresa para filtrar a unidade.']);
+        }
+        if ($status !== null) {
+            $labels = ['paid' => 'Quitadas', 'partial' => 'Parciais', 'pending' => 'Sem recebimento', 'outstanding' => 'Com saldo a receber'];
+            if (! isset($labels[$status])) {
+                throw ValidationException::withMessages(['payment_status' => 'Selecione uma situação válida.']);
+            }
+            $scope[] = 'Situação atual: '.$labels[$status];
+        }
+        if ($scope !== []) {
+            foreach ($dashboard['companies'] as &$company) {
+                $company['sales'] = array_values(array_filter($company['sales'], function (array $sale) use ($unitId, $status): bool {
+                    if ($unitId !== null && ($sale['unit_id'] ?? null) !== $unitId) {
+                        return false;
+                    }
+
+                    return $status === null || ($status === 'outstanding'
+                        ? $sale['balance_cents'] > 0
+                        : $sale['payment_status'] === $status);
+                }));
+            }
+            unset($company);
+            $dashboard['production'] = [];
+            $dashboard['damages'] = [];
+            $dashboard['reinvestments'] = [];
+            $dashboard['expenses'] = [];
+        }
+
         $inRange = fn (?string $date): bool => $date !== null && $date >= $from && $date <= $to;
         $values = array_fill_keys(self::METRICS, 0);
         $unknownCosts = 0;
@@ -142,7 +192,7 @@ class NfcReportQuery
                 $expenseTotal += (int) $expense['amount_cents'];
             }
         }
-        $values['result'] = $unknownCosts || $undatedBatches ? null : $values['sales'] - $values['cost'];
+        $values['result'] = $scope !== [] || $unknownCosts || $undatedBatches ? null : $values['sales'] - $values['cost'];
         foreach ($timeline as &$bucket) {
             $bucket['result'] = $values['result'] === null ? null : $bucket['sales'] - $bucket['cost'];
         }
@@ -150,6 +200,7 @@ class NfcReportQuery
 
         return [
             'values' => $values,
+            'scope' => $scope,
             'companies' => $companies,
             'timeline' => $timeline,
             'soldTypes' => $soldTypes,
